@@ -29,6 +29,12 @@ data/
 notebooklm_export/
 _rc_extract/
 
+# Static source exceptions required by tracked FL impact tests.
+!analysis/
+analysis/*
+!analysis/fl_impact_report.py
+!analysis/fl_impact_runner.py
+
 # Runtime/data files
 *.db
 *.db-*

@@ -1,5 +1,7 @@
 
-# ✅ TODO: LEVEL-Ω Deployment Readiness – CI/CD Checklist (2025-07-30)
+# TODO: Runtime Hardening Tracker + Historical Archive (2025-07-30)
+
+**Status pliku mieszany.** Górna część zawiera aktywny tracker runtime hardening; dolna część zawiera historyczne milestone notes. Ten plik nie jest źródłem prawdy dla bieżącej gotowości runtime/profitability.
 
 **Uwaga (aktualizacja):** Persistence działa w trybie dual-mode. Przy `LIVE=1` wymagany jest jawny `DATABASE_URL`; przy `LIVE=0` dopuszczony jest fallback SQLite. Źródło prawdy: `core/db_models.py`, `core/db_utils.py`.
 
@@ -54,16 +56,11 @@
 ---
 
 
-## Archiwum historycznych TODO i przewag systemu (2025-07-30)
+## Archiwum historycznych tematów i milestone notes (2025-07-30)
 
-- RL: adaptacyjne strategie AI, uczenie przez doświadczenie, dynamiczne dostosowanie polityki, integracja z federated learning.
-- Federated Learning: rozproszona aktualizacja modeli AI, dzielenie wiedzy między instancjami, ciągłe doskonalenie.
-- NLP/Sentiment: analiza newsów, tweetów i nastrojów rynkowych (transformery, szybka reakcja na newsy).
-- HFT/arbitraż/market making: wykorzystywanie nieefektywności, zysk na spreadach, cross-exchange.
-- Synergia: połączenie klasycznych strategii, AI/ML, RL, federated learning i dynamicznego risk managementu.
-- Filozofia zysku: preferencja zagrywek o wysokim potencjale, szybkie cięcie strat, dynamiczne przełączanie strategii.
-- Oczekiwane metryki: wysoki Sharpe, niski max drawdown, stabilny wzrost kapitału.
-- Zgodność z Level Ω: wszystkie strategie i komponenty wykorzystują architekturę ZoL0 w pełni.
+- Historyczne tematy badawcze obejmowały RL, federated learning, NLP/sentiment, market making, arbitrage i dynamiczne przełączanie strategii.
+- Te pozycje oznaczają dawne kierunki rozwoju lub obecność kodu; nie są dowodem aktualnej profitability ani LIVE readiness.
+- Bieżące oceny ekonomiki i gotowości należy potwierdzać względem najnowszych artefaktów audytu.
 
 Ten plik zawiera zarówno historyczne zadania, jak i pozycje otwarte. Bieżące priorytety należy potwierdzać względem najnowszych artefaktów audytu.
   file: copilot_taskplan.yaml
@@ -98,15 +95,15 @@ Ten plik zawiera zarówno historyczne zadania, jak i pozycje otwarte. Bieżące 
   function: drawdown, score, hitrate
   hint: Dodaj nowe metryki
 
-# LEVEL-ML [in progress]
-- [x] Refactor [`models/tp_sl_optimizer.py`](models/tp_sl_optimizer.py) – Production-grade TP/SL optimizer (ATR, S/R, R:R, advanced backtest)
-- [x] Refactor [`models/trend_predictor.py`](models/trend_predictor.py) – Production-grade trend predictor (advanced features, RandomForest/XGBoost/LSTM, explainability, logging, error handling) **(LEVEL-ML DONE)**
+# LEVEL-ML [historical milestone archive]
+- [x] Refactor [`models/tp_sl_optimizer.py`](models/tp_sl_optimizer.py) – Historical refactor milestone (ATR, S/R, R:R, advanced backtest)
+- [x] Refactor [`models/trend_predictor.py`](models/trend_predictor.py) – Historical refactor milestone (advanced features, RandomForest/XGBoost/LSTM, explainability, logging, error handling)
 
-- [x] Refactor [`models/volatility_forecaster.py`](models/volatility_forecaster.py) – Production-grade volatility forecaster (advanced volatility features, LinearRegression/XGBoost/LSTM, explainability, logging, error handling) **(LEVEL-ML DONE)**
-- [x] Refactor [`models/ai_utils.py`](models/ai_utils.py) – Production-grade OHLCV data pipeline (advanced feature extraction, robust normalization, error handling, logging, ML compatibility) **(LEVEL-ML DONE)**
-- [x] Refactor [`core/RiskManager.py`](core/RiskManager.py) – Production-grade risk manager (advanced rolling drawdown, robust logging, error handling, AI/ML tuning hooks, ML compatibility) **(LEVEL-ML/LEVEL-API DONE)**
-- [x] Refactor [`core/StrategyPerformanceTracker.py`](core/StrategyPerformanceTracker.py) – Production-grade strategy tracker (advanced metrics, robust logging, error handling, ML compatibility) **(LEVEL-ML/LEVEL-API DONE)**
-- [x] Refactor [`core/BotCore.py`](core/BotCore.py) – Production-grade main bot logic (robust error handling, logging, config, ML/risk integration, extensible main loop) **(LEVEL-ML/LEVEL-API DONE)**
+- [x] Refactor [`models/volatility_forecaster.py`](models/volatility_forecaster.py) – Historical refactor milestone (advanced volatility features, LinearRegression/XGBoost/LSTM, explainability, logging, error handling)
+- [x] Refactor [`models/ai_utils.py`](models/ai_utils.py) – Historical refactor milestone (advanced feature extraction, robust normalization, error handling, logging, ML compatibility)
+- [x] Refactor [`core/RiskManager.py`](core/RiskManager.py) – Historical refactor milestone (advanced rolling drawdown, robust logging, error handling, AI/ML tuning hooks, ML compatibility)
+- [x] Refactor [`core/StrategyPerformanceTracker.py`](core/StrategyPerformanceTracker.py) – Historical refactor milestone (advanced metrics, robust logging, error handling, ML compatibility)
+- [x] Refactor [`core/BotCore.py`](core/BotCore.py) – Historical refactor milestone (robust error handling, logging, config, ML/risk integration, extensible main loop)
 
 Lista zadań do realizacji na podstawie checklisty z `ZoL0-Level-0-5.md`. Zadania pogrupowane według poziomów rozwoju bota.
 
@@ -150,7 +147,7 @@ Lista zadań do realizacji na podstawie checklisty z `ZoL0-Level-0-5.md`. Zadani
 - [x] Zaimplementuj [`core/PositionManager.py`](core/PositionManager.py)
 - [x] Rozszerz [`core/OrderExecutor.py`](core/OrderExecutor.py) o obsługę KuCoin
 - [x] Stwórz [`tests/test_strategy_engine.py`](tests/test_strategy_engine.py)
-- [x] Commit: LEVEL 1 – Live strategy execution works
+- [x] Historical commit label retained for traceability: LEVEL 1 – Live strategy execution works
 
 ## LEVEL 2 [done]
 - [x] Zaimplementuj [`core/RiskManager.py`](core/RiskManager.py)
@@ -195,7 +192,7 @@ Lista zadań do realizacji na podstawie checklisty z `ZoL0-Level-0-5.md`. Zadani
 
 ### Finał
 - [x] Spięcie FL + ZTA + wszystkie strategie
-- [x] Commit: LEVEL 5 – Full AI Profit System + Security Ready
+- [x] Historical commit label retained for traceability: LEVEL 5 – Full AI Profit System + Security Ready
 
 ## Deployment & DevOps
 - [x] Stwórz Dockerfile, secrets.env, render.yaml
@@ -204,7 +201,7 @@ Lista zadań do realizacji na podstawie checklisty z `ZoL0-Level-0-5.md`. Zadani
 - [x] Stwórz autopsy/decision_log.csv, .sig
 
 ## FINISH
-- [x] Bot gotowy do produkcji z pełnym AI stackiem, federacyjnym uczeniem, zabezpieczeniami i systemem optymalizacji zysków.
+- [x] Historyczna ambicja milestone: pełny AI stack, federacyjne uczenie, zabezpieczenia i warstwa optymalizacji; nie stanowi to dowodu aktualnej gotowości produkcyjnej ani profitability.
 
 # Performance Optimization TODOs (2025-07-31)
 - [x] core/MarketDataFetcher.py::fetch_data

@@ -95,6 +95,12 @@ _rc_extract/
 **/notebooklm_export/
 **/_rc_extract/
 
+# Static source exceptions required by tracked FL impact tests.
+!/Alpha_Zol0-lvl_5-main/analysis/
+/Alpha_Zol0-lvl_5-main/analysis/*
+!/Alpha_Zol0-lvl_5-main/analysis/fl_impact_report.py
+!/Alpha_Zol0-lvl_5-main/analysis/fl_impact_runner.py
+
 # Runtime/data files
 *.db
 *.db-*
