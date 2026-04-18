@@ -14,8 +14,8 @@ pytest
 ruff
 flake8
 uvicorn
-torch==2.1.2+cpu; python_version < "3.13"
-torch==2.7.1+cpu; python_version >= "3.13"
+torch==2.1.2+cpu; python_version < "3.12"
+torch==2.7.1+cpu; python_version >= "3.12"
 xgboost
 openai
 pyyaml
