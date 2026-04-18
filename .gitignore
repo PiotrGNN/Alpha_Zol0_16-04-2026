@@ -6,6 +6,7 @@
 !/.flake8
 !/pytest.ini
 !/README.md
+!/PROJECT_OVERVIEW.md
 !/RUNBOOK.md
 
 # CI: keep Python CI only; docker smoke depends on excluded compose files

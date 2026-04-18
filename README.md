@@ -4,6 +4,8 @@ ZoL0 = KuCoin-only PAPER trading system.
 
 The source-of-truth project directory is `Alpha_Zol0-lvl_5-main/`.
 
+For the full repo-grounded current-state description, see `PROJECT_OVERVIEW.md`.
+
 ## Core Principles
 
 - Deterministic execution and validation.
