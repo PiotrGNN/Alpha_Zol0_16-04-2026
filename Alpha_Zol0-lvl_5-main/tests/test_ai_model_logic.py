@@ -12,6 +12,7 @@ from models.volatility_forecaster import (
 def test_trend_predictor_import_does_not_disable_all_warnings():
     import subprocess
     import sys
+    from pathlib import Path
 
     script = (
         "import warnings; "
@@ -26,6 +27,7 @@ def test_trend_predictor_import_does_not_disable_all_warnings():
         capture_output=True,
         text=True,
         check=True,
+        cwd=Path(__file__).resolve().parents[1],
     )
 
     assert result.stdout.strip() == "0"

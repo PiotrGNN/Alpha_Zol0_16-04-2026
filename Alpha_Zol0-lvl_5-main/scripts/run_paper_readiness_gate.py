@@ -357,6 +357,8 @@ def _run_controlled_kpi(symbols: str, run_id: str, summary_hours: int) -> dict:
         "futures",
         "--timeframe",
         "1",
+        "--after-env",
+        "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST=0",
     ]
     proc = subprocess.run(
         cmd,

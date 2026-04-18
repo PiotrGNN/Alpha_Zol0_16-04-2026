@@ -72,6 +72,7 @@ def _build_client(monkeypatch, overrides=None):
     import core.db_models
 
     importlib.reload(core.db_models)
+    core.db_models.init_db()
     import api_status
 
     importlib.reload(api_status)

@@ -11,6 +11,7 @@ joblib
 requests
 websocket-client
 pytest
+pytest-asyncio
 ruff
 flake8
 uvicorn

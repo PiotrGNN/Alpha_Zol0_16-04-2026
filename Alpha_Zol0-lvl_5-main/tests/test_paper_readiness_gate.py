@@ -184,7 +184,9 @@ def _write_manifest_fixture(tmp_path: Path, *, total_trade_count: int = 1) -> Pa
         json.dumps(
             {
                 "report_type": "zol0_accepted_corpus_manifest",
-                "source_scorecard_path": "analysis/zol0_profitability_audit_scorecard.json",
+                "source_scorecard_path": (
+                    "analysis/zol0_profitability_audit_scorecard.json"
+                ),
                 "bundle_dir": "artifacts/accepted_corpus/official",
                 "scope": {
                     "exchange": "KuCoin",
@@ -282,6 +284,83 @@ def test_paper_env_overrides_parent_mock_flags(monkeypatch):
     assert env["ZOL0_ALLOW_MOCK"] == "0"
 
 
+def test_run_controlled_kpi_relaxes_explicit_side_allowlist_for_gate(
+    monkeypatch,
+    tmp_path,
+):
+    monkeypatch.setattr(gate, "WORKDIR", tmp_path)
+    monkeypatch.setattr(gate, "PAPER_REPORT_DIR", tmp_path / "paper_reports")
+
+    report_json = tmp_path / "results" / "controlled_kpi_gate_probe.json"
+    db_path = tmp_path / "tmp" / "controlled_kpi_after_gate_probe.db"
+    out_log = tmp_path / "tmp" / "controlled_kpi_after_gate_probe.out.log"
+    err_log = tmp_path / "tmp" / "controlled_kpi_after_gate_probe.err.log"
+    csv_path = report_json.with_suffix(".csv")
+
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    db_path.write_text("db", encoding="utf-8")
+    out_log.write_text("", encoding="utf-8")
+    err_log.write_text("", encoding="utf-8")
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    csv_path.write_text("variant,trade_count\nafter,1\n", encoding="utf-8")
+    _write_json(
+        report_json,
+        {
+            "params": {
+                "variant_only": "after",
+                "use_mock": False,
+                "paper_auto_open": True,
+            },
+            "variants_run": ["after"],
+            "after": {
+                "variant": "after",
+                "db_path": str(db_path),
+                "out_log": str(out_log),
+                "err_log": str(err_log),
+                "process_returncode": 0,
+                "log_health": {"error_count": 0},
+            },
+            "alpha_bootstrap_runtime_contract": {
+                "status": "PASS",
+                "reason_codes": [],
+            },
+        },
+    )
+
+    summary_payload = {
+        "rows": 2,
+        "count_alignment": {"count_matches": True},
+        "ordering": {"all_pairs_in_order": True},
+        "payload_completeness": {"all_complete": True},
+    }
+    commands = []
+
+    class _Proc:
+        def __init__(self, *, returncode=0, stdout="", stderr=""):
+            self.returncode = returncode
+            self.stdout = stdout
+            self.stderr = stderr
+
+    def fake_run(cmd, cwd, env, capture_output, text, check):
+        commands.append(list(cmd))
+        target = str(cmd[1]) if len(cmd) > 1 else ""
+        if target.endswith("controlled_kpi_run.py"):
+            return _Proc(stdout=f"REPORT_JSON={report_json}\n")
+        if target.endswith("report_entry_gate_decision_summary.py"):
+            return _Proc(stdout=json.dumps(summary_payload))
+        raise AssertionError(f"Unexpected subprocess target: {target}")
+
+    monkeypatch.setattr(gate.subprocess, "run", fake_run)
+
+    bundle = gate._run_controlled_kpi("ETHUSDTM", "gate_probe", 1)
+
+    command = commands[0]
+    idx = command.index("--after-env")
+    assert command[idx + 1] == "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST=0"
+    assert bundle["summary"]["rows"] == 2
+    assert Path(bundle["summary_json"]).exists()
+
+
 def test_classifies_entry_admission_contract_failure():
     exc = RuntimeError(
         "controlled_kpi_entry_admission_contract_failed for run rc=1 "
@@ -293,7 +372,10 @@ def test_classifies_entry_admission_contract_failure():
 
 
 def test_classify_run_exception_falls_back_for_unknown_error():
-    assert gate._classify_run_exception(RuntimeError("something else")) == "READINESS_RUN_EXCEPTION"
+    assert (
+        gate._classify_run_exception(RuntimeError("something else"))
+        == "READINESS_RUN_EXCEPTION"
+    )
 
 
 def test_parses_entry_admission_contract_artifact_from_exception():
@@ -307,7 +389,9 @@ def test_parses_entry_admission_contract_artifact_from_exception():
 
 
 def test_parse_report_json_path_and_missing_path():
-    assert gate._parse_report_json_path("REPORT_JSON=results/out.json") == gate._resolve_repo_path("results/out.json")
+    assert gate._parse_report_json_path(
+        "REPORT_JSON=results/out.json"
+    ) == gate._resolve_repo_path("results/out.json")
     with pytest.raises(RuntimeError, match="controlled_kpi_run_missing_report_json"):
         gate._parse_report_json_path("no report here")
 
@@ -316,7 +400,9 @@ def test_parse_entry_admission_contract_json_path_and_none():
     assert gate._parse_entry_admission_contract_json_path(
         "ENTRY_ADMISSION_CONTRACT_JSON=artifacts/diagnostics/contract.json"
     ) == gate._resolve_repo_path("artifacts/diagnostics/contract.json")
-    assert gate._parse_entry_admission_contract_json_path("artifact=artifacts/diagnostics/contract.json") == gate._resolve_repo_path("artifacts/diagnostics/contract.json")
+    assert gate._parse_entry_admission_contract_json_path(
+        "artifact=artifacts/diagnostics/contract.json"
+    ) == gate._resolve_repo_path("artifacts/diagnostics/contract.json")
     assert gate._parse_entry_admission_contract_json_path("nothing useful") is None
 
 
@@ -403,7 +489,12 @@ def test_load_corpus_contract_uses_scorecard_manifest_not_latest_artifact(
     tmp_path,
 ):
     manifest_path = _write_manifest_fixture(tmp_path, total_trade_count=1)
-    latest_dir = tmp_path / "artifacts" / "accepted_corpus" / "canonical_replay_contract_latest"
+    latest_dir = (
+        tmp_path
+        / "artifacts"
+        / "accepted_corpus"
+        / "canonical_replay_contract_latest"
+    )
     latest_dir.mkdir(parents=True)
     _write_json(
         latest_dir / "canonical_replay_contract_accepted_corpus_manifest.json",
@@ -421,7 +512,10 @@ def test_load_corpus_contract_uses_scorecard_manifest_not_latest_artifact(
     assert contract["status"] == "PASS"
     assert contract["accepted_manifest_path"] == str(manifest_path)
     assert "canonical_replay_contract_latest" not in contract["accepted_manifest_path"]
-    assert "ACCEPTED_MANIFEST_SOURCE_SCORECARD_OUTSIDE_WORKDIR" not in contract["reason_codes"]
+    assert (
+        "ACCEPTED_MANIFEST_SOURCE_SCORECARD_OUTSIDE_WORKDIR"
+        not in contract["reason_codes"]
+    )
 
 
 def test_load_corpus_contract_fails_zero_trade_scorecard(monkeypatch, tmp_path):
@@ -742,19 +836,19 @@ def test_build_artifact_contract_flags_forced_cycle_trigger_contract_mismatch():
                 "after_db_nonzero": True,
                 "report_after_only": True,
                 "post_promotion_forced_cycle_trigger_contract_valid": True,
-                },
             },
-            {
-                "run_id": "run_d",
-                "ok": True,
-                "errors": [],
-                "checks": {
-                    "after_db_nonzero": True,
-                    "report_after_only": True,
-                    "post_promotion_forced_cycle_trigger_contract_valid": True,
-                },
+        },
+        {
+            "run_id": "run_d",
+            "ok": True,
+            "errors": [],
+            "checks": {
+                "after_db_nonzero": True,
+                "report_after_only": True,
+                "post_promotion_forced_cycle_trigger_contract_valid": True,
             },
-        ]
+        },
+    ]
 
     artifact_contract = gate._build_artifact_contract(per_run_checks)
 
@@ -832,7 +926,10 @@ def test_main_writes_requested_outputs_and_respects_return_code(monkeypatch, tmp
         "global_verdict": "PROMOTE_CANDIDATE",
         "evidence_contract_version": "paper_readiness_v2",
         "operational_gate_status": "PASS",
-        "operational_channel": {"status": "PASS", "reason_codes": ["OPERATIONAL_GATE_PASS"]},
+        "operational_channel": {
+            "status": "PASS",
+            "reason_codes": ["OPERATIONAL_GATE_PASS"],
+        },
         "economic_channel": {"status": "PASS", "go_no_go": "GO", "reason_codes": []},
         "artifact_contract": {
             "unique_paths_ok": True,
@@ -898,6 +995,10 @@ def test_main_writes_requested_outputs_and_respects_return_code(monkeypatch, tmp
 
 
 def test_main_returns_one_when_report_not_ready(monkeypatch, tmp_path):
-    monkeypatch.setattr(gate, "run_gate", lambda: {"paper_ready": False, "global_verdict": "DO_NOT_PROMOTE"})
+    monkeypatch.setattr(
+        gate,
+        "run_gate",
+        lambda: {"paper_ready": False, "global_verdict": "DO_NOT_PROMOTE"},
+    )
     rc = gate.main([])
     assert rc == 1
