@@ -9,6 +9,7 @@ numpy==1.26.4
 scikit-learn==1.7.2
 joblib
 requests
+websocket-client
 pytest
 ruff
 flake8

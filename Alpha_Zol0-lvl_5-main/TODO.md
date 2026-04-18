@@ -36,6 +36,9 @@
 - [x] health_check.py: Zaimplementuj i połącz wszystkie checki ([`utils/health_check.py`](utils/health_check.py))
 - [x] PortfolioNFT: Integracja z PortfolioOptimizer/PositionManager, snapshoty, czyszczenie ([`portfolio/PortfolioNFT.py`](portfolio/PortfolioNFT.py))
 - [x] MetaPlatformManager: Synchronizacja, logger, monitoring ([`platforms/MetaPlatformManager.py`](platforms/MetaPlatformManager.py))
+- [x] Runtime regression checks: health aggregation, mock gating, NFT snapshots, platform sync ([`tests/test_health_check_runtime.py`](tests/test_health_check_runtime.py), [`tests/test_marketdata_fetcher.py`](tests/test_marketdata_fetcher.py), [`tests/test_portfolio_nft_integration.py`](tests/test_portfolio_nft_integration.py), [`tests/test_meta_platform_manager_runtime.py`](tests/test_meta_platform_manager_runtime.py))
+- [x] KuCoin WebSocket adapter: offline-tested event adapter for MetaPlatformManager; runtime readiness still requires fresh PAPER artifacts ([`platforms/kucoin_websocket_adapter.py`](platforms/kucoin_websocket_adapter.py), [`platforms/MetaPlatformManager.py`](platforms/MetaPlatformManager.py))
+- [x] CI: osobny job `level-omega-regression` dla zweryfikowanego wycinka testów LEVEL-Ω ([`.github/workflows/python-ci.yml`](../.github/workflows/python-ci.yml))
 
 ## Sugerowane ulepszenia ZoL0 (2025-07-30)
 

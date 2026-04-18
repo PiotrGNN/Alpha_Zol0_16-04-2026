@@ -45,6 +45,102 @@ def _resolve_repo_config_path():
     return Path(__file__).resolve().parents[1] / "config" / "config.yaml"
 
 
+def _resolve_platform_stream_symbols(config):
+    raw_symbols = None
+    if isinstance(config, dict):
+        raw_symbols = config.get("symbols")
+        if raw_symbols in (None, "", []):
+            raw_symbols = config.get("symbol")
+    if isinstance(raw_symbols, str):
+        return [part.strip() for part in raw_symbols.split(",") if part.strip()]
+    if isinstance(raw_symbols, (list, tuple, set)):
+        return [str(symbol).strip() for symbol in raw_symbols if str(symbol).strip()]
+    if raw_symbols is None:
+        return []
+    text = str(raw_symbols).strip()
+    return [text] if text else []
+
+
+def _should_auto_start_platform_stream(simulate=False):
+    if not _env_flag("ZOL0_PLATFORM_STREAM_AUTO_START"):
+        return False
+    bot_mode = str(os.environ.get("BOT_MODE", "")).strip().lower()
+    return bool(simulate or bot_mode in {"paper", "live-paper"})
+
+
+def _start_runtime_platform_stream(
+    config,
+    *,
+    simulate=False,
+    logger=None,
+    manager_factory=None,
+):
+    if not _should_auto_start_platform_stream(simulate=simulate):
+        return None
+
+    symbols = _resolve_platform_stream_symbols(config)
+    if not symbols:
+        if logger is not None:
+            logger.warning(
+                "BotCore: platform stream auto-start skipped because symbols are empty"
+            )
+        return None
+
+    market_type = ""
+    if isinstance(config, dict):
+        market_type = str(config.get("market_type") or "").strip().lower()
+    if not market_type:
+        market_type = str(os.environ.get("MARKET_TYPE", "")).strip().lower()
+    if market_type not in {"spot", "futures"}:
+        market_type = (
+            "futures"
+            if any(str(symbol).upper().endswith("USDTM") for symbol in symbols)
+            else None
+        )
+
+    try:
+        manager_cls = manager_factory
+        if manager_cls is None:
+            from platforms.MetaPlatformManager import MetaPlatformManager as manager_cls
+
+        platform_manager = manager_cls(mode="live-paper")
+        platform_manager.register_platform("kucoin")
+        platform_manager.start_platform_stream(
+            "kucoin",
+            symbols,
+            market_type=market_type,
+        )
+        if logger is not None:
+            logger.info(
+                "BotCore: auto-started kucoin platform stream symbols=%s market_type=%s",
+                symbols,
+                market_type or "<auto>",
+            )
+        return platform_manager
+    except Exception as exc:
+        if logger is not None:
+            logger.warning(
+                "BotCore: platform stream auto-start failed: %s",
+                exc,
+            )
+        return None
+
+
+def _stop_runtime_platform_stream(platform_manager, logger=None):
+    if platform_manager is None:
+        return
+    stop_stream = getattr(platform_manager, "stop_platform_stream", None)
+    if not callable(stop_stream):
+        return
+    try:
+        stop_stream("kucoin")
+        if logger is not None:
+            logger.info("BotCore: stopped kucoin platform stream")
+    except Exception as exc:
+        if logger is not None:
+            logger.warning("BotCore: platform stream stop failed: %s", exc)
+
+
 def apply_paper_gate_entry_guard(allow_flag, allocation, gate_active):
     if gate_active and allocation and allocation > 0:
         return False
@@ -4879,6 +4975,11 @@ def run_bot(simulate=False):
     fetcher = MarketDataFetcher(api_url=market_api_url, market_type=market_type)
     perf_tracker = StrategyPerformanceTracker()
     position_manager = PositionManager()
+    platform_stream_manager = _start_runtime_platform_stream(
+        config,
+        simulate=simulate,
+        logger=logger,
+    )
 
     def _cfg_float(key, default):
         try:
@@ -30055,6 +30156,10 @@ def run_bot(simulate=False):
                             loop_iteration=completed_cycles,
                             exit_symbol=symbol,
                         )
+                        _stop_runtime_platform_stream(
+                            platform_stream_manager,
+                            logger=logger,
+                        )
                         _ab_save_replay_cursor()
                         _ab_log_anchor_summary("run_once_exit")
                         return
@@ -30090,6 +30195,10 @@ def run_bot(simulate=False):
                             reconnect_attempts=reconnect_attempts,
                             max_reconnect=max_reconnect,
                         )
+                        _stop_runtime_platform_stream(
+                            platform_stream_manager,
+                            logger=logger,
+                        )
                         _ab_save_replay_cursor()
                         _ab_log_anchor_summary("panic_exit")
                         return
@@ -30119,6 +30228,10 @@ def run_bot(simulate=False):
                     paper_runtime_clean_exit_reason="PAPER_RUN_CYCLES",
                     loop_iteration=completed_cycles,
                     paper_run_cycles=paper_run_cycles,
+                )
+                _stop_runtime_platform_stream(
+                    platform_stream_manager,
+                    logger=logger,
                 )
                 _ab_save_replay_cursor()
                 _ab_log_anchor_summary("run_cycles_exit")

@@ -9,7 +9,7 @@ from core.MarketDataFetcher import MarketDataFetcher
 
 def test_get_ohlcv(monkeypatch):
     """Testuje mockową funkcję get_ohlcv."""
-    monkeypatch.setenv("USE_MOCK", "1")
+    monkeypatch.setenv("USE_MOCK", "True")
     monkeypatch.setenv("ZOL0_ALLOW_MOCK", "1")
     fetcher = MarketDataFetcher()
     data = fetcher.get_ohlcv("BTCUSDT", "1m")
@@ -113,3 +113,15 @@ def test_fetch_data_respects_mock_opt_in_cache_key(monkeypatch):
         fetcher.fetch_data("BTCUSDTM", "1m", limit=2)
 
     assert len(first) == 2
+
+
+def test_use_mock_warns_outside_pytest(monkeypatch, caplog):
+    monkeypatch.setenv("USE_MOCK", "True")
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    caplog.set_level(logging.WARNING)
+
+    fetcher = MarketDataFetcher()
+    data = fetcher.get_ohlcv("BTCUSDT", "1m", limit=2)
+
+    assert len(data) == 2
+    assert "USE_MOCK enabled outside pytest runtime=offline" in caplog.text

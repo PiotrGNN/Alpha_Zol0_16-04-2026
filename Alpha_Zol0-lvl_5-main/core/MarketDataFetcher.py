@@ -46,6 +46,20 @@ class MarketDataFetcher:
             logging.debug("MarketDataFetcher: fetch cache ttl parse failed: %s", exc)
             return 1.0
 
+    @staticmethod
+    def _env_flag(name: str, default: bool = False) -> bool:
+        import os
+
+        raw = os.environ.get(name)
+        if raw is None:
+            return default
+        value = str(raw).strip().lower()
+        if value in {"1", "true", "yes", "on"}:
+            return True
+        if value in {"0", "false", "no", "off", ""}:
+            return False
+        return default
+
     def _resolve_ohlcv_request(self, symbol, interval, limit):
         import os
         from core.kucoin_client import normalize_symbol
@@ -75,9 +89,9 @@ class MarketDataFetcher:
             int(limit),
             str(runtime_mode or "").strip().lower(),
             str(self.market_type or "").strip().lower(),
-            os.environ.get("USE_MOCK", "0"),
-            os.environ.get("ZOL0_ALLOW_MOCK", "0"),
-            os.environ.get("LIVE", "0"),
+            "1" if self._env_flag("USE_MOCK") else "0",
+            "1" if self._env_flag("ZOL0_ALLOW_MOCK") else "0",
+            "1" if self._env_flag("LIVE") else "0",
             os.environ.get("BOT_MODE", "").strip().lower(),
         )
 
@@ -161,15 +175,13 @@ class MarketDataFetcher:
         symbol=None,
         interval=None,
     ):
-        import os
-
-        if os.environ.get("USE_MOCK", "0") != "1":
+        if not self._env_flag("USE_MOCK"):
             return None
         if not self._is_paper_runtime(runtime_mode=runtime_mode):
             return None
         # PAPER mock candles require a second explicit opt-in so that
         # USE_MOCK=1 alone cannot activate synthetic quotes in PAPER.
-        if os.environ.get("ZOL0_ALLOW_MOCK", "0") == "1":
+        if self._env_flag("ZOL0_ALLOW_MOCK"):
             return None
 
         symbol_txt = str(symbol or "").strip() or "<unknown>"
@@ -207,12 +219,12 @@ class MarketDataFetcher:
     def _use_mock_enabled(self) -> bool:
         import os
 
-        use_mock = os.environ.get("USE_MOCK", "0") == "1"
+        use_mock = self._env_flag("USE_MOCK")
         if not use_mock:
             return False
 
         bot_mode = str(os.environ.get("BOT_MODE", "")).strip().lower()
-        live_mode = os.environ.get("LIVE", "0") == "1" or bot_mode == "live"
+        live_mode = self._env_flag("LIVE") or bot_mode == "live"
         pytest_mode = "PYTEST_CURRENT_TEST" in os.environ
         paper_mode = self._is_paper_runtime()
 
@@ -223,7 +235,7 @@ class MarketDataFetcher:
             )
             raise RuntimeError("USE_MOCK is not allowed in live mode")
 
-        if paper_mode and os.environ.get("ZOL0_ALLOW_MOCK", "0") != "1":
+        if paper_mode and not self._env_flag("ZOL0_ALLOW_MOCK"):
             reason = self._mock_ohlcv_block_reason(runtime_mode="paper")
             logging.warning(
                 "MarketDataFetcher: paper mock OHLCV requires explicit opt-in "
@@ -233,10 +245,13 @@ class MarketDataFetcher:
 
         if pytest_mode:
             logging.info("MarketDataFetcher: USE_MOCK enabled in test mode")
-        elif paper_mode:
-            logging.info("MarketDataFetcher: USE_MOCK enabled in paper mode")
         else:
-            logging.info("MarketDataFetcher: USE_MOCK enabled in offline mode")
+            runtime_label = "paper" if paper_mode else "offline"
+            logging.warning(
+                "MarketDataFetcher: USE_MOCK enabled outside pytest runtime=%s; "
+                "synthetic OHLCV is not production-safe",
+                runtime_label,
+            )
 
         return True
 

@@ -36,7 +36,7 @@ from core.db_models import (
     LogEntry,
     Equity,
 )
-from utils.health_check import check_api, check_bot_status, check_ticks
+from utils.health_check import check_api, check_bot_status, check_ticks, health_check
 
 
 def _extract_fill_items(resp):
@@ -2594,12 +2594,7 @@ def get_status():
 
 @app.get("/api/health")
 def api_health():
-    return {
-        "status": "ok",
-        "api": check_api(),
-        "bot": check_bot_status(),
-        "timestamp": _now_iso(),
-    }
+    return health_check()
 
 
 @app.get("/health")

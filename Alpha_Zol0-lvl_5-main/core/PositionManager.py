@@ -7,7 +7,7 @@ import os
 
 
 class PositionManager:
-    def __init__(self):
+    def __init__(self, portfolio_nft=None):
         # Keep both a list (for sequence-based algorithms/tests) and a map
         # (for quick lookups and dashboard).
         self.positions = []  # list of position dicts
@@ -15,6 +15,46 @@ class PositionManager:
         self.closed = []
         # Alias used by API layer (keep in sync with closed list)
         self.closed_positions = self.closed
+        self.portfolio_nft = (
+            portfolio_nft if portfolio_nft is not None else self._build_portfolio_nft()
+        )
+
+    def _build_portfolio_nft(self):
+        enabled = str(os.environ.get("PORTFOLIO_NFT_ENABLED", "1")).strip().lower()
+        if enabled in {"0", "false", "no", "off"}:
+            return None
+        try:
+            from portfolio.PortfolioNFT import PortfolioNFT
+
+            return PortfolioNFT(log_path=os.environ.get("PORTFOLIO_NFT_LOG_PATH"))
+        except Exception as exc:
+            logging.warning("PositionManager: PortfolioNFT init failed: %s", exc)
+            return None
+
+    def _emit_portfolio_snapshot(self, event_name, position):
+        if self.portfolio_nft is None:
+            return None
+        try:
+            nft = self.portfolio_nft.mint_strategy_snapshot(
+                event=event_name,
+                position=position,
+                active_positions=self.positions,
+                closed_positions=self.closed,
+            )
+            logging.info(
+                "PositionManager: portfolio snapshot minted event=%s symbol=%s hash=%s",
+                event_name,
+                (position or {}).get("symbol") if isinstance(position, dict) else None,
+                nft.get("hash") if isinstance(nft, dict) else None,
+            )
+            return nft
+        except Exception as exc:
+            logging.warning(
+                "PositionManager: portfolio snapshot mint failed event=%s error=%s",
+                event_name,
+                exc,
+            )
+            return None
 
     def _is_paper_trace_enabled(self):
         return os.environ.get("LIVE", "0") != "1"
@@ -396,6 +436,8 @@ class PositionManager:
                     caller=caller,
                 )
             self._sync_list_from_map()
+            if not pos:
+                self._emit_portfolio_snapshot("position_open", new_pos)
         elif side == "close":
             # Close position
             if pos:
@@ -453,6 +495,7 @@ class PositionManager:
                     write_reason="delete_from_positions_map",
                     caller=caller,
                 )
+                self._emit_portfolio_snapshot("position_close", pos)
 
     def get_position(self, symbol):
         pos = self._positions_map.get(symbol)
@@ -526,6 +569,7 @@ class PositionManager:
             caller=caller,
         )
         self._sync_list_from_map()
+        self._emit_portfolio_snapshot("position_open", entry)
 
     def close_position(
         self,
@@ -609,6 +653,7 @@ class PositionManager:
                 write_reason="delete_from_positions_map",
                 caller=caller,
             )
+            self._emit_portfolio_snapshot("position_close", pos)
             try:
                 logging.info(
                     "position_manager_close_post_delete %s",
