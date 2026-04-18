@@ -1,0 +1,58 @@
+# Local secrets and environment files
+secrets/
+.env
+.env*
+*.env
+
+# Python cache and virtual environments
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.venv/
+venv/
+
+# Runtime and generated artifact directories
+tmp/
+results/
+reports/
+analysis/
+artifacts/
+autopsy/
+logs/
+audit_snapshots/
+deliverables/
+data/
+notebooklm_export/
+_rc_extract/
+
+# Runtime/data files
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.pkl
+*.joblib
+*.pt
+*.pth
+*.log
+*.csv
+*.jsonl
+*.out
+*.err
+*.pid
+.coverage*
+coverage*.json
+coverage*.txt
+
+# Local IDE/build/archive files
+.vscode/
+*.zip
+*.swp
+*.bak
+node_modules/
+dashboard/node_modules/
+dist/

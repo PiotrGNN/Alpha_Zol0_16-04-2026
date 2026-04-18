@@ -1,0 +1,7 @@
+# Minimal API/runtime requirements (no heavy ML deps)
+psycopg2-binary==2.9.11
+sqlalchemy
+fastapi
+requests
+uvicorn
+pyyaml

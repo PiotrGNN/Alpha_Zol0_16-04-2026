@@ -1,0 +1,48 @@
+# Decisions Log
+
+## 2026-03-31: Accept bounded post-close summary grace for PAPER validation
+- Decision: accept the runner-only bounded grace latch for post-close summary completion in PAPER validation.
+- Classification before the fix: `PROCESS_TERMINATES_BEFORE_SUMMARY_BLOCK_ENTRY_CONFIRMED`.
+- Classification after validation: `RUNNER_ONLY_POST_CLOSE_SUMMARY_GRACE_CONFIRMED`.
+- Scope:
+  - KuCoin-only
+  - PAPER-only
+  - opt-in
+  - runner-only
+  - bounded
+- Control flag:
+  - `RESEARCH_POST_CLOSE_SUMMARY_GRACE_TICKS`
+- Envelope model:
+  - treat bounded post-close summary grace as envelope-dependent runtime control
+  - retain envelope-local minima separately from the conservative cross-envelope preset
+- Envelope-local minima recorded:
+  - original envelope: `2/10`
+  - BTCUSDTM,SOLUSDTM envelope: `4/20`
+- Conservative cross-envelope research preset:
+  - `4/20`
+- Supporting opt-in flags used in the validated run:
+  - `RESEARCH_SINGLE_POST_CLOSE_EVAL_TICK=1`
+  - `RESEARCH_POST_CLOSE_SUMMARY_GRACE_TICKS=3`
+  - `RESEARCH_POST_CLOSE_SUMMARY_GRACE_TIMEOUT_SEC=20`
+- Acceptance criteria met:
+  - post-close `entry_edge_over_fee_eval` observed
+  - `post_close_summary_pre_assembly` observed
+  - `post_close_summary_assembly_enter` observed
+  - `post_close_summary_payload_built` observed
+  - `post_close_summary_emit_attempt` observed
+  - `entry_gate_decision_summary` observed
+  - `post_close_summary_emit_done` observed
+  - release reason was `summary_emit_done`
+  - shutdown reason remained `close_flush_done_pending_positions_zero`
+- Boundary evidence used to block global promotion:
+  - BTC/SOL `3/20` failed with:
+    - `post_close_summary_pre_assembly = 0`
+    - `post_close_summary_emit_done = 0`
+    - `entry_gate_decision_summary = 0`
+    - `release_reason = null`
+    - `shutdown_reason = close_flush_done_pending_positions_zero`
+- Non-goals:
+  - no LIVE rollout
+  - no strategy change
+  - no threshold change
+  - no BotCore summary logic change

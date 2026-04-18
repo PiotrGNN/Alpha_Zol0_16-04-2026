@@ -1,0 +1,11 @@
+[flake8]
+max-line-length = 88
+extend-ignore = E203, W503
+exclude = .git,__pycache__,build,dist,venv
+per-file-ignores =
+	*/scripts/profitability_audit_scorecard.py: E501
+	*/scripts/run_end_cutoff_source_audit.py: E501
+	*/scripts/readiness_model_redesign_plan.py: E501
+	*/scripts/run_paper_readiness_gate.py: E501
+	tmp/*.py: E501, E231, F401, F841
+	*/tmp/*.py: E501, E231, F401, F841

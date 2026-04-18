@@ -1,0 +1,17 @@
+**/__pycache__/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/node_modules/
+**/dist/
+**/build/
+**/*.zip
+**/*.db
+**/*.db-journal
+**/*.out
+logs/
+tmp/
+tmpziptest*/
+.git/
+.env
+Alpha_Zol0-lvl_5-main/

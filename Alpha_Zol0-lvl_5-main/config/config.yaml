@@ -1,0 +1,21 @@
+api_key: null
+api_secret: null
+balance: 38.3
+market_type: futures
+retrain_interval: 10000000
+sl_pct: 2.0
+allocation_pct: 0.42
+symbol: ETHUSDTM
+symbols:
+- ETHUSDTM
+timeframe: 1
+tp_pct: 4.0
+futures_leverage: 20
+futures_max_contracts_per_trade: 150
+entry_order_type: market
+
+# deployed: best momentum candidate (tmp/best_momentum_deploy.json)
+# the following values duplicate earlier keys and are left here for reference
+# allocation_pct: 0.42
+# sl_pct: 0.05
+# tp_pct: 0.25
