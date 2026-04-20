@@ -264,6 +264,170 @@ def _write_manifest_fixture(tmp_path: Path, *, total_trade_count: int = 1) -> Pa
     return manifest_path
 
 
+def _write_named_scorecard_fixture(
+    tmp_path: Path,
+    *,
+    stem: str,
+    run_ids: list[str],
+    total_trade_count: int,
+    required_limit: int,
+    after_env_overrides: dict | None = None,
+) -> Path:
+    analysis_dir = tmp_path / "analysis"
+    manifest_dir = tmp_path / "artifacts" / "accepted_corpus" / stem
+    run_dir = manifest_dir / "accepted_runs"
+    entries = []
+    for run_id in run_ids:
+        result_path = run_dir / f"controlled_kpi_{run_id}.json"
+        csv_path = run_dir / f"controlled_kpi_{run_id}.csv"
+        db_path = run_dir / f"controlled_kpi_after_{run_id}.db"
+        result_path.parent.mkdir(parents=True, exist_ok=True)
+        params = {
+            "variant_only": "after",
+            "use_mock": False,
+        }
+        if after_env_overrides:
+            params["after_env_overrides"] = dict(after_env_overrides)
+        result_path.write_text(
+            json.dumps(
+                {
+                    "params": params,
+                    "after": {
+                        "variant": "after",
+                        "process_returncode": 0,
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        csv_path.write_text("variant,trade_count\nafter,1\n", encoding="utf-8")
+        db_path.write_text("db", encoding="utf-8")
+        entries.append(
+            {
+                "run_id": run_id,
+                "bundled_artifacts": {
+                    "result_json": {
+                        "path": result_path.relative_to(tmp_path).as_posix()
+                    },
+                    "csv": {"path": csv_path.relative_to(tmp_path).as_posix()},
+                    "db": {"path": db_path.relative_to(tmp_path).as_posix()},
+                },
+            }
+        )
+
+    manifest_path = manifest_dir / f"{stem}_accepted_corpus_manifest.json"
+    manifest_rel = manifest_path.relative_to(tmp_path).as_posix()
+    _write_json(
+        manifest_path,
+        {
+            "report_type": "zol0_accepted_corpus_manifest",
+            "source_scorecard_path": f"analysis/{stem}_scorecard.json",
+            "bundle_dir": manifest_dir.relative_to(tmp_path).as_posix(),
+            "scope": {
+                "exchange": "KuCoin",
+                "mode": "PAPER_ONLY",
+                "variant": "after",
+                "live_in_scope": False,
+            },
+            "selection": {
+                "selection_source": "accepted_manifest",
+                "accepted_run_count": len(run_ids),
+                "accepted_run_ids": run_ids,
+                "required_limit": required_limit,
+            },
+            "bundle_validation": {
+                "accepted_run_count_matches_scorecard": True,
+                "all_source_artifacts_present": True,
+                "all_source_artifacts_nonzero": True,
+                "all_bundled_hashes_match_source": True,
+                "all_bundled_result_after_only": True,
+                "all_bundled_result_use_mock_false": True,
+                "all_bundled_result_process_ok": True,
+            },
+            "entries": entries,
+        },
+    )
+
+    scorecard_path = analysis_dir / f"{stem}_scorecard.json"
+    _write_json(
+        scorecard_path,
+        {
+            "global_kpis": {
+                "total_trade_count": total_trade_count,
+                "avg_profit_factor": 0.0,
+                "avg_net_pnl": -0.01,
+                "profitable_run_rate": 0.0,
+                "pf_gt_1_rate": 0.0,
+            },
+            "metadata": {
+                "selection": {
+                    "selection_source": "accepted_manifest",
+                    "accepted_run_count": len(run_ids),
+                    "accepted_run_ids": run_ids,
+                    "accepted_manifest_path": manifest_rel,
+                    "required_limit": required_limit,
+                },
+                "sources": {
+                    "accepted_corpus_manifest_path": manifest_rel,
+                },
+                "validation": {
+                    "all_passed": True,
+                },
+            },
+        },
+    )
+    return scorecard_path
+
+
+def _attach_bootstrap_sources_fixture(
+    tmp_path: Path,
+    *,
+    scorecard_path: Path,
+    db_name: str = "alpha_history_live_candidate.db",
+    rows_inserted: int = 85,
+    pairs_selected: int = 14,
+) -> tuple[Path, Path]:
+    diagnostics_dir = tmp_path / "artifacts" / "diagnostics" / "source_repair"
+    tmp_dir = tmp_path / "tmp"
+    db_path = diagnostics_dir / db_name
+    report_path = diagnostics_dir / f"{db_path.stem}_report.json"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    db_path.write_text("db", encoding="utf-8")
+    _write_json(
+        report_path,
+        {
+            "output": str(tmp_dir / db_name),
+            "rows_inserted": rows_inserted,
+            "pairs_selected": pairs_selected,
+            "pair_stats_top": [
+                {
+                    "symbol": "ETHUSDTM",
+                    "strategy": "Momentum",
+                    "selected": True,
+                }
+            ],
+        },
+    )
+
+    scorecard = json.loads(scorecard_path.read_text(encoding="utf-8"))
+    metadata = scorecard.setdefault("metadata", {})
+    metadata.setdefault(
+        "scope",
+        {
+            "exchange": "KuCoin",
+            "mode": "PAPER_ONLY",
+            "variant": "after",
+            "live_in_scope": False,
+        },
+    )
+    sources = metadata.setdefault("sources", {})
+    sources["alpha_history_db_path"] = db_path.relative_to(tmp_path).as_posix()
+    sources["bootstrap_report_path"] = report_path.relative_to(tmp_path).as_posix()
+    _write_json(scorecard_path, scorecard)
+    return db_path, report_path
+
+
 def test_paper_env_is_fail_closed_contract():
     env = gate._paper_env()
     assert env["LIVE"] == "0"
@@ -355,10 +519,195 @@ def test_run_controlled_kpi_relaxes_explicit_side_allowlist_for_gate(
     bundle = gate._run_controlled_kpi("ETHUSDTM", "gate_probe", 1)
 
     command = commands[0]
+    after_idx = command.index("--after-min")
+    assert command[after_idx + 1] == "2"
+    close_idx = command.index("--paper-auto-close-sec")
+    assert command[close_idx + 1] == "20"
     idx = command.index("--after-env")
     assert command[idx + 1] == "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST=0"
     assert bundle["summary"]["rows"] == 2
     assert Path(bundle["summary_json"]).exists()
+
+
+def test_resolve_run_after_env_overrides_builds_eth_momentum_buy_preset(
+    monkeypatch,
+    tmp_path,
+):
+    monkeypatch.setattr(gate, "WORKDIR", tmp_path)
+
+    resolved = gate._resolve_run_after_env_overrides(
+        {"after_env_preset": gate.ETH_MOMENTUM_BUY_AFTER_ENV_PRESET}
+    )
+
+    missing_source_posix = (
+        tmp_path / "tmp" / "alpha_bootstrap_missing_eth_momentum_buy_gate.db"
+    ).resolve().as_posix()
+    assert resolved["ALPHA_BOOTSTRAP_SOURCE_DB_URL"] == (
+        f"sqlite:///{missing_source_posix}"
+    )
+    assert resolved["ALPHA_BOOTSTRAP_SOURCE_DB_GLOB"] == missing_source_posix
+    assert resolved["ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST"] == (
+        "ETHUSDTM:MOMENTUM:buy"
+    )
+    assert resolved["ENTRY_SYMBOL_STRATEGY_SIDE_BLOCKLIST"] == (
+        "ETHUSDTM:TRENDFOLLOWING:buy"
+    )
+    assert resolved["PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST"] == "1"
+
+
+def test_run_controlled_kpi_applies_eth_momentum_buy_after_env_overrides(
+    monkeypatch,
+    tmp_path,
+):
+    monkeypatch.setattr(gate, "WORKDIR", tmp_path)
+    monkeypatch.setattr(gate, "PAPER_REPORT_DIR", tmp_path / "paper_reports")
+
+    report_json = tmp_path / "results" / "controlled_kpi_gate_probe_preset.json"
+    report_json.parent.mkdir(parents=True, exist_ok=True)
+    db_path = tmp_path / "tmp" / "controlled_kpi_after_gate_probe_preset.db"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    db_path.write_text("db", encoding="utf-8")
+    out_log = tmp_path / "tmp" / "gate_probe_preset.out.log"
+    err_log = tmp_path / "tmp" / "gate_probe_preset.err.log"
+    out_log.write_text("", encoding="utf-8")
+    err_log.write_text("", encoding="utf-8")
+    report_json.write_text(
+        json.dumps(
+            {
+                "params": {
+                    "variant_only": "after",
+                    "use_mock": False,
+                    "paper_auto_open": True,
+                },
+                "variants_run": ["after"],
+                "after": {
+                    "variant": "after",
+                    "db_path": str(db_path),
+                    "out_log": str(out_log),
+                    "err_log": str(err_log),
+                    "process_returncode": 0,
+                    "log_health": {"error_count": 0},
+                },
+                "alpha_bootstrap_runtime_contract": {
+                    "status": "PASS",
+                    "reason_codes": [],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    summary_payload = {
+        "rows": 2,
+        "count_alignment": {"count_matches": True},
+        "ordering": {"all_pairs_in_order": True},
+        "payload_completeness": {"all_complete": True},
+    }
+    commands = []
+
+    class _Proc:
+        def __init__(self, *, returncode=0, stdout="", stderr=""):
+            self.returncode = returncode
+            self.stdout = stdout
+            self.stderr = stderr
+
+    def fake_run(cmd, cwd, env, capture_output, text, check):
+        commands.append(list(cmd))
+        target = str(cmd[1]) if len(cmd) > 1 else ""
+        if target.endswith("controlled_kpi_run.py"):
+            return _Proc(stdout=f"REPORT_JSON={report_json}\n")
+        if target.endswith("report_entry_gate_decision_summary.py"):
+            return _Proc(stdout=json.dumps(summary_payload))
+        raise AssertionError(f"Unexpected subprocess target: {target}")
+
+    monkeypatch.setattr(gate.subprocess, "run", fake_run)
+
+    bundle = gate._run_controlled_kpi(
+        "ETHUSDTM",
+        "gate_probe_preset",
+        1,
+        after_env_overrides=gate._resolve_run_after_env_overrides(
+            {"after_env_preset": gate.ETH_MOMENTUM_BUY_AFTER_ENV_PRESET}
+        ),
+    )
+
+    command = commands[0]
+    after_env_values = [
+        command[idx + 1]
+        for idx, token in enumerate(command)
+        if token == "--after-env" and idx + 1 < len(command)
+    ]
+    missing_source_posix = (
+        tmp_path / "tmp" / "alpha_bootstrap_missing_eth_momentum_buy_gate.db"
+    ).resolve().as_posix()
+    assert "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST=0" not in after_env_values
+    assert "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST=1" in after_env_values
+    assert (
+        "ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST=ETHUSDTM:MOMENTUM:buy"
+        in after_env_values
+    )
+    assert (
+        "ENTRY_SYMBOL_STRATEGY_SIDE_BLOCKLIST=ETHUSDTM:TRENDFOLLOWING:buy"
+        in after_env_values
+    )
+    assert (
+        f"ALPHA_BOOTSTRAP_SOURCE_DB_URL=sqlite:///{missing_source_posix}"
+        in after_env_values
+    )
+    assert bundle["summary"]["rows"] == 2
+    assert Path(bundle["summary_json"]).exists()
+
+
+def test_run_gate_passes_eth_preset_after_env_overrides(monkeypatch, tmp_path):
+    monkeypatch.setattr(gate, "PAPER_REPORT_DIR", tmp_path / "paper_reports")
+
+    calls = []
+
+    def fake_run(symbols, run_id, summary_hours, after_env_overrides=None):
+        calls.append(
+            {
+                "symbols": symbols,
+                "run_id": run_id,
+                "summary_hours": summary_hours,
+                "after_env_overrides": dict(after_env_overrides or {}),
+            }
+        )
+        return _build_after_bundle(tmp_path, run_id, use_mock=False)
+
+    monkeypatch.setattr(gate, "_run_controlled_kpi", fake_run)
+    monkeypatch.setattr(
+        gate,
+        "_load_corpus_contract",
+        lambda: _corpus_contract_stub(
+            status="UNCONFIRMED",
+            reason_codes=["STRICT_FRESH_CORPUS_STATUS_MISSING"],
+        ),
+    )
+    monkeypatch.setattr(
+        gate,
+        "_load_bootstrap_contract",
+        lambda corpus_contract: _bootstrap_contract_stub(
+            status="UNCONFIRMED",
+            reason_codes=["BOOTSTRAP_MANIFEST_MISSING"],
+        ),
+    )
+
+    gate.run_gate()
+
+    eth_call = next(call for call in calls if call["run_id"] == "paper_gate_run_a_eth")
+    assert eth_call["symbols"] == "ETHUSDTM"
+    assert eth_call["after_env_overrides"]["ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST"] == (
+        "ETHUSDTM:MOMENTUM:buy"
+    )
+    assert eth_call["after_env_overrides"]["ENTRY_SYMBOL_STRATEGY_SIDE_BLOCKLIST"] == (
+        "ETHUSDTM:TRENDFOLLOWING:buy"
+    )
+    assert (
+        eth_call["after_env_overrides"][
+            "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST"
+        ]
+        == "1"
+    )
 
 
 def test_classifies_entry_admission_contract_failure():
@@ -484,6 +833,111 @@ def test_check_run_classifies_diagnostic_no_open_run(tmp_path):
     assert checks["paper_validation_classification"] == "DIAGNOSTIC_NO_OPEN_RUN"
 
 
+def test_check_run_fails_closed_on_no_natural_entry_candidate(tmp_path):
+    bundle = _build_after_bundle(tmp_path, "run_no_natural_candidate")
+    contract = {
+        "classification": "NO_NATURAL_ENTRY_CANDIDATE",
+        "usable_strategy_economics": False,
+        "strategy_evidence_classification": "FALLBACK_ECONOMICS_NOT_STRATEGY_EVIDENCE",
+        "router_candidate_sides": [
+            {
+                "symbol": "XRPUSDTM",
+                "strategy": "Momentum",
+                "side": "buy",
+                "count": 1,
+            }
+        ],
+        "allowed_sides": [],
+        "blocked_sides": [
+            {
+                "symbol": "XRPUSDTM",
+                "strategy": "Momentum",
+                "side": "buy",
+                "reason": "symbol_strategy_side_allowlist",
+                "count": 1,
+            }
+        ],
+        "guard_rejected_sides": [],
+        "final_surviving_candidate_count": 0,
+        "natural_admitted_count": 0,
+        "reason_codes": [
+            "ROUTER_CANDIDATES_EXIST",
+            "FILTER_TO_NONE_BEFORE_ASSIGNMENT",
+            "FALLBACK_ECONOMICS_NOT_STRATEGY_EVIDENCE",
+        ],
+    }
+    bundle["summary"]["natural_entry_candidate_contract"] = contract
+
+    ok, errors, checks = gate._check_run(bundle, {})
+
+    assert ok is True
+    assert errors == []
+    assert checks["paper_validation_classification"] == "NO_NATURAL_ENTRY_CANDIDATE"
+    assert checks["no_natural_entry_candidate"] is True
+    assert checks["assisted_seed_evidence_only"] is False
+    assert checks["usable_strategy_economics"] is False
+    assert checks["strategy_evidence_valid"] is False
+    assert checks["evidence_reason_codes"] == [
+        "no_natural_entry_candidate",
+        "fallback_economics_not_strategy_evidence",
+    ]
+    assert checks["strategy_evidence_classification"] == (
+        "FALLBACK_ECONOMICS_NOT_STRATEGY_EVIDENCE"
+    )
+    assert checks["natural_entry_candidate_contract"] == contract
+
+
+def test_check_run_flags_assisted_seed_evidence_only(tmp_path):
+    bundle = _build_after_bundle(tmp_path, "run_assisted_seed_only")
+    contract = {
+        "classification": "NATURAL_ENTRY_CANDIDATE_PRESENT",
+        "usable_strategy_economics": False,
+        "strategy_evidence_classification": "ASSISTED_SEED_EVIDENCE_ONLY",
+        "assisted_seed_evidence_only": True,
+        "assisted_seed_admitted_count": 1,
+        "assisted_seed_open_count": 1,
+        "natural_admitted_count": 0,
+        "allowed_sides": [
+            {
+                "symbol": "BTCUSDTM",
+                "strategy": "Momentum",
+                "side": "sell",
+                "count": 1,
+            }
+        ],
+        "assisted_seed_allowed_sides": [
+            {
+                "symbol": "BTCUSDTM",
+                "strategy": "Momentum",
+                "side": "sell",
+                "count": 1,
+            }
+        ],
+        "reason_codes": [
+            "ASSISTED_SEED_ADMISSIONS_PRESENT",
+            "ASSISTED_SEED_OPEN_PRESENT",
+            "ASSISTED_SEED_EVIDENCE_ONLY",
+        ],
+    }
+    bundle["summary"]["natural_entry_candidate_contract"] = contract
+
+    ok, errors, checks = gate._check_run(bundle, {})
+
+    assert ok is True
+    assert errors == []
+    assert checks["paper_validation_classification"] == "ASSISTED_SEED_EVIDENCE_ONLY"
+    assert checks["no_natural_entry_candidate"] is False
+    assert checks["assisted_seed_evidence_only"] is True
+    assert checks["usable_strategy_economics"] is False
+    assert checks["strategy_evidence_valid"] is False
+    assert checks["evidence_reason_codes"] == [
+        "assisted_seed_evidence_only",
+        "assisted_economics_not_strategy_evidence",
+    ]
+    assert checks["strategy_evidence_classification"] == "ASSISTED_SEED_EVIDENCE_ONLY"
+    assert checks["natural_entry_candidate_contract"] == contract
+
+
 def test_load_corpus_contract_uses_scorecard_manifest_not_latest_artifact(
     monkeypatch,
     tmp_path,
@@ -528,6 +982,194 @@ def test_load_corpus_contract_fails_zero_trade_scorecard(monkeypatch, tmp_path):
     assert contract["status"] == "UNCONFIRMED"
     assert "ACCEPTED_CORPUS_ZERO_TRADES" in contract["reason_codes"]
     assert contract["accepted_corpus_total_trade_count"] == 0
+
+
+def test_load_corpus_contract_prefers_recent_nonzero_manifest_scorecard(
+    monkeypatch,
+    tmp_path,
+):
+    _write_manifest_fixture(tmp_path, total_trade_count=0)
+    fresh_scorecard_path = _write_named_scorecard_fixture(
+        tmp_path,
+        stem="zol0_profitability_audit_operational_pass_20260418",
+        run_ids=["run-b", "run-c", "run-d", "run-e"],
+        total_trade_count=4,
+        required_limit=4,
+    )
+    monkeypatch.setattr(gate, "WORKDIR", tmp_path)
+    monkeypatch.setattr(gate, "ANALYSIS_DIR", tmp_path / "analysis")
+
+    contract = gate._load_corpus_contract()
+
+    assert contract["status"] == "PASS"
+    assert contract["scorecard_path"] == str(fresh_scorecard_path)
+    assert contract["accepted_run_count"] == 4
+    assert contract["required_accepted_runs"] == 4
+    assert contract["strict_classification"] == "ACCEPTED_MANIFEST_REPLAY"
+
+
+def test_load_corpus_contract_skips_forced_startup_allowlist_scorecard(
+    monkeypatch,
+    tmp_path,
+):
+    preferred_scorecard_path = _write_named_scorecard_fixture(
+        tmp_path,
+        stem="zol0_profitability_audit_operational_pass_20260418",
+        run_ids=["run-b", "run-c", "run-d", "run-e"],
+        total_trade_count=4,
+        required_limit=4,
+    )
+    _write_named_scorecard_fixture(
+        tmp_path,
+        stem="zol0_profitability_audit_eth_momentum_buy_20260419",
+        run_ids=["run-f", "run-g", "run-h", "run-i"],
+        total_trade_count=4,
+        required_limit=4,
+        after_env_overrides={
+            "ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST": "ETHUSDTM:MOMENTUM:buy",
+            "PAPER_AUTO_OPEN_STARTUP_ENABLE": "1",
+        },
+    )
+    monkeypatch.setattr(gate, "WORKDIR", tmp_path)
+    monkeypatch.setattr(gate, "ANALYSIS_DIR", tmp_path / "analysis")
+
+    contract = gate._load_corpus_contract()
+
+    assert contract["status"] == "PASS"
+    assert contract["scorecard_path"] == str(preferred_scorecard_path)
+    assert contract["accepted_run_count"] == 4
+
+
+def test_load_corpus_contract_allows_manifest_replay_without_strict_status(
+    monkeypatch,
+    tmp_path,
+):
+    fresh_scorecard_path = _write_named_scorecard_fixture(
+        tmp_path,
+        stem="zol0_profitability_audit_operational_pass_20260418",
+        run_ids=["run-b", "run-c", "run-d", "run-e"],
+        total_trade_count=4,
+        required_limit=4,
+    )
+    monkeypatch.setattr(gate, "WORKDIR", tmp_path)
+    monkeypatch.setattr(gate, "ANALYSIS_DIR", tmp_path / "analysis")
+
+    contract = gate._load_corpus_contract()
+
+    assert contract["status"] == "PASS"
+    assert contract["scorecard_path"] == str(fresh_scorecard_path)
+    assert "STRICT_FRESH_CORPUS_STATUS_MISSING" not in contract["reason_codes"]
+
+
+def test_load_economics_context_marks_negative_exact_evidence_as_no_go(
+    tmp_path,
+):
+    scorecard_path = tmp_path / "analysis" / "scorecard.json"
+    _write_json(
+        scorecard_path,
+        {
+            "global_kpis": {
+                "avg_profit_factor": 0.0,
+                "avg_net_pnl": -0.01,
+                "profitable_run_rate": 0.0,
+                "pf_gt_1_rate": 0.0,
+            }
+        },
+    )
+
+    context = gate._load_economics_context(
+        {
+            "status": "PASS",
+            "reason_codes": [],
+            "scorecard_path": str(scorecard_path),
+            "accepted_run_count": 4,
+            "required_accepted_runs": 4,
+        }
+    )
+
+    assert context["status"] == "AVAILABLE"
+    assert context["go_no_go"] == "NO-GO"
+    assert "SCORECARD_NO_GO" in context["reason_codes"]
+    assert "AVG_NET_PNL_NEGATIVE" in context["reason_codes"]
+
+
+def test_load_bootstrap_contract_uses_scorecard_sources_when_manifest_missing(
+    monkeypatch,
+    tmp_path,
+):
+    _write_manifest_fixture(tmp_path, total_trade_count=1)
+    scorecard_path = tmp_path / "analysis" / "zol0_profitability_audit_scorecard.json"
+    db_path, report_path = _attach_bootstrap_sources_fixture(
+        tmp_path,
+        scorecard_path=scorecard_path,
+    )
+    monkeypatch.setattr(gate, "WORKDIR", tmp_path)
+    monkeypatch.setattr(gate, "ANALYSIS_DIR", tmp_path / "analysis")
+    monkeypatch.setattr(gate, "TMP_DIR", tmp_path / "tmp")
+    monkeypatch.setattr(gate, "DIAGNOSTICS_DIR", tmp_path / "artifacts" / "diagnostics")
+
+    corpus_contract = gate._load_corpus_contract()
+    bootstrap_contract = gate._load_bootstrap_contract(corpus_contract)
+
+    assert bootstrap_contract["status"] == "PASS"
+    assert bootstrap_contract["db_path"] == str(db_path.resolve())
+    assert bootstrap_contract["report_path"] == str(report_path.resolve())
+    assert bootstrap_contract["rows_inserted"] == 85
+    assert bootstrap_contract["selected_pairs"] == ["ETHUSDTM:MOMENTUM"]
+
+
+def test_load_bootstrap_contract_prefers_scorecard_sources_over_stale_manifest(
+    monkeypatch,
+    tmp_path,
+):
+    _write_manifest_fixture(tmp_path, total_trade_count=1)
+    scorecard_path = tmp_path / "analysis" / "zol0_profitability_audit_scorecard.json"
+    _attach_bootstrap_sources_fixture(
+        tmp_path,
+        scorecard_path=scorecard_path,
+    )
+    stale_bundle_dir = tmp_path / "artifacts" / "diagnostics" / "stale_bundle"
+    stale_bundle_dir.mkdir(parents=True, exist_ok=True)
+    _write_json(
+        tmp_path / "analysis" / gate.STRICT_BOOTSTRAP_MANIFEST_NAME,
+        {
+            "metadata": {
+                "scope": {
+                    "exchange": "KuCoin",
+                    "mode": "PAPER_ONLY",
+                    "variant": "after",
+                    "live_in_scope": False,
+                },
+                "bundle_dir": stale_bundle_dir.relative_to(tmp_path).as_posix(),
+            },
+            "selection": {
+                "accepted_run_ids": ["legacy-run"],
+            },
+            "prebuilt_source": {
+                "source_scorecard_path": (
+                    "analysis/zol0_profitability_audit_scorecard.json"
+                ),
+                "db_path": (
+                    stale_bundle_dir / "alpha_history_accepted_corpus.db"
+                ).relative_to(tmp_path).as_posix(),
+                "report_path": (
+                    stale_bundle_dir / "alpha_history_accepted_corpus_report.json"
+                ).relative_to(tmp_path).as_posix(),
+                "rows_inserted": 0,
+                "pairs_selected": 0,
+            },
+        },
+    )
+    monkeypatch.setattr(gate, "WORKDIR", tmp_path)
+    monkeypatch.setattr(gate, "ANALYSIS_DIR", tmp_path / "analysis")
+    monkeypatch.setattr(gate, "TMP_DIR", tmp_path / "tmp")
+    monkeypatch.setattr(gate, "DIAGNOSTICS_DIR", tmp_path / "artifacts" / "diagnostics")
+
+    corpus_contract = gate._load_corpus_contract()
+    bootstrap_contract = gate._load_bootstrap_contract(corpus_contract)
+
+    assert bootstrap_contract["status"] == "PASS"
+    assert bootstrap_contract["contract_source"] == "scorecard_sources"
 
 
 def test_check_run_fails_on_before_or_mixed_sources(tmp_path):
@@ -575,7 +1217,7 @@ def test_check_run_fails_on_shared_artifact_paths(tmp_path):
 def test_gate_do_not_promote_when_corpus_unconfirmed(monkeypatch, tmp_path):
     monkeypatch.setattr(gate, "PAPER_REPORT_DIR", tmp_path / "paper_reports")
 
-    def fake_run(symbols, run_id, summary_hours):
+    def fake_run(symbols, run_id, summary_hours, after_env_overrides=None):
         return _build_after_bundle(tmp_path, run_id)
 
     monkeypatch.setattr(gate, "_run_controlled_kpi", fake_run)
@@ -608,7 +1250,7 @@ def test_gate_do_not_promote_when_corpus_unconfirmed(monkeypatch, tmp_path):
 def test_gate_promote_candidate_for_valid_exact_evidence(monkeypatch, tmp_path):
     monkeypatch.setattr(gate, "PAPER_REPORT_DIR", tmp_path / "paper_reports")
 
-    def fake_run(symbols, run_id, summary_hours):
+    def fake_run(symbols, run_id, summary_hours, after_env_overrides=None):
         return _build_after_bundle(tmp_path, run_id, use_mock=False)
 
     monkeypatch.setattr(gate, "_run_controlled_kpi", fake_run)
@@ -665,7 +1307,7 @@ def test_run_matrix_includes_targeted_xrp_corridor():
 def test_report_keeps_legacy_top_level_fields(monkeypatch, tmp_path):
     monkeypatch.setattr(gate, "PAPER_REPORT_DIR", tmp_path / "paper_reports")
 
-    def fake_run(symbols, run_id, summary_hours):
+    def fake_run(symbols, run_id, summary_hours, after_env_overrides=None):
         return _build_after_bundle(tmp_path, run_id)
 
     monkeypatch.setattr(gate, "_run_controlled_kpi", fake_run)
@@ -692,6 +1334,52 @@ def test_report_keeps_legacy_top_level_fields(monkeypatch, tmp_path):
     assert "global_verdict" in report
     assert "per_run_checks" in report
     assert isinstance(report["per_run_checks"], list)
+
+
+def test_run_gate_collects_full_matrix_after_intermediate_failure(
+    monkeypatch,
+    tmp_path,
+):
+    monkeypatch.setattr(gate, "PAPER_REPORT_DIR", tmp_path / "paper_reports")
+
+    def fake_run(symbols, run_id, summary_hours, after_env_overrides=None):
+        if run_id == "paper_gate_run_b_btc_sol":
+            raise RuntimeError("synthetic_failure")
+        return _build_after_bundle(tmp_path, run_id, use_mock=False)
+
+    monkeypatch.setattr(gate, "_run_controlled_kpi", fake_run)
+    monkeypatch.setattr(
+        gate,
+        "_load_corpus_contract",
+        lambda: _corpus_contract_stub(
+            status="UNCONFIRMED",
+            reason_codes=["STRICT_FRESH_CORPUS_STATUS_MISSING"],
+        ),
+    )
+    monkeypatch.setattr(
+        gate,
+        "_load_bootstrap_contract",
+        lambda corpus_contract: _bootstrap_contract_stub(
+            status="UNCONFIRMED",
+            reason_codes=["BOOTSTRAP_MANIFEST_MISSING"],
+        ),
+    )
+
+    report = gate.run_gate()
+
+    assert len(report["runs"]) == len(gate.RUN_MATRIX)
+    assert len(report["per_run_checks"]) == len(gate.RUN_MATRIX)
+    assert report["aggregate_checks"]["runs_passed"] == len(gate.RUN_MATRIX) - 1
+    assert report["aggregate_checks"]["all_runs_passed"] is False
+    assert report["operational_gate_status"] == "FAIL"
+    assert "RUN_MATRIX_INCOMPLETE" not in report["global_reason_codes"]
+    failed = next(
+        row
+        for row in report["per_run_checks"]
+        if row["run_id"] == "paper_gate_run_b_btc_sol"
+    )
+    assert failed["ok"] is False
+    assert failed["exception_reason_code"] == "READINESS_RUN_EXCEPTION"
 
 
 def test_resolve_alpha_bootstrap_runtime_contract_prefers_explicit_field():

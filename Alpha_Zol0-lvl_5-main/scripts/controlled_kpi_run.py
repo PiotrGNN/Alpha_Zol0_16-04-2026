@@ -1072,6 +1072,88 @@ def _refresh_alpha_bootstrap_history(
     }
 
 
+def _probe_alpha_bootstrap_source_db(
+    *,
+    source_db_url: str,
+    source_db_glob: str,
+) -> dict:
+    source_spec = str(source_db_url or "").strip()
+    if not source_spec:
+        source_spec = str(source_db_glob or "").strip()
+    if not source_spec:
+        return {"enabled": True, "ran": False, "success": False}
+
+    lower = source_spec.lower()
+    if lower.startswith("sqlite:///"):
+        source_spec = source_spec[len("sqlite:///") :]
+    elif lower.startswith("sqlite://"):
+        source_spec = source_spec[len("sqlite://") :]
+    if (
+        os.name == "nt"
+        and len(source_spec) >= 3
+        and source_spec[0] == "/"
+        and source_spec[2] == ":"
+    ):
+        source_spec = source_spec[1:]
+
+    source_path = Path(source_spec).resolve()
+    if not source_path.exists():
+        return {
+            "enabled": True,
+            "ran": False,
+            "success": False,
+            "output_path": str(source_path),
+            "output_exists": False,
+            "report": {},
+            "stdout_tail": "",
+            "stderr_tail": "probe_source_missing",
+        }
+
+    rows_inserted = 0
+    try:
+        import sqlite3
+
+        conn = sqlite3.connect(str(source_path))
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT COUNT(1) FROM logs WHERE event='position_close'"
+            )
+            row = cur.fetchone()
+            rows_inserted = int((row or [0])[0] or 0)
+        finally:
+            conn.close()
+    except Exception as exc:
+        return {
+            "enabled": True,
+            "ran": False,
+            "success": False,
+            "output_path": str(source_path),
+            "output_exists": True,
+            "report": {},
+            "stdout_tail": "",
+            "stderr_tail": f"probe_failed:{exc}",
+        }
+
+    return {
+        "enabled": True,
+        "ran": True,
+        "success": True,
+        "returncode": 0,
+        "output_path": str(source_path),
+        "output_exists": True,
+        "report_path": None,
+        "report": {
+            "rows_inserted": rows_inserted,
+            "pairs_selected": 0,
+            "pair_stats_top": [],
+            "pair_side_stats_top": [],
+        },
+        "stdout_tail": "PROBED_ALPHA_BOOTSTRAP_SOURCE_DB",
+        "stderr_tail": "",
+    }
+
+
 def _init_db_schema(db_path: Path) -> None:
     env = os.environ.copy()
     env["DATABASE_URL"] = f"sqlite:///{db_path.as_posix()}"
@@ -2335,6 +2417,7 @@ def _variant_env(
         env["ENTRY_IGNORE_HOLD_SIGNALS"] = "0"
         env["ENTRY_MIN_ACTIVE_STRATEGIES"] = "1"
         env["WF_CALIBRATION_ENABLE"] = "0"
+        env["PAPER_AUTO_OPEN_STARTUP_ENABLE"] = "0"
         env["MAX_OPEN_POSITIONS"] = "1"
         # Keep risk model aligned with AFTER so compare-before deltas are not inflated
         # by a looser BEFORE sizing/exit profile.
@@ -2355,6 +2438,8 @@ def _variant_env(
         env["ENTRY_MIN_ACTIVE_STRATEGIES"] = "1"
         env["WF_CALIBRATION_ENABLE"] = "0"
         env["SEED_TRADES_ENABLE"] = "0"
+        env["PAPER_AUTO_OPEN_STARTUP_ENABLE"] = "0"
+        env["PAPER_AUTO_OPEN_FALLBACK_ENABLE"] = "0"
         env["PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST"] = "1"
         env["ALPHA_BOOTSTRAP_REQUIRE_EXTERNAL_SOURCE"] = "1"
         env["PAPER_AUTO_CLOSE_POLICY"] = "profit_or_hard"
@@ -4916,6 +5001,28 @@ def main():
     after_overrides = _parse_env_overrides(args.after_env)
     before_overrides_cli = dict(before_overrides)
     after_overrides_cli = dict(after_overrides)
+    cli_alpha_bootstrap_source_url_override = str(
+        after_overrides_cli.get("ALPHA_BOOTSTRAP_SOURCE_DB_URL")
+        or before_overrides_cli.get("ALPHA_BOOTSTRAP_SOURCE_DB_URL")
+        or ""
+    ).strip()
+    cli_alpha_bootstrap_source_glob_override = str(
+        after_overrides_cli.get("ALPHA_BOOTSTRAP_SOURCE_DB_GLOB")
+        or before_overrides_cli.get("ALPHA_BOOTSTRAP_SOURCE_DB_GLOB")
+        or ""
+    ).strip()
+    cli_alpha_bootstrap_source_override_requested = bool(
+        cli_alpha_bootstrap_source_url_override
+        or cli_alpha_bootstrap_source_glob_override
+    )
+    if cli_alpha_bootstrap_source_url_override:
+        args.alpha_bootstrap_source_db_url = cli_alpha_bootstrap_source_url_override
+    if cli_alpha_bootstrap_source_glob_override:
+        args.alpha_bootstrap_source_db_glob = cli_alpha_bootstrap_source_glob_override
+    if cli_alpha_bootstrap_source_override_requested:
+        # An explicit source override is an operator directive and should not be
+        # replaced by the exact-scorecard prebuilt contract or the auto-refresh path.
+        args.alpha_bootstrap_auto_refresh = False
 
     symbols = _parse_symbols(args.symbols)
     if not symbols:
@@ -4954,7 +5061,10 @@ def main():
         args.alpha_bootstrap_accepted_scorecard
     )
     alpha_refresh = None
-    if alpha_bootstrap_exact_contract.get("active"):
+    if (
+        alpha_bootstrap_exact_contract.get("active")
+        and not cli_alpha_bootstrap_source_override_requested
+    ):
         if (
             str(alpha_bootstrap_exact_contract.get("source_mode") or "")
             in ("prebuilt_alpha_history_db", "prebuilt_alpha_history_manifest")
@@ -5090,6 +5200,14 @@ def main():
             fallback_top_pairs=int(args.alpha_bootstrap_build_fallback_top_pairs),
             report_json_rel=str(args.alpha_bootstrap_build_report_json),
         )
+    if (
+        cli_alpha_bootstrap_source_override_requested
+        and not _coerce_bool(alpha_refresh.get("ran"))
+    ):
+        alpha_refresh = _probe_alpha_bootstrap_source_db(
+            source_db_url=args.alpha_bootstrap_source_db_url,
+            source_db_glob=args.alpha_bootstrap_source_db_glob,
+        )
     alpha_refresh["exact_source_contract"] = alpha_bootstrap_exact_contract
     alpha_refresh = _finalize_alpha_bootstrap_refresh_contract(alpha_refresh)
     if alpha_refresh.get("ran"):
@@ -5112,7 +5230,10 @@ def main():
         refreshed_posix = refreshed_path.as_posix()
         args.alpha_bootstrap_source_db_url = f"sqlite:///{refreshed_posix}"
         args.alpha_bootstrap_source_db_glob = refreshed_posix
-    elif alpha_bootstrap_exact_contract.get("active"):
+    elif (
+        alpha_bootstrap_exact_contract.get("active")
+        and not cli_alpha_bootstrap_source_override_requested
+    ):
         missing_source_path = (WORKDIR / EXACT_ALPHA_BOOTSTRAP_EMPTY_SENTINEL).resolve()
         try:
             if missing_source_path.exists() and missing_source_path.is_file():
@@ -6037,6 +6158,24 @@ def main():
                 # Missing/empty strict bootstrap evidence may only add fail-closed
                 # blockers below. It must not relax entry gates or seed allowlists.
                 auto_after_overrides = {}
+                explicit_side_allowlist_configured = bool(
+                    _split_csv_tokens(
+                        after_overrides.get("ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST")
+                    )
+                )
+                if rows_inserted <= 0 and not runtime_contract_fail_closed:
+                    if not explicit_side_allowlist_configured:
+                        if "SEED_TRADES_ENABLE" not in after_overrides_cli:
+                            auto_after_overrides["SEED_TRADES_ENABLE"] = "1"
+                        if "SEED_TRADES_LIMIT" not in after_overrides_cli:
+                            auto_after_overrides["SEED_TRADES_LIMIT"] = "1"
+                        if (
+                            "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST"
+                            not in after_overrides_cli
+                        ):
+                            auto_after_overrides[
+                                "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST"
+                            ] = "0"
             if negative_symbols:
                 auto_after_overrides["ENTRY_SYMBOL_BLOCKLIST"] = ",".join(
                     sorted(negative_symbols)

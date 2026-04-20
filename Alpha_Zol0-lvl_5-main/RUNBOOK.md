@@ -1,7 +1,149 @@
 # Runner Validation Runbook
 
+## Post-Green Contract Validation Protocol (2026-04-20, FROZEN)
+
+### Purpose
+Reproduce the validated post-green protective exit runtime contract (`POST_GREEN_RUNTIME_CONTRACT_FIXED`) proof without changing BotCore.py.
+
+### Validated batch10g command (canonical)
+```powershell
+$py = "d:\Alpha_Zol0-lvl_5-main\.venv\Scripts\python.exe"
+$work = "d:\Alpha_Zol0-lvl_5-main\Alpha_Zol0-lvl_5-main"
+$empty_db = "sqlite:///tmp/alpha_bootstrap_empty_cleanstart.db"
+$empty_glob = "tmp/alpha_bootstrap_empty_cleanstart.db"
+Push-Location $work
+& $py "scripts\controlled_kpi_run.py" `
+  --variant-only after --after-min 30 `
+  --symbols "ETHUSDTM,BTCUSDTM,SOLUSDTM,XRPUSDTM" `
+  --market-type futures --paper-auto-open --paper-auto-close-sec 300 `
+  --after-env "ALPHA_BOOTSTRAP_SOURCE_DB_URL=$empty_db" `
+  --after-env "ALPHA_BOOTSTRAP_SOURCE_DB_GLOB=$empty_glob" `
+  --after-env "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST=0" `
+  --after-env "ALPHA_BOOTSTRAP_REQUIRE_EXTERNAL_SOURCE=0" `
+  --after-env "PAPER_AUTO_OPEN_STARTUP_ENABLE=1" `
+  --after-env "PAPER_AUTO_OPEN_FALLBACK_ENABLE=1" `
+  --after-env "PAPER_AUTO_OPEN_REPEAT=1" `
+  --after-env "SEED_TRADES_ENABLE=0"
+Pop-Location
+```
+
+### Key env flags
+| Flag | Value | Purpose |
+|------|-------|---------|
+| `PAPER_AUTO_OPEN_STARTUP_ENABLE` | 1 | Force startup auto-open to bypass entry quality gates |
+| `PAPER_AUTO_OPEN_FALLBACK_ENABLE` | 1 | Allow fallback auto-open |
+| `PAPER_AUTO_OPEN_REPEAT` | 1 | Re-open after every close |
+| `ALPHA_BOOTSTRAP_REQUIRE_EXTERNAL_SOURCE` | 0 | Allow empty bootstrap DB |
+| `SEED_TRADES_ENABLE` | 0 | Disable seed trades |
+| `EXIT_CLOSE_ATTEMPT_FEE_GUARD_COOLDOWN_SEC` | **10** | **Override for future runs** — default 300s delays post_green_protective_exit |
+
+### Pass/fail criteria
+- `post_green_protective_terminal_trigger_seen=True` in `position_close` events
+- All 6 required attribution fields non-null: `post_green_attempt_seq`, `post_green_branch_seq`, `post_green_trigger_mode`, `post_green_trigger_reason_detail`, `post_green_peak_to_burden_ratio`, `post_green_bnr_time_forced_exit_sec`
+- All 6 fields consistent between `position_close` and `post_green_protective_exit_terminal_outcome` events
+- `shutdown_classification=close_flush_done_pending_positions_zero` (runtime-clean)
+
+### Known finding: fee-guard suppression delay
+Default `EXIT_CLOSE_ATTEMPT_FEE_GUARD_COOLDOWN_SEC=300` caused 22 consecutive post_green_protective_exit attempts to be suppressed in batch10g. First BLOCK_FEE_GUARD at 04:04:13 UTC, window expired 04:14:22 UTC, close fired 04:14:42 UTC (attempt_seq=23). Always add `--after-env EXIT_CLOSE_ATTEMPT_FEE_GUARD_COOLDOWN_SEC=10` in validation corridors.
+
+### Validated state
+- 17 runs, all runtime-clean; 5 triggered post_green exits confirmed; all 6 fields validated.
+- Audit artifact: `artifacts/diagnostics/post_green_natural_entry_contract_audit_20260419_expanded.json`
+- BotCore.py: FROZEN at `POST_GREEN_RUNTIME_CONTRACT_FIXED`. Do not modify.
+
+---
+
+## Post-Close Summary Grace Protocol (2026-03-31, VALIDATED)
+
 ## Purpose
 Reproduce the validated PAPER-only post-close summary grace proof without changing BotCore trading semantics.
+
+## ETH Preset
+- `scripts/run_paper_readiness_gate.py` now routes `paper_gate_run_a_eth` through the explicit `ETHUSDTM:MOMENTUM:buy` preset.
+- The gate ETH preset uses the corrected after-only path:
+  - `ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST=ETHUSDTM:MOMENTUM:buy`
+  - `ENTRY_SYMBOL_STRATEGY_SIDE_BLOCKLIST=ETHUSDTM:TRENDFOLLOWING:buy`
+  - `PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST=1`
+  - `ALPHA_WHITELIST_ENABLE=0`
+  - `ALPHA_WHITELIST_COLDSTART_ALLOW=0`
+  - `ALPHA_WHITELIST_FALLBACK_ENABLE=0`
+  - `ALPHA_WHITELIST_FALLBACK_MAX_SIGNALS=0`
+  - missing bootstrap source override under `tmp/alpha_bootstrap_missing_eth_momentum_buy_gate.db`
+- The explicit side allowlist now constrains router admission only. It does not auto-enable startup auto-open.
+- If no natural candidate appears during the window, the ETH preset may legitimately finish with `trade_count=0` and a readiness summary classification such as `NO_NATURAL_ENTRY_CANDIDATE`.
+- Forced startup admission with `PAPER_AUTO_OPEN_STARTUP_ENABLE=1` is reserved for debugging only and is excluded from preferred economics corpus selection.
+
+## ETH Operational Run
+Run the corrected 16-minute ETH momentum buy path with the dedicated preset runner:
+
+```powershell
+Push-Location Alpha_Zol0-lvl_5-main
+python scripts/run_eth_momentum_buy_preset.py --runs 1
+Pop-Location
+```
+
+Expected outcome on the repaired path:
+
+- A natural ETH momentum buy entry may occur and produce a normal after-run report.
+- If no natural ETH momentum buy candidate survives admission, the run still completes cleanly and records zero trades instead of forcing a startup position.
+
+If you need the raw underlying command for debugging, the preset still resolves to:
+
+```powershell
+Push-Location Alpha_Zol0-lvl_5-main
+$missingPath = "D:/Alpha_Zol0-lvl_5-main/Alpha_Zol0-lvl_5-main/tmp/alpha_bootstrap_missing_repro.db"
+if (Test-Path $missingPath) { Remove-Item $missingPath -Force }
+python scripts/controlled_kpi_run.py --variant-only after --symbols ETHUSDTM --after-min 16 --paper-auto-open --paper-auto-close-sec 20 --equity-snapshot-sec 10 --market-type futures --timeframe 1 --quality-profile --after-env ALPHA_BOOTSTRAP_SOURCE_DB_URL=sqlite:///$missingPath --after-env ALPHA_BOOTSTRAP_SOURCE_DB_GLOB=$missingPath --after-env ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST=ETHUSDTM:MOMENTUM:buy --after-env ENTRY_SYMBOL_STRATEGY_SIDE_BLOCKLIST=ETHUSDTM:TRENDFOLLOWING:buy --after-env PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST=1 --after-env ALPHA_WHITELIST_ENABLE=0 --after-env ALPHA_WHITELIST_COLDSTART_ALLOW=0 --after-env ALPHA_WHITELIST_FALLBACK_ENABLE=0 --after-env ALPHA_WHITELIST_FALLBACK_MAX_SIGNALS=0
+Pop-Location
+```
+
+## ETH Stability Series
+Run three identical 16-minute ETH preset sessions and write a compact summary artifact:
+
+```powershell
+Push-Location Alpha_Zol0-lvl_5-main
+python scripts/run_eth_momentum_buy_preset.py --runs 3
+Pop-Location
+```
+
+The runner writes stdout/stderr per run plus a machine-readable `summary.json` in a new `artifacts/diagnostics/eth_momentum_buy_series_*` directory. The raw PowerShell loop remains useful only for low-level debugging:
+
+```powershell
+Push-Location Alpha_Zol0-lvl_5-main
+$missingPath = "D:/Alpha_Zol0-lvl_5-main/Alpha_Zol0-lvl_5-main/tmp/alpha_bootstrap_missing_repro.db"
+$seriesDir = Join-Path "artifacts/diagnostics" ("eth_momentum_buy_series_" + (Get-Date -Format "yyyyMMdd_HHmmss"))
+New-Item -ItemType Directory -Path $seriesDir -Force | Out-Null
+$results = @()
+1..3 | ForEach-Object {
+    $runIndex = $_
+    $logPath = Join-Path $seriesDir ("run_{0}.log" -f $runIndex)
+    if (Test-Path $missingPath) { Remove-Item $missingPath -Force }
+    python scripts/controlled_kpi_run.py --variant-only after --symbols ETHUSDTM --after-min 16 --paper-auto-open --paper-auto-close-sec 20 --equity-snapshot-sec 10 --market-type futures --timeframe 1 --quality-profile --after-env ALPHA_BOOTSTRAP_SOURCE_DB_URL=sqlite:///$missingPath --after-env ALPHA_BOOTSTRAP_SOURCE_DB_GLOB=$missingPath --after-env ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST=ETHUSDTM:MOMENTUM:buy --after-env ENTRY_SYMBOL_STRATEGY_SIDE_BLOCKLIST=ETHUSDTM:TRENDFOLLOWING:buy --after-env PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST=1 --after-env ALPHA_WHITELIST_ENABLE=0 --after-env ALPHA_WHITELIST_COLDSTART_ALLOW=0 --after-env ALPHA_WHITELIST_FALLBACK_ENABLE=0 --after-env ALPHA_WHITELIST_FALLBACK_MAX_SIGNALS=0 *> $logPath
+    $reportLine = Get-Content $logPath | Where-Object { $_ -like "REPORT_JSON=*" } | Select-Object -Last 1
+    $reportPath = ($reportLine -split "=", 2)[1]
+    $report = Get-Content $reportPath -Raw | ConvertFrom-Json
+    $results += [pscustomobject]@{
+        run_id = $report.run_id
+        trade_count = [int]$report.after.trade_count
+        net_pnl = [double]$report.after.net_pnl
+        profit_factor = [string]$report.after.profit_factor
+        report_json = $reportPath
+    }
+}
+$summary = [pscustomobject]@{
+    run_count = $results.Count
+    profitable_runs = @($results | Where-Object { $_.net_pnl -gt 0 }).Count
+    total_net_pnl = [double](($results | Measure-Object -Property net_pnl -Sum).Sum)
+    avg_net_pnl = if ($results.Count) { [double](($results | Measure-Object -Property net_pnl -Average).Average) } else { 0.0 }
+    runs = $results
+}
+$summaryPath = Join-Path $seriesDir "summary.json"
+$summary | ConvertTo-Json -Depth 6 | Set-Content $summaryPath -Encoding utf8
+Get-Content $summaryPath
+Pop-Location
+```
+
+Do not treat a forced-startup debug series as economics evidence unless you explicitly intend to evaluate that diagnostic path.
 
 ## Model
 - Treat bounded post-close summary grace as envelope-dependent PAPER runner control.

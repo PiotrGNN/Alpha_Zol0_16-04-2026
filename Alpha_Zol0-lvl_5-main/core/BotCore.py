@@ -911,12 +911,53 @@ def _build_post_green_protective_exit_skipped_telemetry(
     return payload
 
 
-def _build_post_green_close_contract_fields(payload, terminal_marker=None):
+def _build_post_green_trigger_attribution_contract(source):
+    if not isinstance(source, dict):
+        return {}
+    return {
+        "post_green_peak_mfe": source.get("post_green_peak_mfe"),
+        "post_green_time_since_peak_sec": source.get(
+            "post_green_time_since_peak_sec"
+        ),
+        "post_green_giveback_ratio": source.get("post_green_giveback_ratio"),
+        "post_green_exit_reason": source.get("post_green_exit_reason"),
+        "post_green_skip_reason": source.get("post_green_skip_reason"),
+        "post_green_trigger_mode": source.get("post_green_trigger_mode"),
+        "post_green_trigger_reason_detail": source.get(
+            "post_green_trigger_reason_detail"
+        ),
+        "post_green_rescue_exit_reason": source.get(
+            "post_green_rescue_exit_reason"
+        ),
+        "post_green_attempt_seq": source.get("post_green_attempt_seq"),
+        "post_green_branch_seq": source.get("post_green_branch_seq"),
+        "post_green_peak_to_burden_ratio": source.get(
+            "post_green_peak_to_burden_ratio"
+        ),
+        "post_green_bnr_time_forced_exit_sec": source.get(
+            "post_green_bnr_time_forced_exit_sec"
+        ),
+    }
+
+
+def _build_post_green_close_contract_fields(
+    payload,
+    terminal_marker=None,
+    lifecycle_state=None,
+):
     source = {}
     if isinstance(payload, dict):
         source.update(payload)
     if isinstance(terminal_marker, dict):
         source.update(terminal_marker)
+    if isinstance(lifecycle_state, dict):
+        latched_trigger_contract = lifecycle_state.get("post_green_trigger_contract")
+        if isinstance(latched_trigger_contract, dict):
+            source.update(
+                _build_post_green_trigger_attribution_contract(
+                    latched_trigger_contract
+                )
+            )
     return {
         "post_green_protective_terminal_schema_version": source.get(
             "post_green_protective_terminal_schema_version"
@@ -4529,6 +4570,9 @@ def _classify_entry_open_truth(
         or entry_reason_norm == "paper_auto_open_allowlisted"
     ):
         return "BOOTSTRAP_ALLOWLIST_ASSISTED"
+
+    if entry_reason_norm == "seed_trades_override":
+        return "SEED_TRADES_OVERRIDE_ASSISTED"
 
     if entry_reason_norm in {
         "edge_discovered_dynamic",
@@ -10921,12 +10965,17 @@ def run_bot(simulate=False):
                 "close_attempt_count": 0,
                 "last_selected_reason": None,
                 "last_block_code": None,
+                "post_green_trigger_contract": None,
             }
             close_lifecycle_state[key] = state
         return key, state
 
     def _close_lifecycle_mark_attempt(
-        symbol_name, pos_obj, selected_reason=None, attempt_ts=None
+        symbol_name,
+        pos_obj,
+        selected_reason=None,
+        attempt_ts=None,
+        post_green_trigger_contract=None,
     ):
         key, state = _close_lifecycle_get(symbol_name, pos_obj)
         if state is None:
@@ -10940,6 +10989,8 @@ def run_bot(simulate=False):
         state["close_attempt_count"] = int(state.get("close_attempt_count") or 0) + 1
         state["last_selected_reason"] = selected_reason
         state["last_block_code"] = None
+        if isinstance(post_green_trigger_contract, dict) and post_green_trigger_contract:
+            state["post_green_trigger_contract"] = dict(post_green_trigger_contract)
         return state
 
     def _close_lifecycle_mark_failed(
@@ -11588,8 +11639,11 @@ def run_bot(simulate=False):
             )
         except Exception:
             pass
+        close_lifecycle_terminal_snapshot = None
         if close_position_completed:
-            _close_lifecycle_mark_success(symbol, pos)
+            close_lifecycle_terminal_snapshot = _close_lifecycle_mark_success(
+                symbol, pos
+            )
         try:
             payload = dict(pos) if isinstance(pos, dict) else {"symbol": symbol}
             payload.setdefault("symbol", symbol)
@@ -11738,6 +11792,12 @@ def run_bot(simulate=False):
                 )
             )
             payload.update(_post_green_terminal_marker)
+            post_green_close_contract = _build_post_green_close_contract_fields(
+                payload,
+                terminal_marker=_post_green_terminal_marker,
+                lifecycle_state=close_lifecycle_terminal_snapshot,
+            )
+            payload.update(post_green_close_contract)
             try:
                 infinity_logger.log(
                     "post_green_protective_exit_terminal_outcome",
@@ -11812,7 +11872,7 @@ def run_bot(simulate=False):
                     "ab_forced_on_anchor": payload.get("ab_forced_on_anchor"),
                     "close_snapshot": close_quote,
                     "pnl_decompose": decompose,
-                    **_build_post_green_close_contract_fields(payload),
+                    **post_green_close_contract,
                     "arrival_to_fill_bps_close": arrival_to_fill_bps_close,
                     "signed_slippage_bps_close": signed_slippage_bps_close,
                     "tca_unavailable_components": payload.get(
@@ -12274,6 +12334,18 @@ def run_bot(simulate=False):
         paper_auto_open_repeat = os.environ.get("PAPER_AUTO_OPEN_REPEAT", "0") == "1"
     except Exception:
         paper_auto_open_repeat = False
+    try:
+        paper_auto_open_startup_enable = (
+            os.environ.get("PAPER_AUTO_OPEN_STARTUP_ENABLE", "1") == "1"
+        )
+    except Exception:
+        paper_auto_open_startup_enable = True
+    try:
+        paper_auto_open_fallback_enable = (
+            os.environ.get("PAPER_AUTO_OPEN_FALLBACK_ENABLE", "1") == "1"
+        )
+    except Exception:
+        paper_auto_open_fallback_enable = True
     try:
         paper_auto_open_require_explicit_side_allowlist = (
             os.environ.get(
@@ -16490,7 +16562,15 @@ def run_bot(simulate=False):
                                 "exception_message": str(exc),
                             },
                         )
+                        _close_lifecycle_mark_failed(
+                            sym,
+                            pos,
+                            block_code="POSITION_MANAGER_CLOSE_FAILED",
+                        )
                         continue
+                    close_lifecycle_terminal_snapshot = _close_lifecycle_mark_success(
+                        sym, pos
+                    )
                     try:
                         current_close_diag.update(
                             {
@@ -16574,6 +16654,13 @@ def run_bot(simulate=False):
                         )
                         if isinstance(pos, dict):
                             pos.update(_post_green_terminal_marker)
+                        post_green_close_contract = _build_post_green_close_contract_fields(
+                            pos,
+                            terminal_marker=_post_green_terminal_marker,
+                            lifecycle_state=close_lifecycle_terminal_snapshot,
+                        )
+                        if isinstance(pos, dict):
+                            pos.update(post_green_close_contract)
                         try:
                             infinity_logger.log(
                                 "post_green_protective_exit_terminal_outcome",
@@ -16628,10 +16715,7 @@ def run_bot(simulate=False):
                                         ),
                                     }
                                 ),
-                                **_build_post_green_close_contract_fields(
-                                    pos,
-                                    terminal_marker=_post_green_terminal_marker,
-                                ),
+                                **post_green_close_contract,
                             },
                         )
                         current_close_diag.update({"stage": "after_position_close_log"})
@@ -16769,7 +16853,15 @@ def run_bot(simulate=False):
                                 "exception_message": str(exc),
                             },
                         )
+                        _close_lifecycle_mark_failed(
+                            sym,
+                            pos,
+                            block_code="POSITION_MANAGER_CLOSE_FAILED",
+                        )
                         continue
+                    close_lifecycle_terminal_snapshot = _close_lifecycle_mark_success(
+                        sym, pos
+                    )
                     try:
                         _record_strategy_and_ai_feedback(
                             sym,
@@ -16819,6 +16911,13 @@ def run_bot(simulate=False):
                         )
                         if isinstance(pos, dict):
                             pos.update(_post_green_terminal_marker)
+                        post_green_close_contract = _build_post_green_close_contract_fields(
+                            pos,
+                            terminal_marker=_post_green_terminal_marker,
+                            lifecycle_state=close_lifecycle_terminal_snapshot,
+                        )
+                        if isinstance(pos, dict):
+                            pos.update(post_green_close_contract)
                         try:
                             infinity_logger.log(
                                 "post_green_protective_exit_terminal_outcome",
@@ -16855,31 +16954,7 @@ def run_bot(simulate=False):
                                 "strategy": pos.get("strategy"),
                                 "entry_main_strategy": pos.get("entry_main_strategy")
                                 or pos.get("strategy"),
-                                "order_id": order_id,
-                                "fill_price": fill_price,
-                                "fee_cost_close": fee_cost_close,
-                                "trade_id": pos.get("trade_id"),
-                                "anchor_id": pos.get("anchor_id"),
-                                "ab_arm_id": pos.get("ab_arm_id"),
-                                "ab_forced_on_anchor": pos.get("ab_forced_on_anchor"),
-                                "close_snapshot": close_quote,
-                                "pnl_decompose": decompose,
-                                "canonical_bucket": build_canonical_bucket_key(
-                                    {
-                                        "symbol": sym,
-                                        "side": pos.get("side"),
-                                        "position": pos,
-                                        "strategy": (
-                                            pos.get("entry_main_strategy")
-                                            or pos.get("strategy")
-                                        ),
-                                    }
-                                ),
-                                "post_green_protective_terminal_outcome": (
-                                    _post_green_terminal_marker.get(
-                                        "post_green_protective_terminal_outcome"
-                                    )
-                                ),
+                                **post_green_close_contract,
                                 "post_green_protective_terminal_candidate_seen": bool(
                                     _post_green_terminal_marker.get(
                                         "post_green_protective_terminal_candidate_seen"
@@ -17077,21 +17152,6 @@ def run_bot(simulate=False):
                     or req_side not in ("buy", "sell")
                     or not req_key
                 ):
-                    try:
-                        infinity_logger.log(
-                            "post_promotion_reeval_dispatch_exit",
-                            {
-                                "event": "post_promotion_reeval_dispatch_exit",
-                                "promotion_runtime_seq": req_promo_seq,
-                                "reeval_runtime_seq": row.id,
-                                "gate_read_after_promotion_runtime_seq": None,
-                                "post_promotion_reeval_result": "invalid_request_payload",
-                                "reeval_exit_reason": "invalid_request_payload",
-                                "correlation_id": req_corr,
-                            },
-                        )
-                    except Exception:
-                        pass
                     continue
                 try:
                     infinity_logger.log(
@@ -17100,7 +17160,6 @@ def run_bot(simulate=False):
                             "event": "post_promotion_reeval_dispatch_enter",
                             "promotion_runtime_seq": req_promo_seq,
                             "reeval_runtime_seq": row.id,
-                            "gate_read_after_promotion_runtime_seq": None,
                             "correlation_id": req_corr,
                             "symbol": req_symbol,
                             "strategy": req_strategy,
@@ -19136,6 +19195,7 @@ def run_bot(simulate=False):
                     if (
                         simulate
                         and paper_auto_open
+                        and paper_auto_open_startup_enable
                         and (paper_auto_open_repeat or not auto_open_done)
                         and not position_manager._positions_map
                         and price
@@ -19212,6 +19272,8 @@ def run_bot(simulate=False):
                                 auto_open_selection_source = (
                                     "entry_symbol_strategy_side_allowlist"
                                 )
+                        elif not paper_auto_open_fallback_enable:
+                            auto_open_skip_reason = "fallback_auto_test_disabled"
                         amount = paper_auto_open_usdt / price if price > 0 else 0
                         auto_open_identity_fields = _build_entry_identity_fields(
                             symbol=symbol,
@@ -22987,11 +23049,25 @@ def run_bot(simulate=False):
                                 exit_reason = None
                                 reverse_entry = False
                             else:
+                                post_green_trigger_contract = None
+                                if (
+                                    selected_reason_name
+                                    == "post_green_protective_exit"
+                                    and isinstance(_post_green_metrics, dict)
+                                ):
+                                    post_green_trigger_contract = (
+                                        _build_post_green_trigger_attribution_contract(
+                                            _post_green_metrics
+                                        )
+                                    )
                                 _close_lifecycle_mark_attempt(
                                     symbol,
                                     current_pos,
                                     selected_reason=selected_reason_name,
                                     attempt_ts=now_ts_sec,
+                                    post_green_trigger_contract=(
+                                        post_green_trigger_contract
+                                    ),
                                 )
                         if exit_reason:
                             _emit_close_diag(
@@ -30023,13 +30099,81 @@ def run_bot(simulate=False):
                                     )
                                 if not close_position_completed:
                                     continue
-                                _close_lifecycle_mark_success(sym_close, pos)
+                                close_lifecycle_terminal_snapshot = (
+                                    _close_lifecycle_mark_success(sym_close, pos)
+                                )
                                 try:
                                     _record_strategy_and_ai_feedback(
                                         sym_close,
                                         pos,
                                         realized_pnl_net,
                                         pnl_decompose=decompose,
+                                    )
+                                except Exception:
+                                    pass
+                                _post_green_terminal_marker = (
+                                    _paper_post_green_protective_terminal_outcome_marker(
+                                        candidate_seen=bool(
+                                            pos.get("post_green_lifecycle_candidate_seen")
+                                        )
+                                        if isinstance(pos, dict)
+                                        else False,
+                                        skipped_seen=bool(
+                                            pos.get("post_green_lifecycle_skip_seen")
+                                        )
+                                        if isinstance(pos, dict)
+                                        else False,
+                                        triggered_seen=bool(
+                                            pos.get("post_green_lifecycle_trigger_seen")
+                                        )
+                                        if isinstance(pos, dict)
+                                        else False,
+                                        final_exit_reason=(
+                                            (
+                                                pos.get("exit_reason")
+                                                or pos.get("close_reason")
+                                                or auto_close_reason
+                                            )
+                                            if isinstance(pos, dict)
+                                            else auto_close_reason
+                                        ),
+                                        last_skip_reason=(
+                                            (
+                                                pos.get(
+                                                    "post_green_lifecycle_last_skip_reason"
+                                                )
+                                                or pos.get("post_green_skip_reason")
+                                            )
+                                            if isinstance(pos, dict)
+                                            else None
+                                        ),
+                                        post_green_metrics=(
+                                            pos if isinstance(pos, dict) else None
+                                        ),
+                                    )
+                                )
+                                if isinstance(pos, dict):
+                                    pos.update(_post_green_terminal_marker)
+                                post_green_close_contract = _build_post_green_close_contract_fields(
+                                    pos,
+                                    terminal_marker=_post_green_terminal_marker,
+                                    lifecycle_state=close_lifecycle_terminal_snapshot,
+                                )
+                                if isinstance(pos, dict):
+                                    pos.update(post_green_close_contract)
+                                try:
+                                    infinity_logger.log(
+                                        "post_green_protective_exit_terminal_outcome",
+                                        {
+                                            "trade_id": (
+                                                pos.get("trade_id")
+                                                if isinstance(pos, dict)
+                                                else None
+                                            ),
+                                            "symbol": sym_close,
+                                            "final_exit_reason": auto_close_reason,
+                                            **_post_green_terminal_marker,
+                                        },
                                     )
                                 except Exception:
                                     pass
@@ -30078,6 +30222,7 @@ def run_bot(simulate=False):
                                                 or pos.get("strategy"),
                                             }
                                         ),
+                                        **post_green_close_contract,
                                         **close_observability,
                                     },
                                 )

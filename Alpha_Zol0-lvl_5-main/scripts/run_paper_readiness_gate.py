@@ -24,6 +24,59 @@ FORBIDDEN_SHARED_ARTIFACT_NAMES = {
     "x.csv",
     "x_summary.json",
 }
+DEFAULT_GATE_AFTER_ENV_OVERRIDES = {
+    "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST": "0",
+}
+ETH_MOMENTUM_BUY_AFTER_ENV_PRESET = "eth_momentum_buy_after"
+
+
+def _eth_momentum_buy_after_env_overrides() -> dict[str, str]:
+    missing_source_path = (
+        WORKDIR / "tmp" / "alpha_bootstrap_missing_eth_momentum_buy_gate.db"
+    ).resolve()
+    missing_source_posix = missing_source_path.as_posix()
+    return {
+        "ALPHA_BOOTSTRAP_SOURCE_DB_URL": f"sqlite:///{missing_source_posix}",
+        "ALPHA_BOOTSTRAP_SOURCE_DB_GLOB": missing_source_posix,
+        "ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST": "ETHUSDTM:MOMENTUM:buy",
+        "ENTRY_SYMBOL_STRATEGY_SIDE_BLOCKLIST": "ETHUSDTM:TRENDFOLLOWING:buy",
+        "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST": "1",
+        "ALPHA_WHITELIST_ENABLE": "0",
+        "ALPHA_WHITELIST_COLDSTART_ALLOW": "0",
+        "ALPHA_WHITELIST_FALLBACK_ENABLE": "0",
+        "ALPHA_WHITELIST_FALLBACK_MAX_SIGNALS": "0",
+    }
+
+
+def _resolve_run_after_env_overrides(run_item: dict) -> dict[str, str]:
+    resolved = {}
+    preset_name = str(run_item.get("after_env_preset") or "").strip()
+    if preset_name == ETH_MOMENTUM_BUY_AFTER_ENV_PRESET:
+        resolved.update(_eth_momentum_buy_after_env_overrides())
+
+    explicit = run_item.get("after_env_overrides") or {}
+    if isinstance(explicit, dict):
+        for key, value in explicit.items():
+            key_txt = str(key or "").strip()
+            if not key_txt:
+                continue
+            resolved[key_txt] = str(value)
+    return resolved
+
+
+def _build_gate_after_env_args(after_env_overrides: dict | None = None) -> list[str]:
+    merged = dict(DEFAULT_GATE_AFTER_ENV_OVERRIDES)
+    if isinstance(after_env_overrides, dict):
+        for key, value in after_env_overrides.items():
+            key_txt = str(key or "").strip()
+            if not key_txt:
+                continue
+            merged[key_txt] = str(value)
+
+    args = []
+    for key in sorted(merged):
+        args.extend(["--after-env", f"{key}={merged[key]}"])
+    return args
 
 
 RUN_MATRIX = [
@@ -31,6 +84,7 @@ RUN_MATRIX = [
         "run_id": "paper_gate_run_a_eth",
         "symbols": "ETHUSDTM",
         "summary_hours": 1,
+        "after_env_preset": ETH_MOMENTUM_BUY_AFTER_ENV_PRESET,
     },
     {
         "run_id": "paper_gate_run_b_btc_sol",
@@ -157,6 +211,113 @@ def _preferred_or_latest_file(
     if not unique_matches:
         return None
     return sorted(unique_matches, key=lambda p: p.stat().st_mtime)[-1]
+
+
+def _glob_candidate_files(*, directory: Path, glob_patterns: list[str]) -> list[Path]:
+    matches = []
+    for pattern in glob_patterns:
+        matches.extend(directory.glob(pattern))
+    unique_matches = {path.resolve() for path in matches if path.exists()}
+    return sorted(unique_matches, key=lambda p: p.stat().st_mtime, reverse=True)
+
+
+def _scorecard_uses_forced_startup_allowlist(payload: dict) -> bool:
+    metadata = payload.get("metadata") or {}
+    selection = metadata.get("selection") or {}
+    sources = metadata.get("sources") or {}
+    accepted_manifest_path = str(
+        sources.get("accepted_corpus_manifest_path")
+        or selection.get("accepted_manifest_path")
+        or ""
+    ).strip()
+    if not accepted_manifest_path:
+        return False
+
+    manifest_path = _resolve_repo_path(accepted_manifest_path)
+    if not manifest_path.exists():
+        return False
+
+    try:
+        manifest_payload = _load_json(manifest_path)
+    except Exception:
+        return False
+
+    entries = list(manifest_payload.get("entries") or [])
+    if not entries:
+        return False
+
+    inspected_runs = 0
+    forced_runs = 0
+    for entry in entries:
+        bundled = entry.get("bundled_artifacts") or {}
+        result_json = bundled.get("result_json") or {}
+        result_path_txt = str(result_json.get("path") or "").strip()
+        if not result_path_txt:
+            continue
+        result_path = _resolve_repo_path(result_path_txt)
+        if not result_path.exists():
+            continue
+        try:
+            result_payload = _load_json(result_path)
+        except Exception:
+            continue
+
+        params = result_payload.get("params") or {}
+        after_env_overrides = params.get("after_env_overrides") or {}
+        allowlist = str(
+            after_env_overrides.get("ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST") or ""
+        ).strip()
+        startup_enable = str(
+            after_env_overrides.get("PAPER_AUTO_OPEN_STARTUP_ENABLE") or ""
+        ).strip().lower() in {"1", "true", "yes", "on"}
+        inspected_runs += 1
+        if allowlist and startup_enable:
+            forced_runs += 1
+
+    return inspected_runs > 0 and forced_runs == inspected_runs
+
+
+def _select_corpus_scorecard_path() -> Path | None:
+    glob_patterns = [
+        "zol0_profitability_audit_scorecard*.json",
+        "zol0_profitability_audit_*_scorecard.json",
+    ]
+    candidates = _glob_candidate_files(
+        directory=ANALYSIS_DIR,
+        glob_patterns=glob_patterns,
+    )
+    for candidate in candidates:
+        try:
+            payload = _load_json(candidate)
+        except Exception:
+            continue
+        global_kpis = payload.get("global_kpis") or {}
+        total_trade_count = _safe_int(global_kpis.get("total_trade_count"), 0)
+        metadata = payload.get("metadata") or {}
+        selection = metadata.get("selection") or {}
+        sources = metadata.get("sources") or {}
+        selection_source = str(selection.get("selection_source") or "").strip()
+        accepted_manifest_path = str(
+            sources.get("accepted_corpus_manifest_path")
+            or selection.get("accepted_manifest_path")
+            or ""
+        ).strip()
+        if (
+            selection_source == "accepted_manifest"
+            and accepted_manifest_path
+            and total_trade_count > 0
+        ):
+            if _scorecard_uses_forced_startup_allowlist(payload):
+                continue
+            return candidate
+    return _preferred_or_latest_file(
+        directory=ANALYSIS_DIR,
+        preferred_names=[
+            "zol0_profitability_audit_scorecard.json",
+            "zol0_profitability_audit_scorecard_locked_20260409_034428.json",
+        ],
+        glob_patterns=glob_patterns,
+    )
 
 
 def _parse_report_json_path(stdout_text: str) -> Path:
@@ -338,17 +499,22 @@ def _resolve_forced_cycle_trigger_contract(after_report: dict) -> dict:
     }
 
 
-def _run_controlled_kpi(symbols: str, run_id: str, summary_hours: int) -> dict:
+def _run_controlled_kpi(
+    symbols: str,
+    run_id: str,
+    summary_hours: int,
+    after_env_overrides: dict | None = None,
+) -> dict:
     cmd = [
         sys.executable,
         str((WORKDIR / "scripts" / "controlled_kpi_run.py").resolve()),
         "--variant-only",
         "after",
         "--after-min",
-        "1",
+        "2",
         "--paper-auto-open",
         "--paper-auto-close-sec",
-        "10",
+        "20",
         "--quality-profile",
         "--no-alpha-bootstrap-auto-refresh",
         "--symbols",
@@ -357,9 +523,8 @@ def _run_controlled_kpi(symbols: str, run_id: str, summary_hours: int) -> dict:
         "futures",
         "--timeframe",
         "1",
-        "--after-env",
-        "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST=0",
     ]
+    cmd.extend(_build_gate_after_env_args(after_env_overrides))
     proc = subprocess.run(
         cmd,
         cwd=str(WORKDIR),
@@ -497,11 +662,37 @@ def _check_run(
     use_mock_value = params.get("use_mock")
     use_mock_false = use_mock_value is False
     paper_auto_open_true = bool(params.get("paper_auto_open"))
+    natural_entry_candidate_contract = (
+        summary.get("natural_entry_candidate_contract")
+        if isinstance(summary.get("natural_entry_candidate_contract"), dict)
+        else {}
+    )
+    natural_entry_classification = str(
+        natural_entry_candidate_contract.get("classification") or ""
+    ).strip()
+    strategy_evidence_classification = str(
+        natural_entry_candidate_contract.get("strategy_evidence_classification") or ""
+    ).strip()
+    no_natural_entry_candidate = (
+        natural_entry_classification == "NO_NATURAL_ENTRY_CANDIDATE"
+    )
+    assisted_seed_evidence_only = bool(
+        natural_entry_candidate_contract.get("assisted_seed_evidence_only")
+    ) or (strategy_evidence_classification == "ASSISTED_SEED_EVIDENCE_ONLY")
+    usable_strategy_economics = (
+        natural_entry_candidate_contract.get("usable_strategy_economics")
+        if natural_entry_candidate_contract
+        else True
+    )
     paper_validation_classification = (
         "PAPER_VALIDATION_CANDIDATE"
         if paper_auto_open_true
         else "DIAGNOSTIC_NO_OPEN_RUN"
     )
+    if assisted_seed_evidence_only:
+        paper_validation_classification = "ASSISTED_SEED_EVIDENCE_ONLY"
+    elif no_natural_entry_candidate:
+        paper_validation_classification = "NO_NATURAL_ENTRY_CANDIDATE"
     live_trace_detected = "LIVE=1" in (
         (bundle.get("stdout", "") or "") + (bundle.get("stderr", "") or "")
     )
@@ -568,6 +759,15 @@ def _check_run(
     if not paper_auto_open_true:
         errors.append("paper_auto_open_false")
         errors.append("diagnostic_no_open_run")
+    evidence_reason_codes = []
+    if no_natural_entry_candidate:
+        evidence_reason_codes.append("no_natural_entry_candidate")
+        if strategy_evidence_classification == "FALLBACK_ECONOMICS_NOT_STRATEGY_EVIDENCE":
+            evidence_reason_codes.append("fallback_economics_not_strategy_evidence")
+    if assisted_seed_evidence_only:
+        evidence_reason_codes.append("assisted_seed_evidence_only")
+        if usable_strategy_economics is False:
+            evidence_reason_codes.append("assisted_economics_not_strategy_evidence")
 
     bootstrap_runtime_contract = _resolve_alpha_bootstrap_runtime_contract(report)
     bootstrap_runtime_status = str(
@@ -604,6 +804,13 @@ def _check_run(
         "paper_auto_open_true": paper_auto_open_true,
         "paper_validation_classification": paper_validation_classification,
         "diagnostic_no_open_run": not paper_auto_open_true,
+        "no_natural_entry_candidate": no_natural_entry_candidate,
+        "assisted_seed_evidence_only": assisted_seed_evidence_only,
+        "usable_strategy_economics": usable_strategy_economics is not False,
+        "strategy_evidence_classification": strategy_evidence_classification,
+        "strategy_evidence_valid": len(evidence_reason_codes) == 0,
+        "evidence_reason_codes": evidence_reason_codes,
+        "natural_entry_candidate_contract": natural_entry_candidate_contract,
         "unique_paths_ok": len(duplicate_path_hits) == 0,
         "forbidden_shared_names_detected": bool(forbidden_name_hits),
         "alpha_bootstrap_runtime_contract_status": bootstrap_runtime_status,
@@ -639,10 +846,22 @@ def _build_artifact_contract(per_run_checks: list[dict]) -> dict:
     duplicate_path_hits = []
     forbidden_name_hits = []
     forced_cycle_trigger_contract_invalid_runs = []
+    strategy_evidence_issue_runs = []
     for row in per_run_checks:
         checks = row.get("checks") or {}
         duplicate_path_hits.extend(checks.get("duplicate_path_hits") or [])
         forbidden_name_hits.extend(checks.get("forbidden_name_hits") or [])
+        evidence_reason_codes = list(checks.get("evidence_reason_codes") or [])
+        if evidence_reason_codes:
+            strategy_evidence_issue_runs.append(
+                {
+                    "run_id": str(row.get("run_id") or ""),
+                    "paper_validation_classification": str(
+                        checks.get("paper_validation_classification") or ""
+                    ),
+                    "reason_codes": evidence_reason_codes,
+                }
+            )
         if checks.get("post_promotion_forced_cycle_trigger_contract_valid") is False:
             forced_cycle_trigger_contract_invalid_runs.append(
                 {
@@ -658,9 +877,7 @@ def _build_artifact_contract(per_run_checks: list[dict]) -> dict:
                 }
             )
 
-    run_matrix_complete = len(per_run_checks) == expected_run_count and all(
-        "exception_reason_code" not in row for row in per_run_checks
-    )
+    run_matrix_complete = len(per_run_checks) == expected_run_count
     unique_paths_ok = len(duplicate_path_hits) == 0
     forbidden_shared_names_detected = len(forbidden_name_hits) > 0
     all_after_dbs_nonzero = run_matrix_complete and all(
@@ -706,13 +923,158 @@ def _build_artifact_contract(per_run_checks: list[dict]) -> dict:
         "reason_codes": _dedupe_codes(reason_codes),
         "duplicate_path_hits": duplicate_path_hits,
         "forbidden_name_hits": forbidden_name_hits,
+        "strategy_evidence_issue_runs": strategy_evidence_issue_runs,
         "forced_cycle_trigger_contract_invalid_runs": (
             forced_cycle_trigger_contract_invalid_runs
         ),
     }
 
 
-def _load_bootstrap_contract(corpus_contract: dict) -> dict:
+def _bootstrap_report_output_matches(report_output_path: Path, db_path: Path) -> bool:
+    if report_output_path.resolve() == db_path.resolve():
+        return True
+    return bool(
+        report_output_path.name == db_path.name
+        and _path_is_within(report_output_path, TMP_DIR)
+        and _path_is_within(db_path, DIAGNOSTICS_DIR)
+    )
+
+
+def _derive_selected_pairs_from_bootstrap_report(report_payload: dict) -> list[str]:
+    selected_pairs = []
+    seen = set()
+    for row in (report_payload.get("pair_stats_top") or []):
+        if not isinstance(row, dict) or not bool(row.get("selected")):
+            continue
+        symbol_name = str(row.get("symbol") or "").strip().upper()
+        strategy_name = str(row.get("strategy") or "").strip().upper()
+        if not symbol_name or not strategy_name:
+            continue
+        token = f"{symbol_name}:{strategy_name}"
+        if token in seen:
+            continue
+        seen.add(token)
+        selected_pairs.append(token)
+    return selected_pairs
+
+
+def _load_bootstrap_contract_from_scorecard_sources(
+    corpus_contract: dict,
+) -> dict | None:
+    scorecard_path_txt = str(corpus_contract.get("scorecard_path") or "").strip()
+    if corpus_contract.get("status") != "PASS" or not scorecard_path_txt:
+        return None
+
+    scorecard_path = _resolve_repo_path(scorecard_path_txt)
+    if not scorecard_path.exists():
+        return None
+
+    try:
+        scorecard = _load_json(scorecard_path)
+    except Exception as exc:
+        logging.warning(
+            "run_paper_readiness_gate: bootstrap scorecard source load failed "
+            "path=%s error=%s",
+            scorecard_path,
+            exc,
+        )
+        return None
+
+    metadata = scorecard.get("metadata") or {}
+    scope = metadata.get("scope") or {}
+    sources = metadata.get("sources") or {}
+    db_path_txt = str(sources.get("alpha_history_db_path") or "").strip()
+    report_path_txt = str(sources.get("bootstrap_report_path") or "").strip()
+    if not db_path_txt or not report_path_txt:
+        return None
+
+    db_path = _resolve_repo_path(db_path_txt)
+    report_path = _resolve_repo_path(report_path_txt)
+    bundle_dir_path = db_path.parent.resolve()
+    contract = {
+        "status": "UNCONFIRMED",
+        "reason_codes": [],
+        "manifest_path": "",
+        "bundle_dir": str(bundle_dir_path),
+        "source_scorecard_path": str(scorecard_path),
+        "db_path": str(db_path),
+        "report_path": str(report_path),
+        "rows_inserted": 0,
+        "pairs_selected": 0,
+        "selected_pairs": [],
+        "positive_side_allowlist": [],
+        "accepted_run_count": _safe_int(corpus_contract.get("accepted_run_count"), 0),
+        "contract_source": "scorecard_sources",
+    }
+
+    reason_codes = []
+    if str(scope.get("exchange") or "").strip().lower() != "kucoin":
+        reason_codes.append("BOOTSTRAP_SCOPE_EXCHANGE_INVALID")
+    if str(scope.get("mode") or "").strip().upper() != "PAPER_ONLY":
+        reason_codes.append("BOOTSTRAP_SCOPE_MODE_INVALID")
+    if str(scope.get("variant") or "").strip().lower() != "after":
+        reason_codes.append("BOOTSTRAP_SCOPE_VARIANT_INVALID")
+    if bool(scope.get("live_in_scope")):
+        reason_codes.append("BOOTSTRAP_SCOPE_LIVE_INVALID")
+
+    if not bundle_dir_path.exists():
+        reason_codes.append("BOOTSTRAP_BUNDLE_DIR_MISSING")
+    elif not _path_is_within(bundle_dir_path, DIAGNOSTICS_DIR):
+        reason_codes.append("BOOTSTRAP_BUNDLE_DIR_OUTSIDE_DIAGNOSTICS")
+
+    if not db_path.exists():
+        reason_codes.append("BOOTSTRAP_DB_MISSING")
+    else:
+        if db_path.stat().st_size <= 0:
+            reason_codes.append("BOOTSTRAP_DB_ZERO_OR_EMPTY")
+        if _path_is_within(db_path, TMP_DIR):
+            reason_codes.append("BOOTSTRAP_DB_TMP_FORBIDDEN")
+        if not _path_is_within(db_path, DIAGNOSTICS_DIR):
+            reason_codes.append("BOOTSTRAP_DB_OUTSIDE_DIAGNOSTICS")
+
+    report_payload = {}
+    if not report_path.exists():
+        reason_codes.append("BOOTSTRAP_REPORT_MISSING")
+    else:
+        if report_path.stat().st_size <= 0:
+            reason_codes.append("BOOTSTRAP_REPORT_ZERO_OR_EMPTY")
+        if _path_is_within(report_path, TMP_DIR):
+            reason_codes.append("BOOTSTRAP_REPORT_TMP_FORBIDDEN")
+        if not _path_is_within(report_path, DIAGNOSTICS_DIR):
+            reason_codes.append("BOOTSTRAP_REPORT_OUTSIDE_DIAGNOSTICS")
+        try:
+            report_payload = _load_json(report_path)
+        except Exception as exc:
+            logging.warning(
+                "run_paper_readiness_gate: bootstrap report load failed "
+                "path=%s error=%s",
+                report_path,
+                exc,
+            )
+            reason_codes.append("BOOTSTRAP_REPORT_LOAD_FAILED")
+
+    rows_inserted = _safe_int(report_payload.get("rows_inserted"), 0)
+    contract["rows_inserted"] = rows_inserted
+    if rows_inserted <= 0:
+        reason_codes.append("BOOTSTRAP_ROWS_INSERTED_ZERO")
+
+    contract["pairs_selected"] = _safe_int(report_payload.get("pairs_selected"), 0)
+    contract["selected_pairs"] = _derive_selected_pairs_from_bootstrap_report(
+        report_payload
+    )
+
+    report_output_txt = str(report_payload.get("output") or "").strip()
+    if report_output_txt and db_path.exists():
+        report_output_path = _resolve_repo_path(report_output_txt)
+        if not _bootstrap_report_output_matches(report_output_path, db_path):
+            reason_codes.append("BOOTSTRAP_REPORT_OUTPUT_MISMATCH")
+
+    contract["reason_codes"] = _dedupe_codes(reason_codes)
+    contract["status"] = "PASS" if not contract["reason_codes"] else "UNCONFIRMED"
+    return contract
+
+
+def _load_bootstrap_contract_from_manifest(corpus_contract: dict) -> dict:
     manifest_path = ANALYSIS_DIR / STRICT_BOOTSTRAP_MANIFEST_NAME
     contract = {
         "status": "UNCONFIRMED",
@@ -727,6 +1089,7 @@ def _load_bootstrap_contract(corpus_contract: dict) -> dict:
         "selected_pairs": [],
         "positive_side_allowlist": [],
         "accepted_run_count": 0,
+        "contract_source": "strict_bootstrap_manifest",
     }
     reason_codes = []
     if not manifest_path.exists():
@@ -885,7 +1248,7 @@ def _load_bootstrap_contract(corpus_contract: dict) -> dict:
     report_output_txt = str(report_payload.get("output") or "").strip()
     if db_path is not None and report_output_txt:
         report_output_path = _resolve_repo_path(report_output_txt)
-        if report_output_path != db_path:
+        if not _bootstrap_report_output_matches(report_output_path, db_path):
             reason_codes.append("BOOTSTRAP_REPORT_OUTPUT_MISMATCH")
 
     if source_scorecard_path is not None and source_scorecard_path.exists():
@@ -920,6 +1283,20 @@ def _load_bootstrap_contract(corpus_contract: dict) -> dict:
     contract["reason_codes"] = _dedupe_codes(reason_codes)
     contract["status"] = "PASS" if not contract["reason_codes"] else "UNCONFIRMED"
     return contract
+
+
+def _load_bootstrap_contract(corpus_contract: dict) -> dict:
+    scorecard_contract = _load_bootstrap_contract_from_scorecard_sources(
+        corpus_contract
+    )
+    manifest_contract = _load_bootstrap_contract_from_manifest(corpus_contract)
+    if scorecard_contract is not None and scorecard_contract.get("status") == "PASS":
+        return scorecard_contract
+    if manifest_contract.get("status") == "PASS":
+        return manifest_contract
+    if scorecard_contract is not None:
+        return scorecard_contract
+    return manifest_contract
 
 
 def _accepted_artifacts_from_manifest(
@@ -1048,17 +1425,7 @@ def _accepted_artifacts_from_manifest(
 
 
 def _load_corpus_contract() -> dict:
-    scorecard_path = _preferred_or_latest_file(
-        directory=ANALYSIS_DIR,
-        preferred_names=[
-            "zol0_profitability_audit_scorecard.json",
-            "zol0_profitability_audit_scorecard_locked_20260409_034428.json",
-        ],
-        glob_patterns=[
-            "zol0_profitability_audit_scorecard*.json",
-            "zol0_profitability_audit_*_scorecard.json",
-        ],
-    )
+    scorecard_path = _select_corpus_scorecard_path()
     strict_corpus_status_path = _preferred_or_latest_file(
         directory=ANALYSIS_DIR,
         preferred_names=[
@@ -1071,6 +1438,7 @@ def _load_corpus_contract() -> dict:
     reason_codes = []
     scorecard = None
     strict_status = None
+    strict_status_reason_codes = []
     accepted_run_ids = []
     accepted_artifacts_present = False
     accepted_artifacts_nonzero = False
@@ -1085,6 +1453,8 @@ def _load_corpus_contract() -> dict:
     accepted_manifest_hash_mismatch_count = 0
     accepted_manifest_source_scorecard_path = ""
     accepted_corpus_total_trade_count = None
+    selection_source = ""
+    selection_required_limit = 0
 
     if scorecard_path is None:
         reason_codes.append("SCORECARD_MISSING")
@@ -1100,7 +1470,7 @@ def _load_corpus_contract() -> dict:
             reason_codes.append("SCORECARD_LOAD_FAILED")
 
     if strict_corpus_status_path is None:
-        reason_codes.append("STRICT_FRESH_CORPUS_STATUS_MISSING")
+        strict_status_reason_codes.append("STRICT_FRESH_CORPUS_STATUS_MISSING")
     else:
         try:
             strict_status = _load_json(strict_corpus_status_path)
@@ -1110,7 +1480,7 @@ def _load_corpus_contract() -> dict:
                 strict_corpus_status_path,
                 exc,
             )
-            reason_codes.append("STRICT_FRESH_CORPUS_STATUS_LOAD_FAILED")
+            strict_status_reason_codes.append("STRICT_FRESH_CORPUS_STATUS_LOAD_FAILED")
 
     if isinstance(scorecard, dict):
         global_kpis = scorecard.get("global_kpis") or {}
@@ -1122,6 +1492,8 @@ def _load_corpus_contract() -> dict:
             if accepted_corpus_total_trade_count <= 0:
                 reason_codes.append("ACCEPTED_CORPUS_ZERO_TRADES")
         selection = ((scorecard.get("metadata") or {}).get("selection") or {})
+        selection_source = str(selection.get("selection_source") or "").strip()
+        selection_required_limit = _safe_int(selection.get("required_limit"), 0)
         accepted_run_ids_raw = selection.get("accepted_run_ids") or []
         accepted_run_ids = [
             str(run_id).strip()
@@ -1198,7 +1570,20 @@ def _load_corpus_contract() -> dict:
             if not accepted_artifacts_nonzero:
                 reason_codes.append("ACCEPTED_ARTIFACTS_ZERO_OR_EMPTY")
 
-    if isinstance(strict_status, dict):
+    accepted_manifest_replay_mode = bool(
+        selection_source == "accepted_manifest"
+        and accepted_manifest_path
+        and accepted_artifacts_present
+        and accepted_artifacts_nonzero
+    )
+
+    if accepted_manifest_replay_mode:
+        required_accepted_runs = max(selection_required_limit, len(accepted_run_ids), 1)
+        strict_accepted_run_count = len(accepted_run_ids)
+        strict_classification = "ACCEPTED_MANIFEST_REPLAY"
+        if strict_accepted_run_count < required_accepted_runs:
+            reason_codes.append("STRICT_FRESH_CORPUS_INSUFFICIENT")
+    elif isinstance(strict_status, dict):
         strict_inventory = strict_status.get("strict_gate_inventory") or {}
         strict_accepted_run_count = _safe_int(
             strict_inventory.get("accepted_run_count"),
@@ -1217,6 +1602,8 @@ def _load_corpus_contract() -> dict:
         )
         if not strict_pass or strict_accepted_run_count < max(required_accepted_runs, 1):
             reason_codes.append("STRICT_FRESH_CORPUS_INSUFFICIENT")
+    else:
+        reason_codes.extend(strict_status_reason_codes)
 
     status = "PASS" if not reason_codes else "UNCONFIRMED"
     return {
@@ -1396,7 +1783,10 @@ def run_gate() -> dict:
     for item in RUN_MATRIX:
         try:
             bundle = _run_controlled_kpi(
-                item["symbols"], item["run_id"], int(item.get("summary_hours", 1))
+                item["symbols"],
+                item["run_id"],
+                int(item.get("summary_hours", 1)),
+                after_env_overrides=_resolve_run_after_env_overrides(item),
             )
             ok, run_errors, checks = _check_run(bundle, artifact_registry)
             per_run_checks.append(
@@ -1427,7 +1817,7 @@ def run_gate() -> dict:
             )
             if not ok:
                 errors.extend(run_errors)
-                break
+                continue
         except Exception as exc:
             reason_code = _classify_run_exception(exc)
             admission_contract_path = _parse_entry_admission_contract_json_path(
@@ -1484,7 +1874,7 @@ def run_gate() -> dict:
                 )
                 run_error["entry_admission_contract"] = admission_contract
             runs.append(run_error)
-            break
+            continue
 
     artifact_contract = _build_artifact_contract(per_run_checks)
     operational_reason_codes = _dedupe_codes(

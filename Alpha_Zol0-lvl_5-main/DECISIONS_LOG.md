@@ -1,5 +1,38 @@
 # Decisions Log
 
+## 2026-04-20: Fresh paper readiness gate PASS (20260420_072346)
+- Decision: fresh gate run confirmed system remains `PROMOTE_CANDIDATE` after post-green contract validation window.
+- Timestamp: `20260420_072346` (ran 09:23–09:32 UTC)
+- Result: `operational_gate_status=PASS`, `global_verdict=PROMOTE_CANDIDATE`, `paper_ready=True`, `economics_go_no_go=GO`, `runs_passed=4/4`
+- Corridors: ETH solo, BTC+SOL, BTC solo, XRP solo — all `ok=True`
+- Economics: `accepted_run_count=12/12`, `avg_net_pnl=0.000916`, `scorecard_path=zol0_profitability_audit_phase3_eth_momentum_buy_repaired_bootstrap_20260419_scorecard.json`
+- Artifact: `reports/paper_readiness/paper_readiness_gate_20260420_072346.md`
+- `latest_gate.json` / `latest_gate.md` updated to point at this artifact.
+- Next allowed step: proceed to guarded promotion rollout (human decision required).
+
+## 2026-04-20: Validate post-green protective exit runtime contract (POST_GREEN_RUNTIME_CONTRACT_FIXED)
+- Decision: accept `POST_GREEN_RUNTIME_CONTRACT_FIXED` frozen state as validated; BotCore.py contract patch confirmed operational via 17 PAPER corridor runs on KuCoin futures.
+- Classification: `CONTRACT_PATCH_VALIDATED_POST_GREEN_TRIGGERED`
+- Audit artifact: `artifacts/diagnostics/post_green_natural_entry_contract_audit_20260419_expanded.json`
+- Scope:
+  - KuCoin-only, PAPER-only
+  - Futures market, symbols: ETHUSDTM, BTCUSDTM, SOLUSDTM, XRPUSDTM
+  - `PAPER_AUTO_OPEN_STARTUP_ENABLE=1 + FALLBACK_ENABLE=1` used to bypass entry quality gates
+  - `PAPER_AUTO_OPEN_REPEAT=1` used to enable continuous re-opens
+  - Empty bootstrap DB (`alpha_bootstrap_empty_cleanstart.db`) to avoid side_guard pre-fires
+- Validated pass/fail criteria:
+  - `post_green_protective_terminal_trigger_seen=True` confirmed in `position_close` events ✅
+  - All 6 required attribution fields non-null: `post_green_attempt_seq`, `post_green_branch_seq`, `post_green_trigger_mode`, `post_green_trigger_reason_detail`, `post_green_peak_to_burden_ratio`, `post_green_bnr_time_forced_exit_sec` ✅
+  - All 6 fields consistent between `position_close` and `post_green_protective_exit_terminal_outcome` events ✅
+  - All 17 runs runtime-clean (`shutdown_classification=close_flush_done_pending_positions_zero`) ✅
+- Key technical finding: `EXIT_CLOSE_ATTEMPT_FEE_GUARD_COOLDOWN_SEC` default (300s) caused 22 consecutive post_green_protective_exit trigger attempts to be suppressed by `close_duplicate_suppressed(recent_attempt_fee_guard)` in batch10g run. First BLOCK_FEE_GUARD at 04:04:13 UTC, window expired at 04:14:22 UTC, close fired at 04:14:42 UTC (attempt_seq=23). Future validation runs should set `EXIT_CLOSE_ATTEMPT_FEE_GUARD_COOLDOWN_SEC=10` to avoid this delay.
+- Trigger modes observed in batch10g closes: `bnr_time_forced_exit` (3 positions), `peak_giveback_soft_residual_floor` (1 position), `skip:blocked_negative_residual` (1 position with trigger_seen=True via different branch).
+- Non-goals:
+  - no LIVE rollout
+  - no strategy change
+  - no BotCore.py source changes (remains frozen)
+  - no threshold change
+
 ## 2026-03-31: Accept bounded post-close summary grace for PAPER validation
 - Decision: accept the runner-only bounded grace latch for post-close summary completion in PAPER validation.
 - Classification before the fix: `PROCESS_TERMINATES_BEFORE_SUMMARY_BLOCK_ENTRY_CONFIRMED`.

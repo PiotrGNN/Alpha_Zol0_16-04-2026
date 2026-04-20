@@ -1092,6 +1092,62 @@ def test_post_green_close_contract_fields_keep_terminal_and_close_consistent_for
     assert close_fields["post_green_protective_terminal_outcome"] == "SKIPPED_ONLY"
 
 
+def test_post_green_close_contract_fields_prefer_latched_trigger_contract():
+    payload = {
+        "post_green_peak_mfe": 0.0010,
+        "post_green_time_since_peak_sec": 82.0,
+        "post_green_giveback_ratio": 7.4,
+        "post_green_exit_reason": "post_green_protective_exit",
+        "post_green_skip_reason": "blocked_negative_residual",
+        "post_green_trigger_mode": None,
+        "post_green_trigger_reason_detail": None,
+        "post_green_rescue_exit_reason": "post_green_rescue_refine_hold",
+        "post_green_attempt_seq": 8,
+        "post_green_branch_seq": "skip:blocked_negative_residual",
+        "post_green_peak_to_burden_ratio": 0.14,
+        "post_green_bnr_time_forced_exit_sec": None,
+    }
+    marker = {
+        "post_green_protective_terminal_schema_version": 1,
+        "post_green_protective_terminal_outcome": "TRIGGERED_ONLY",
+        "post_green_protective_terminal_candidate_seen": True,
+        "post_green_protective_terminal_skip_seen": True,
+        "post_green_protective_terminal_trigger_seen": True,
+        "post_green_protective_terminal_last_skip_reason": "blocked_negative_residual",
+    }
+    lifecycle_state = {
+        "post_green_trigger_contract": {
+            "post_green_peak_mfe": 0.0012,
+            "post_green_time_since_peak_sec": 45.0,
+            "post_green_giveback_ratio": 5.6,
+            "post_green_exit_reason": "post_green_protective_exit",
+            "post_green_skip_reason": None,
+            "post_green_trigger_mode": "bnr_time_forced_exit",
+            "post_green_trigger_reason_detail": "bnr_time_forced_exit",
+            "post_green_rescue_exit_reason": "post_green_protective_exit",
+            "post_green_attempt_seq": 3,
+            "post_green_branch_seq": "bnr_time_forced_exit",
+            "post_green_peak_to_burden_ratio": 0.18,
+            "post_green_bnr_time_forced_exit_sec": 1.0,
+        }
+    }
+
+    close_fields = _build_post_green_close_contract_fields(
+        payload,
+        terminal_marker=marker,
+        lifecycle_state=lifecycle_state,
+    )
+
+    assert close_fields["post_green_protective_terminal_outcome"] == "TRIGGERED_ONLY"
+    assert close_fields["post_green_attempt_seq"] == 3
+    assert close_fields["post_green_branch_seq"] == "bnr_time_forced_exit"
+    assert close_fields["post_green_trigger_mode"] == "bnr_time_forced_exit"
+    assert close_fields["post_green_trigger_reason_detail"] == "bnr_time_forced_exit"
+    assert close_fields["post_green_peak_to_burden_ratio"] == pytest.approx(0.18)
+    assert close_fields["post_green_bnr_time_forced_exit_sec"] == 1.0
+    assert close_fields["post_green_skip_reason"] is None
+
+
 def test_post_green_micro_mfe_branch_remains_distinct_from_bnr():
     now_dt = datetime(2026, 4, 3, 12, 0, 0, tzinfo=timezone.utc)
     micro_position = {

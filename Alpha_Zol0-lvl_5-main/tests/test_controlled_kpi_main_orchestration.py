@@ -1467,6 +1467,571 @@ def test_main_both_variants_emits_delta_and_auto_overrides(
     assert csv_lines[0].startswith("variant,trade_count,net_pnl")
 
 
+def test_main_cli_alpha_bootstrap_source_override_bypasses_exact_prebuilt_source(
+    monkeypatch,
+    tmp_path,
+):
+    module = _load_module()
+    results_dir, _, _ = _patch_workspace(monkeypatch, module, tmp_path)
+
+    prebuilt_db_path = tmp_path / "diagnostics" / "prebuilt_alpha.db"
+    prebuilt_db_path.parent.mkdir(parents=True, exist_ok=True)
+    prebuilt_db_path.write_text("prebuilt", encoding="utf-8")
+    prebuilt_report_path = tmp_path / "diagnostics" / "prebuilt_alpha_report.json"
+    prebuilt_report_path.write_text("{}", encoding="utf-8")
+    custom_db_path = tmp_path / "custom" / "cli_alpha.db"
+    custom_db_path.parent.mkdir(parents=True, exist_ok=True)
+    custom_db_path.write_text("custom", encoding="utf-8")
+    custom_db_posix = custom_db_path.resolve().as_posix()
+
+    run_calls = []
+    refresh_calls = []
+
+    def fake_block_mock_ohlcv_kucoin_paper_startup(**kwargs):
+        assert kwargs["use_mock"] is False
+
+    def fake_run_data_integrity_checks(**kwargs):
+        return {
+            "skipped": False,
+            "market_type": kwargs["market_type"],
+            "timeframe": kwargs["timeframe"],
+            "symbols": list(kwargs["symbols"]),
+            "results": {
+                "ADAUSDTM": {
+                    "ok": True,
+                    "count": 60,
+                    "monotonic_ts": True,
+                    "stale_sec": 0.0,
+                }
+            },
+        }
+
+    def fake_resolve_alpha_bootstrap_exact_source_contract(_accepted_scorecard_path):
+        return {
+            "active": True,
+            "source_mode": "prebuilt_alpha_history_db",
+            "prebuilt_alpha_history_db_path": str(prebuilt_db_path),
+            "prebuilt_alpha_history_report_path": str(prebuilt_report_path),
+            "scorecard_path": str(tmp_path / "scorecard.json"),
+            "resolved_scorecard_path": str((tmp_path / "scorecard.json").resolve()),
+            "prebuilt_manifest_path": str(tmp_path / "manifest.json"),
+            "accepted_run_ids": ["run-a"],
+            "existing_run_ids": ["run-a"],
+            "nonzero_run_ids": ["run-a"],
+            "missing_run_ids": [],
+            "exact_after_db_patterns": ["tmp/controlled_kpi_after_run-a.db"],
+            "reason_codes": [],
+        }
+
+    def fake_refresh_alpha_bootstrap_history(**kwargs):
+        refresh_calls.append(kwargs)
+        return {"enabled": kwargs["enabled"], "ran": False, "success": False}
+
+    def fake_run_variant(variant, duration_sec, run_id, **kwargs):
+        run_calls.append(
+            {
+                "variant": variant,
+                "duration_sec": duration_sec,
+                "run_id": run_id,
+                "kwargs": kwargs,
+            }
+        )
+        return _variant_metrics(variant, process_returncode=0, diagnostic_mode=False)
+
+    monkeypatch.setattr(
+        module,
+        "_block_mock_ohlcv_kucoin_paper_startup",
+        fake_block_mock_ohlcv_kucoin_paper_startup,
+    )
+    monkeypatch.setattr(
+        module,
+        "_run_data_integrity_checks",
+        fake_run_data_integrity_checks,
+    )
+    monkeypatch.setattr(
+        module,
+        "_resolve_alpha_bootstrap_exact_source_contract",
+        fake_resolve_alpha_bootstrap_exact_source_contract,
+    )
+    monkeypatch.setattr(
+        module,
+        "_refresh_alpha_bootstrap_history",
+        fake_refresh_alpha_bootstrap_history,
+    )
+    monkeypatch.setattr(module, "_run_variant", fake_run_variant)
+    monkeypatch.setattr(
+        module,
+        "_build_diagnostic_runtime_summary",
+        lambda **kwargs: pytest.fail("diagnostic summary should not be built"),
+    )
+    monkeypatch.setattr(
+        module,
+        "_write_diagnostic_runtime_summary",
+        lambda summary, run_id: pytest.fail("diagnostic summary should not be written"),
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "controlled_kpi_run.py",
+            "--variant-only",
+            "after",
+            "--symbols",
+            "ADAUSDTM",
+            "--after-env",
+            f"ALPHA_BOOTSTRAP_SOURCE_DB_URL=sqlite:///{custom_db_posix}",
+            "--after-env",
+            f"ALPHA_BOOTSTRAP_SOURCE_DB_GLOB={custom_db_posix}",
+        ],
+    )
+
+    module.main()
+
+    assert len(refresh_calls) == 1
+    assert refresh_calls[0]["enabled"] is False
+    assert len(run_calls) == 1
+    assert run_calls[0]["variant"] == "after"
+    assert run_calls[0]["kwargs"]["alpha_bootstrap_source_db_url"] == (
+        f"sqlite:///{custom_db_posix}"
+    )
+    assert run_calls[0]["kwargs"]["alpha_bootstrap_source_db_glob"] == custom_db_posix
+
+    json_reports = sorted(results_dir.glob("controlled_kpi_*.json"))
+    assert len(json_reports) == 1
+    report = json.loads(json_reports[0].read_text(encoding="utf-8"))
+    assert report["params"]["alpha_bootstrap_source_db_url"] == (
+        f"sqlite:///{custom_db_posix}"
+    )
+    assert report["params"]["alpha_bootstrap_source_db_glob"] == custom_db_posix
+    assert report["params"]["alpha_bootstrap_auto_refresh"] is False
+    assert (
+        report["params"]["after_env_overrides_cli"][
+            "ALPHA_BOOTSTRAP_SOURCE_DB_URL"
+        ]
+        == f"sqlite:///{custom_db_posix}"
+    )
+
+
+def test_main_explicit_side_allowlist_does_not_enable_startup_auto_open(
+    monkeypatch,
+    tmp_path,
+):
+    module = _load_module()
+    results_dir, _, _ = _patch_workspace(monkeypatch, module, tmp_path)
+
+    custom_db_path = tmp_path / "custom" / "cli_alpha.db"
+    custom_db_path.parent.mkdir(parents=True, exist_ok=True)
+    custom_db_path.write_text("custom", encoding="utf-8")
+    custom_db_posix = custom_db_path.resolve().as_posix()
+
+    run_calls = []
+    refresh_calls = []
+
+    def fake_block_mock_ohlcv_kucoin_paper_startup(**kwargs):
+        assert kwargs["use_mock"] is False
+
+    def fake_run_data_integrity_checks(**kwargs):
+        return {
+            "skipped": False,
+            "market_type": kwargs["market_type"],
+            "timeframe": kwargs["timeframe"],
+            "symbols": list(kwargs["symbols"]),
+            "results": {
+                "ETHUSDTM": {
+                    "ok": True,
+                    "count": 60,
+                    "monotonic_ts": True,
+                    "stale_sec": 0.0,
+                }
+            },
+        }
+
+    def fake_resolve_alpha_bootstrap_exact_source_contract(_accepted_scorecard_path):
+        return {
+            "active": False,
+            "source_mode": "",
+            "accepted_run_ids": [],
+            "existing_run_ids": [],
+            "nonzero_run_ids": [],
+            "missing_run_ids": [],
+            "reason_codes": [],
+        }
+
+    def fake_refresh_alpha_bootstrap_history(**kwargs):
+        refresh_calls.append(kwargs)
+        return {"enabled": kwargs["enabled"], "ran": False, "success": False}
+
+    def fake_run_variant(variant, duration_sec, run_id, **kwargs):
+        run_calls.append(
+            {
+                "variant": variant,
+                "duration_sec": duration_sec,
+                "run_id": run_id,
+                "kwargs": kwargs,
+            }
+        )
+        return _variant_metrics(variant, process_returncode=0, diagnostic_mode=False)
+
+    monkeypatch.setattr(
+        module,
+        "_block_mock_ohlcv_kucoin_paper_startup",
+        fake_block_mock_ohlcv_kucoin_paper_startup,
+    )
+    monkeypatch.setattr(
+        module,
+        "_run_data_integrity_checks",
+        fake_run_data_integrity_checks,
+    )
+    monkeypatch.setattr(
+        module,
+        "_resolve_alpha_bootstrap_exact_source_contract",
+        fake_resolve_alpha_bootstrap_exact_source_contract,
+    )
+    monkeypatch.setattr(
+        module,
+        "_refresh_alpha_bootstrap_history",
+        fake_refresh_alpha_bootstrap_history,
+    )
+    monkeypatch.setattr(module, "_run_variant", fake_run_variant)
+    monkeypatch.setattr(
+        module,
+        "_build_diagnostic_runtime_summary",
+        lambda **kwargs: pytest.fail("diagnostic summary should not be built"),
+    )
+    monkeypatch.setattr(
+        module,
+        "_write_diagnostic_runtime_summary",
+        lambda summary, run_id: pytest.fail("diagnostic summary should not be written"),
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "controlled_kpi_run.py",
+            "--variant-only",
+            "after",
+            "--symbols",
+            "ETHUSDTM",
+            "--paper-auto-open",
+            "--after-env",
+            f"ALPHA_BOOTSTRAP_SOURCE_DB_URL=sqlite:///{custom_db_posix}",
+            "--after-env",
+            f"ALPHA_BOOTSTRAP_SOURCE_DB_GLOB={custom_db_posix}",
+            "--after-env",
+            "ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST=ETHUSDTM:MOMENTUM:buy",
+            "--after-env",
+            "ENTRY_SYMBOL_STRATEGY_SIDE_BLOCKLIST=ETHUSDTM:TRENDFOLLOWING:buy",
+        ],
+    )
+
+    module.main()
+
+    assert len(refresh_calls) == 1
+    assert refresh_calls[0]["enabled"] is False
+    assert len(run_calls) == 1
+    assert run_calls[0]["variant"] == "after"
+    variant_overrides = run_calls[0]["kwargs"]["variant_overrides"]
+    assert variant_overrides["ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST"] == (
+        "ETHUSDTM:MOMENTUM:buy"
+    )
+    assert "PAPER_AUTO_OPEN_STARTUP_ENABLE" not in variant_overrides
+    assert "PAPER_AUTO_OPEN_FALLBACK_ENABLE" not in variant_overrides
+
+    json_reports = sorted(results_dir.glob("controlled_kpi_*.json"))
+    assert len(json_reports) == 1
+    report = json.loads(json_reports[0].read_text(encoding="utf-8"))
+    assert "PAPER_AUTO_OPEN_STARTUP_ENABLE" not in report["params"][
+        "after_env_overrides_cli"
+    ]
+    assert "PAPER_AUTO_OPEN_FALLBACK_ENABLE" not in report["params"][
+        "after_env_overrides_cli"
+    ]
+    assert "PAPER_AUTO_OPEN_STARTUP_ENABLE" not in report["params"][
+        "after_env_overrides"
+    ]
+    assert "PAPER_AUTO_OPEN_FALLBACK_ENABLE" not in report["params"][
+        "after_env_overrides"
+    ]
+
+
+def test_main_zero_row_bootstrap_enables_seed_trades_cold_start_mode(
+    monkeypatch,
+    tmp_path,
+):
+    module = _load_module()
+    results_dir, _, _ = _patch_workspace(monkeypatch, module, tmp_path)
+
+    run_calls = []
+
+    def fake_block_mock_ohlcv_kucoin_paper_startup(**kwargs):
+        assert kwargs["use_mock"] is False
+
+    def fake_run_data_integrity_checks(**kwargs):
+        return {
+            "skipped": False,
+            "market_type": kwargs["market_type"],
+            "timeframe": kwargs["timeframe"],
+            "symbols": list(kwargs["symbols"]),
+            "results": {
+                "BTCUSDTM": {
+                    "ok": True,
+                    "count": 60,
+                    "monotonic_ts": True,
+                    "stale_sec": 0.0,
+                },
+                "XRPUSDTM": {
+                    "ok": True,
+                    "count": 60,
+                    "monotonic_ts": True,
+                    "stale_sec": 0.0,
+                },
+            },
+        }
+
+    def fake_resolve_alpha_bootstrap_exact_source_contract(_accepted_scorecard_path):
+        return {
+            "active": False,
+            "source_mode": "",
+            "accepted_run_ids": [],
+            "existing_run_ids": [],
+            "nonzero_run_ids": [],
+            "missing_run_ids": [],
+            "reason_codes": [],
+        }
+
+    def fake_refresh_alpha_bootstrap_history(**kwargs):
+        return {
+            "enabled": kwargs["enabled"],
+            "ran": True,
+            "success": True,
+            "returncode": 0,
+            "output_path": str(tmp_path / "tmp" / "alpha_history_zero.db"),
+            "output_exists": True,
+            "report_path": str(tmp_path / "tmp" / "alpha_history_zero_report.json"),
+            "report": {
+                "rows_inserted": 0,
+                "pairs_selected": 0,
+                "pair_stats_top": [],
+                "pair_side_stats_top": [],
+            },
+            "stdout_tail": "",
+            "stderr_tail": "",
+        }
+
+    def fake_run_variant(variant, duration_sec, run_id, **kwargs):
+        run_calls.append(
+            {
+                "variant": variant,
+                "duration_sec": duration_sec,
+                "run_id": run_id,
+                "kwargs": kwargs,
+            }
+        )
+        return _variant_metrics(variant, process_returncode=0, diagnostic_mode=False)
+
+    monkeypatch.setattr(
+        module,
+        "_block_mock_ohlcv_kucoin_paper_startup",
+        fake_block_mock_ohlcv_kucoin_paper_startup,
+    )
+    monkeypatch.setattr(
+        module,
+        "_run_data_integrity_checks",
+        fake_run_data_integrity_checks,
+    )
+    monkeypatch.setattr(
+        module,
+        "_resolve_alpha_bootstrap_exact_source_contract",
+        fake_resolve_alpha_bootstrap_exact_source_contract,
+    )
+    monkeypatch.setattr(
+        module,
+        "_refresh_alpha_bootstrap_history",
+        fake_refresh_alpha_bootstrap_history,
+    )
+    monkeypatch.setattr(module, "_run_variant", fake_run_variant)
+    monkeypatch.setattr(
+        module,
+        "_build_diagnostic_runtime_summary",
+        lambda **kwargs: pytest.fail("diagnostic summary should not be built"),
+    )
+    monkeypatch.setattr(
+        module,
+        "_write_diagnostic_runtime_summary",
+        lambda summary, run_id: pytest.fail("diagnostic summary should not be written"),
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "controlled_kpi_run.py",
+            "--variant-only",
+            "after",
+            "--symbols",
+            "BTCUSDTM,XRPUSDTM",
+            "--paper-auto-open",
+            "--quality-profile",
+        ],
+    )
+
+    module.main()
+
+    assert len(run_calls) == 1
+    variant_overrides = run_calls[0]["kwargs"]["variant_overrides"]
+    assert variant_overrides["SEED_TRADES_ENABLE"] == "1"
+    assert variant_overrides["SEED_TRADES_LIMIT"] == "1"
+    assert variant_overrides["PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST"] == "0"
+
+    json_reports = sorted(results_dir.glob("controlled_kpi_*.json"))
+    assert len(json_reports) == 1
+    report = json.loads(json_reports[0].read_text(encoding="utf-8"))
+    assert report["params"]["after_env_overrides"]["SEED_TRADES_ENABLE"] == "1"
+    assert report["params"]["after_env_overrides"]["SEED_TRADES_LIMIT"] == "1"
+    assert (
+        report["params"]["after_env_overrides"][
+            "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST"
+        ]
+        == "0"
+    )
+
+
+def test_main_explicit_side_allowlist_skips_zero_row_seed_trade_mode(
+    monkeypatch,
+    tmp_path,
+):
+    module = _load_module()
+    results_dir, _, _ = _patch_workspace(monkeypatch, module, tmp_path)
+
+    run_calls = []
+
+    def fake_block_mock_ohlcv_kucoin_paper_startup(**kwargs):
+        assert kwargs["use_mock"] is False
+
+    def fake_run_data_integrity_checks(**kwargs):
+        return {
+            "skipped": False,
+            "market_type": kwargs["market_type"],
+            "timeframe": kwargs["timeframe"],
+            "symbols": list(kwargs["symbols"]),
+            "results": {
+                "ETHUSDTM": {
+                    "ok": True,
+                    "count": 60,
+                    "monotonic_ts": True,
+                    "stale_sec": 0.0,
+                }
+            },
+        }
+
+    def fake_resolve_alpha_bootstrap_exact_source_contract(_accepted_scorecard_path):
+        return {
+            "active": False,
+            "source_mode": "",
+            "accepted_run_ids": [],
+            "existing_run_ids": [],
+            "nonzero_run_ids": [],
+            "missing_run_ids": [],
+            "reason_codes": [],
+        }
+
+    def fake_refresh_alpha_bootstrap_history(**kwargs):
+        return {
+            "enabled": kwargs["enabled"],
+            "ran": True,
+            "success": True,
+            "returncode": 0,
+            "output_path": str(tmp_path / "tmp" / "alpha_history_zero.db"),
+            "output_exists": True,
+            "report_path": str(tmp_path / "tmp" / "alpha_history_zero_report.json"),
+            "report": {
+                "rows_inserted": 0,
+                "pairs_selected": 0,
+                "pair_stats_top": [],
+                "pair_side_stats_top": [],
+            },
+            "stdout_tail": "",
+            "stderr_tail": "",
+        }
+
+    def fake_run_variant(variant, duration_sec, run_id, **kwargs):
+        run_calls.append(
+            {
+                "variant": variant,
+                "duration_sec": duration_sec,
+                "run_id": run_id,
+                "kwargs": kwargs,
+            }
+        )
+        return _variant_metrics(variant, process_returncode=0, diagnostic_mode=False)
+
+    monkeypatch.setattr(
+        module,
+        "_block_mock_ohlcv_kucoin_paper_startup",
+        fake_block_mock_ohlcv_kucoin_paper_startup,
+    )
+    monkeypatch.setattr(
+        module,
+        "_run_data_integrity_checks",
+        fake_run_data_integrity_checks,
+    )
+    monkeypatch.setattr(
+        module,
+        "_resolve_alpha_bootstrap_exact_source_contract",
+        fake_resolve_alpha_bootstrap_exact_source_contract,
+    )
+    monkeypatch.setattr(
+        module,
+        "_refresh_alpha_bootstrap_history",
+        fake_refresh_alpha_bootstrap_history,
+    )
+    monkeypatch.setattr(module, "_run_variant", fake_run_variant)
+    monkeypatch.setattr(
+        module,
+        "_build_diagnostic_runtime_summary",
+        lambda **kwargs: pytest.fail("diagnostic summary should not be built"),
+    )
+    monkeypatch.setattr(
+        module,
+        "_write_diagnostic_runtime_summary",
+        lambda summary, run_id: pytest.fail("diagnostic summary should not be written"),
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "controlled_kpi_run.py",
+            "--variant-only",
+            "after",
+            "--symbols",
+            "ETHUSDTM",
+            "--paper-auto-open",
+            "--after-env",
+            "ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST=ETHUSDTM:MOMENTUM:buy",
+        ],
+    )
+
+    module.main()
+
+    assert len(run_calls) == 1
+    variant_overrides = run_calls[0]["kwargs"]["variant_overrides"]
+    assert variant_overrides["ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST"] == (
+        "ETHUSDTM:MOMENTUM:buy"
+    )
+    assert "PAPER_AUTO_OPEN_STARTUP_ENABLE" not in variant_overrides
+    assert "SEED_TRADES_ENABLE" not in variant_overrides
+    assert "SEED_TRADES_LIMIT" not in variant_overrides
+
+    json_reports = sorted(results_dir.glob("controlled_kpi_*.json"))
+    assert len(json_reports) == 1
+    report = json.loads(json_reports[0].read_text(encoding="utf-8"))
+    assert report["params"]["auto_after_overrides"] == {}
+    assert "SEED_TRADES_ENABLE" not in report["params"]["after_env_overrides"]
+    assert "SEED_TRADES_LIMIT" not in report["params"]["after_env_overrides"]
+    assert "PAPER_AUTO_OPEN_STARTUP_ENABLE" not in report["params"][
+        "after_env_overrides"
+    ]
+
+
 def test_main_rejects_empty_symbol_list(monkeypatch, tmp_path):
     module = _load_module()
     _patch_workspace(monkeypatch, module, tmp_path)

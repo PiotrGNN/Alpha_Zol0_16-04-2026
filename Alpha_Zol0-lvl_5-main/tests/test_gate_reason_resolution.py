@@ -299,6 +299,15 @@ def test_entry_open_truth_classification_maps_auto_open_sources():
     assert (
         _classify_entry_open_truth(
             selection_source=None,
+            entry_reason="seed_trades_override",
+            decision_router_path="router_selection",
+            override_reason=None,
+        )
+        == "SEED_TRADES_OVERRIDE_ASSISTED"
+    )
+    assert (
+        _classify_entry_open_truth(
+            selection_source=None,
             entry_reason="edge_discovered_dynamic",
             decision_router_path="router_selection",
             override_reason=None,

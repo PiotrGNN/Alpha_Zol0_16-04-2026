@@ -81,7 +81,7 @@ def _position_open_payload(
             "normalized_side": side,
             "strategy_source": "strategy",
         }
-    return {
+    payload = {
         "symbol": symbol,
         "side": side,
         "strategy": entry_main_strategy,
@@ -93,8 +93,10 @@ def _position_open_payload(
         "decision_router_path": decision_router_path,
         "override_reason": override_reason,
         "selection_source": selection_source,
-        "entry_open_truth_classification": truth,
     }
+    if truth is not None:
+        payload["entry_open_truth_classification"] = truth
+    return payload
 
 
 def _init_db(db_path: Path):
@@ -176,7 +178,6 @@ def test_build_report_inferrs_position_open_truth_when_field_missing(tmp_path):
     db_path = tmp_path / "open_truth_fallback.db"
     _init_db(db_path)
     payload = _position_open_payload()
-    payload.pop("entry_open_truth_classification")
     _insert(db_path, "position_open", payload)
     _insert(db_path, "entry_gate_decision_summary", _payload(symbol="ETHUSDTM"))
     _insert(db_path, "risk_decision", _risk_payload(symbol="ETHUSDTM"))
@@ -195,6 +196,227 @@ def test_build_report_inferrs_position_open_truth_when_field_missing(tmp_path):
     assert report["last_position_open"]["canonical_bucket_key"] == (
         "ETHUSDTM|TRENDFOLLOWING|buy"
     )
+
+
+def test_build_report_marks_seed_trade_open_as_assisted_evidence(tmp_path):
+    db_path = tmp_path / "seed_assisted.db"
+    _init_db(db_path)
+    gate_payload = _payload(symbol="BTCUSDTM", side="sell", final_allow=True)
+    gate_payload.update(
+        {
+            "entry_decision_raw": "sell",
+            "entry_decision_final": "sell",
+            "entry_reason": "seed_trades_override",
+            "main_strategy": "Momentum",
+            "natural_path_trace": {
+                "pre_entry_candidate_exists": True,
+                "strategy_assignment_stage": "router_assignment",
+                "main_strategy": "Momentum",
+                "side": "sell",
+            },
+        }
+    )
+    _insert(db_path, "entry_gate_decision_summary", gate_payload)
+    _insert(db_path, "risk_decision", _risk_payload(symbol="BTCUSDTM"))
+    _insert(
+        db_path,
+        "position_open",
+        _position_open_payload(
+            symbol="BTCUSDTM",
+            side="sell",
+            entry_main_strategy="Momentum",
+            entry_reason="seed_trades_override",
+            decision_router_path="router_selection",
+            override_reason=None,
+            selection_source=None,
+            truth=None,
+        ),
+    )
+
+    report = build_report(db_path, hours=None)
+    contract = report["natural_entry_candidate_contract"]
+
+    assert report["position_open_truth_classification_counts"] == [
+        ("SEED_TRADES_OVERRIDE_ASSISTED", 1)
+    ]
+    assert (
+        report["last_position_open"]["entry_open_truth_classification"]
+        == "SEED_TRADES_OVERRIDE_ASSISTED"
+    )
+    assert contract["classification"] == "NATURAL_ENTRY_CANDIDATE_PRESENT"
+    assert contract["natural_admitted_count"] == 0
+    assert contract["assisted_seed_admitted_count"] == 1
+    assert contract["assisted_seed_open_count"] == 1
+    assert contract["assisted_seed_evidence_only"] is True
+    assert contract["usable_strategy_economics"] is False
+    assert contract["strategy_evidence_classification"] == "ASSISTED_SEED_EVIDENCE_ONLY"
+    assert contract["assisted_seed_allowed_sides"] == [
+        {
+            "symbol": "BTCUSDTM",
+            "strategy": "Momentum",
+            "side": "sell",
+            "count": 1,
+        }
+    ]
+
+
+def test_build_report_classifies_decision_passed_open_as_natural_entry(tmp_path):
+    db_path = tmp_path / "natural_open_truth.db"
+    _init_db(db_path)
+    gate_payload = _payload(symbol="ETHUSDTM", side="buy", final_allow=True)
+    gate_payload.update(
+        {
+            "entry_decision_raw": "buy",
+            "entry_decision_final": "buy",
+            "entry_reason": "decision_passed",
+            "main_strategy": "Momentum",
+            "natural_path_trace": {
+                "pre_entry_candidate_exists": True,
+                "strategy_assignment_stage": "router_selection",
+                "strategy_candidate": "Momentum",
+                "side_candidate": "buy",
+            },
+        }
+    )
+    open_payload = _position_open_payload(
+        symbol="ETHUSDTM",
+        side="buy",
+        entry_main_strategy="Momentum",
+        entry_reason="decision_passed",
+        decision_router_path="Momentum",
+        override_reason="none",
+        selection_source=None,
+        truth=None,
+    )
+    open_payload.pop("entry_open_truth_classification", None)
+    _insert(db_path, "entry_gate_decision_summary", gate_payload)
+    _insert(db_path, "risk_decision", _risk_payload(symbol="ETHUSDTM"))
+    _insert(db_path, "position_open", open_payload)
+
+    report = build_report(db_path, hours=None)
+
+    assert report["position_open_truth_classification_counts"] == [
+        ("NATURAL_STRATEGY_ENTRY", 1)
+    ]
+    assert (
+        report["last_position_open"]["entry_open_truth_classification"]
+        == "NATURAL_STRATEGY_ENTRY"
+    )
+    assert (
+        report["natural_entry_candidate_contract"]["strategy_evidence_classification"]
+        == "USABLE_STRATEGY_EVIDENCE"
+    )
+
+
+def test_build_report_detects_filter_to_none_no_natural_candidate(tmp_path):
+    db_path = tmp_path / "filter_to_none.db"
+    _init_db(db_path)
+    gate_payload = _payload(symbol="XRPUSDTM", side=None, final_allow=False)
+    gate_payload.update(
+        {
+            "global_block_reason": "missing_strategy_field",
+            "local_gate_reason": "missing_strategy_field",
+            "effective_gate_reason": "missing_strategy_field",
+            "entry_decision_raw": "hold",
+            "entry_decision_final": "hold",
+            "natural_path_trace": {
+                "pre_entry_candidate_exists": True,
+                "strategy_assignment_stage": "pre_entry_candidate_rejection",
+                "short_circuit_stage": "pre_entry_candidate_rejection",
+            },
+            "main_strategy": None,
+        }
+    )
+    _insert(
+        db_path,
+        "pre_entry_candidate_rejection_trace",
+        {
+            "symbol": "XRPUSDTM",
+            "normalized_strategy_value": "Momentum",
+            "normalized_side_value": "buy",
+            "rejection_reason_code": "symbol_strategy_side_allowlist",
+            "rejection_predicate_name": "_entry_prefilter_reason(strategy_name, side)",
+            "rejection_stage": "pre_entry_candidate_rejection",
+        },
+    )
+    _insert(
+        db_path,
+        "pre_entry_candidate_rejection_trace",
+        {
+            "symbol": "XRPUSDTM",
+            "normalized_strategy_value": "TrendFollowing",
+            "normalized_side_value": "buy",
+            "rejection_reason_code": "symbol_strategy_guard",
+            "rejection_predicate_name": "_symbol_strategy_guard_check",
+            "rejection_stage": "pre_entry_candidate_rejection",
+        },
+    )
+    _insert(
+        db_path,
+        "pre_entry_candidate_rejection_trace",
+        {
+            "symbol": "XRPUSDTM",
+            "normalized_strategy_value": "MeanReversion",
+            "normalized_side_value": None,
+            "rejection_reason_code": "invalid_side",
+            "rejection_predicate_name": "side in ('buy', 'sell', 'hold')",
+            "rejection_stage": "pre_entry_candidate_rejection",
+        },
+    )
+    _insert(db_path, "entry_gate_decision_summary", gate_payload)
+    _insert(db_path, "risk_decision", _risk_payload(symbol="XRPUSDTM"))
+    _insert(
+        db_path,
+        "position_open",
+        _position_open_payload(
+            symbol="XRPUSDTM",
+            side="buy",
+            entry_main_strategy="Momentum",
+            entry_reason="auto_test_open",
+            decision_router_path="paper_auto_open_fallback",
+            override_reason="paper_auto_open_fallback",
+            selection_source="paper_auto_open_fallback",
+            truth="PAPER_AUTO_OPEN_FALLBACK",
+        ),
+    )
+
+    report = build_report(db_path, hours=None)
+    contract = report["natural_entry_candidate_contract"]
+
+    assert contract["classification"] == "NO_NATURAL_ENTRY_CANDIDATE"
+    assert contract["usable_strategy_economics"] is False
+    assert contract["strategy_evidence_classification"] == (
+        "FALLBACK_ECONOMICS_NOT_STRATEGY_EVIDENCE"
+    )
+    assert contract["router_candidate_rows"] == 1
+    assert contract["empty_assignment_rows"] == 1
+    assert contract["final_surviving_candidate_count"] == 0
+    assert contract["natural_admitted_count"] == 0
+    assert contract["assisted_seed_admitted_count"] == 0
+    assert contract["assisted_seed_open_count"] == 0
+    assert contract["assisted_seed_evidence_only"] is False
+    assert {
+        "symbol": "XRPUSDTM",
+        "strategy": "Momentum",
+        "side": "buy",
+        "count": 1,
+    } in contract["router_candidate_sides"]
+    assert {
+        "symbol": "XRPUSDTM",
+        "strategy": "Momentum",
+        "side": "buy",
+        "reason": "symbol_strategy_side_allowlist",
+        "count": 1,
+    } in contract["blocked_sides"]
+    assert {
+        "symbol": "XRPUSDTM",
+        "strategy": "TrendFollowing",
+        "side": "buy",
+        "reason": "symbol_strategy_guard",
+        "count": 1,
+    } in contract["guard_rejected_sides"]
+    assert "FILTER_TO_NONE_BEFORE_ASSIGNMENT" in contract["reason_codes"]
+    assert "FALLBACK_ECONOMICS_NOT_STRATEGY_EVIDENCE" in contract["reason_codes"]
 
 
 def test_main_prints_report_json_for_cli_invocation(tmp_path, monkeypatch, capsys):

@@ -8,6 +8,30 @@ from pathlib import Path
 
 ENTRY_GATE_EVENT = "entry_gate_decision_summary"
 RISK_EVENT = "risk_decision"
+PRE_ENTRY_REJECTION_EVENT = "pre_entry_candidate_rejection_trace"
+ALLOW_BLOCK_REJECTION_REASONS = {
+    "buy_disabled",
+    "sell_disabled",
+    "strategy_allowlist",
+    "strategy_blocklist",
+    "strategy_side_allowlist",
+    "strategy_side_blocklist",
+    "symbol_strategy_allowlist",
+    "symbol_strategy_blocklist",
+    "symbol_strategy_side_allowlist",
+    "symbol_strategy_side_blocklist",
+}
+GUARD_REJECTION_REASONS = {
+    "alpha_whitelist",
+    "entry_side_alpha",
+    "global_strategy_alpha",
+    "side_expectancy",
+    "side_guard",
+    "symbol_strategy_guard",
+    "trendfollowing_direction_mismatch",
+    "trendfollowing_strength",
+}
+INVALID_SIDE_REJECTION_REASONS = {"invalid_side"}
 ENTRY_GATE_REQUIRED_KEYS = (
     "ts",
     "symbol",
@@ -154,7 +178,8 @@ def _classify_position_open_truth(payload: dict):
         return existing
     selection_source = str(payload.get("selection_source") or "").strip().lower()
     entry_reason = str(payload.get("entry_reason") or "").strip().lower()
-    decision_router_path = str(payload.get("decision_router_path") or "").strip().lower()
+    decision_router_path = str(payload.get("decision_router_path") or "").strip()
+    decision_router_path = decision_router_path.lower()
     override_reason = str(payload.get("override_reason") or "").strip().lower()
     if (
         selection_source == "paper_auto_open_fallback"
@@ -169,6 +194,10 @@ def _classify_position_open_truth(payload: dict):
         or entry_reason == "paper_auto_open_allowlisted"
     ):
         return "BOOTSTRAP_ALLOWLIST_ASSISTED"
+    if entry_reason == "seed_trades_override":
+        return "SEED_TRADES_OVERRIDE_ASSISTED"
+    if entry_reason == "decision_passed" and override_reason in {"", "none"}:
+        return "NATURAL_STRATEGY_ENTRY"
     if entry_reason in {
         "edge_discovered_dynamic",
         "entry_live_edge",
@@ -192,7 +221,10 @@ def _position_open_identity(payload: dict):
         canonical_bucket_key = canonical_bucket.get("canonical_bucket_key")
     strategy = payload.get("strategy")
     if strategy in (None, ""):
-        strategy = nested_position.get("entry_main_strategy") or nested_position.get("strategy")
+        strategy = (
+            nested_position.get("entry_main_strategy")
+            or nested_position.get("strategy")
+        )
     side = payload.get("side")
     if side in (None, ""):
         side = nested_position.get("side")
@@ -217,11 +249,293 @@ def _position_open_identity(payload: dict):
     }
 
 
+def _normalized_candidate_key(symbol, strategy, side):
+    symbol_value = str(symbol or "").strip().upper() or None
+    strategy_value = str(strategy or "").strip() or None
+    side_value = str(side or "").strip().lower() or None
+    return (symbol_value, strategy_value, side_value)
+
+
+def _first_scalar(*values):
+    for value in values:
+        if value in (None, ""):
+            continue
+        if isinstance(value, (dict, list, tuple, set)):
+            continue
+        return value
+    return None
+
+
+def _candidate_fields_from_rejection(payload: dict):
+    payload = payload if isinstance(payload, dict) else {}
+    preview = payload.get("candidate_payload_preview")
+    if not isinstance(preview, dict):
+        preview = {}
+    strategy = _first_scalar(
+        payload.get("normalized_strategy_value"),
+        preview.get("strategy"),
+        preview.get("main_strategy"),
+        preview.get("selected_strategy"),
+        preview.get("_strategy"),
+    )
+    side = _first_scalar(
+        payload.get("normalized_side_value"),
+        preview.get("side"),
+        preview.get("signal"),
+        preview.get("direction"),
+        preview.get("_side"),
+    )
+    return _normalized_candidate_key(payload.get("symbol"), strategy, side)
+
+
+def _candidate_records(counter: Counter):
+    records = []
+    for (symbol, strategy, side), count in sorted(
+        counter.items(),
+        key=lambda item: (
+            str(item[0][0] or ""),
+            str(item[0][1] or ""),
+            str(item[0][2] or ""),
+        ),
+    ):
+        records.append(
+            {
+                "symbol": symbol,
+                "strategy": strategy,
+                "side": side,
+                "count": count,
+            }
+        )
+    return records
+
+
+def _candidate_reason_records(counter: Counter):
+    records = []
+    for (symbol, strategy, side, reason), count in sorted(
+        counter.items(),
+        key=lambda item: (
+            str(item[0][0] or ""),
+            str(item[0][1] or ""),
+            str(item[0][2] or ""),
+            str(item[0][3] or ""),
+        ),
+    ):
+        records.append(
+            {
+                "symbol": symbol,
+                "strategy": strategy,
+                "side": side,
+                "reason": reason,
+                "count": count,
+            }
+        )
+    return records
+
+
+def _entry_assignment_fields(payload: dict):
+    payload = payload if isinstance(payload, dict) else {}
+    trace = payload.get("natural_path_trace")
+    if not isinstance(trace, dict):
+        trace = {}
+    strategy = (
+        payload.get("main_strategy")
+        or payload.get("strategy")
+        or payload.get("selected_strategy")
+        or trace.get("main_strategy")
+        or trace.get("strategy")
+        or trace.get("selected_strategy")
+    )
+    side = payload.get("side") or trace.get("side")
+    return trace, strategy, side
+
+
+def _is_filter_guard_rejection(reason: str):
+    reason = str(reason or "").strip()
+    return (
+        reason in GUARD_REJECTION_REASONS
+        or reason.endswith("_guard")
+        or "alpha" in reason
+        or "expectancy" in reason
+    )
+
+
+def _build_natural_entry_candidate_contract(
+    *,
+    entry_payloads: list[dict],
+    rejection_payloads: list[dict],
+    open_truth_reasons: Counter,
+):
+    router_candidate_sides = Counter()
+    allowed_sides = Counter()
+    blocked_sides = Counter()
+    guard_rejected_sides = Counter()
+    invalid_side_candidates = Counter()
+    rejection_reason_counts = Counter()
+    router_candidate_rows = 0
+    empty_assignment_rows = 0
+    natural_admitted_count = 0
+    assisted_seed_admitted_count = 0
+    assisted_seed_allowed_sides = Counter()
+
+    for payload in entry_payloads:
+        trace, strategy, side = _entry_assignment_fields(payload)
+        entry_reason = str(payload.get("entry_reason") or "").strip().lower()
+        is_assisted_seed_admission = bool(payload.get("final_allow")) and (
+            entry_reason == "seed_trades_override"
+        )
+        pre_entry_candidate_exists = bool(
+            trace.get("pre_entry_candidate_exists")
+            or payload.get("pre_entry_candidate_exists")
+        )
+        assignment_stage = str(
+            trace.get("strategy_assignment_stage")
+            or payload.get("strategy_assignment_stage")
+            or ""
+        ).strip()
+        if pre_entry_candidate_exists:
+            router_candidate_rows += 1
+        if is_assisted_seed_admission:
+            assisted_seed_admitted_count += 1
+        elif payload.get("final_allow"):
+            natural_admitted_count += 1
+        if strategy and str(side or "").strip().lower() in {"buy", "sell"}:
+            candidate_key = _normalized_candidate_key(
+                payload.get("symbol"), strategy, side
+            )
+            allowed_sides[candidate_key] += 1
+            if is_assisted_seed_admission:
+                assisted_seed_allowed_sides[candidate_key] += 1
+        if (
+            pre_entry_candidate_exists
+            and assignment_stage == "pre_entry_candidate_rejection"
+            and not strategy
+        ):
+            empty_assignment_rows += 1
+
+    for payload in rejection_payloads:
+        symbol, strategy, side = _candidate_fields_from_rejection(payload)
+        reason = str(payload.get("rejection_reason_code") or "").strip()
+        if symbol or strategy or side:
+            router_candidate_sides[(symbol, strategy, side)] += 1
+        if reason:
+            rejection_reason_counts[reason] += 1
+        reason_key = (symbol, strategy, side, reason or None)
+        if (
+            reason in ALLOW_BLOCK_REJECTION_REASONS
+            or "allowlist" in reason
+            or "blocklist" in reason
+        ):
+            blocked_sides[reason_key] += 1
+        elif reason in INVALID_SIDE_REJECTION_REASONS:
+            invalid_side_candidates[reason_key] += 1
+        elif _is_filter_guard_rejection(reason):
+            guard_rejected_sides[reason_key] += 1
+
+    final_surviving_candidate_count = sum(allowed_sides.values())
+    rejected_candidate_count = len(rejection_payloads)
+    fallback_open_count = int(open_truth_reasons.get("PAPER_AUTO_OPEN_FALLBACK", 0))
+    assisted_seed_open_count = int(
+        open_truth_reasons.get("SEED_TRADES_OVERRIDE_ASSISTED", 0)
+    )
+    router_candidates_exist = bool(router_candidate_rows or rejected_candidate_count)
+    fallback_trade_only = fallback_open_count > 0 and natural_admitted_count == 0
+    assisted_seed_evidence_only = natural_admitted_count == 0 and (
+        assisted_seed_admitted_count > 0 or assisted_seed_open_count > 0
+    )
+    no_natural_candidate = (
+        router_candidates_exist
+        and natural_admitted_count == 0
+        and (
+            final_surviving_candidate_count == 0
+            or empty_assignment_rows > 0
+            or fallback_trade_only
+        )
+    )
+    classification = (
+        "NO_NATURAL_ENTRY_CANDIDATE"
+        if no_natural_candidate
+        else (
+            "NATURAL_ENTRY_CANDIDATE_PRESENT"
+            if router_candidates_exist
+            else "NO_ROUTER_CANDIDATES_OBSERVED"
+        )
+    )
+
+    reason_codes = []
+    if router_candidates_exist:
+        reason_codes.append("ROUTER_CANDIDATES_EXIST")
+    if empty_assignment_rows:
+        reason_codes.append("FILTER_TO_NONE_BEFORE_ASSIGNMENT")
+    if router_candidates_exist and final_surviving_candidate_count == 0:
+        reason_codes.append("ADMISSION_SIDE_FILTER_INTERSECTION_EMPTY")
+    if router_candidates_exist and natural_admitted_count == 0:
+        reason_codes.append("NO_NATURAL_ADMISSION")
+    if blocked_sides:
+        reason_codes.append("ALLOWLIST_BLOCKLIST_REJECTIONS_PRESENT")
+    if guard_rejected_sides:
+        reason_codes.append("GUARD_REJECTIONS_PRESENT")
+    if invalid_side_candidates:
+        reason_codes.append("SIDE_INVALIDATION_PRESENT")
+    if assisted_seed_admitted_count:
+        reason_codes.append("ASSISTED_SEED_ADMISSIONS_PRESENT")
+    if assisted_seed_open_count:
+        reason_codes.append("ASSISTED_SEED_OPEN_PRESENT")
+    if fallback_open_count:
+        reason_codes.append("FALLBACK_OPEN_PRESENT")
+    if fallback_trade_only:
+        reason_codes.append("FALLBACK_ECONOMICS_NOT_STRATEGY_EVIDENCE")
+    if assisted_seed_evidence_only:
+        reason_codes.append("ASSISTED_SEED_EVIDENCE_ONLY")
+
+    if fallback_trade_only:
+        strategy_evidence_classification = "FALLBACK_ECONOMICS_NOT_STRATEGY_EVIDENCE"
+    elif assisted_seed_evidence_only:
+        strategy_evidence_classification = "ASSISTED_SEED_EVIDENCE_ONLY"
+    elif classification == "NO_NATURAL_ENTRY_CANDIDATE":
+        strategy_evidence_classification = "NO_NATURAL_ENTRY_CANDIDATE"
+    else:
+        strategy_evidence_classification = "USABLE_STRATEGY_EVIDENCE"
+
+    usable_strategy_economics = (
+        classification != "NO_NATURAL_ENTRY_CANDIDATE"
+        and not fallback_trade_only
+        and not assisted_seed_evidence_only
+    )
+
+    return {
+        "classification": classification,
+        "usable_strategy_economics": usable_strategy_economics,
+        "strategy_evidence_classification": strategy_evidence_classification,
+        "assisted_seed_evidence_only": assisted_seed_evidence_only,
+        "router_candidate_rows": router_candidate_rows,
+        "rejected_candidate_count": rejected_candidate_count,
+        "empty_assignment_rows": empty_assignment_rows,
+        "final_surviving_candidate_count": final_surviving_candidate_count,
+        "natural_admitted_count": natural_admitted_count,
+        "assisted_seed_admitted_count": assisted_seed_admitted_count,
+        "assisted_seed_open_count": assisted_seed_open_count,
+        "fallback_open_count": fallback_open_count,
+        "router_candidate_sides": _candidate_records(router_candidate_sides),
+        "allowed_sides": _candidate_records(allowed_sides),
+        "assisted_seed_allowed_sides": _candidate_records(
+            assisted_seed_allowed_sides
+        ),
+        "blocked_sides": _candidate_reason_records(blocked_sides),
+        "guard_rejected_sides": _candidate_reason_records(guard_rejected_sides),
+        "invalid_side_candidates": _candidate_reason_records(
+            invalid_side_candidates
+        ),
+        "rejection_reason_counts": rejection_reason_counts.most_common(20),
+        "reason_codes": reason_codes,
+    }
+
+
 def build_report(db_path: Path, hours: int | None):
     db_path = db_path.resolve()
     rows = _load_rows(db_path, hours, ENTRY_GATE_EVENT)
     risk_rows = _load_rows(db_path, hours, RISK_EVENT)
     open_rows = _load_rows(db_path, hours, "position_open")
+    rejection_rows = _load_rows(db_path, hours, PRE_ENTRY_REJECTION_EVENT)
     sequence_rows = _load_sequence_rows(db_path, hours)
     admitted = 0
     blocked = 0
@@ -251,10 +565,13 @@ def build_report(db_path: Path, hours: int | None):
             "confidence": [],
         },
     }
+    entry_payloads = []
+    rejection_payloads = []
     for row in rows:
         payload = _safe_json_loads(row["details"])
         if not isinstance(payload, dict):
             continue
+        entry_payloads.append(payload)
         last_payload = payload
         health = _payload_health(payload)
         if health["complete"]:
@@ -304,6 +621,10 @@ def build_report(db_path: Path, hours: int | None):
         open_truth = _classify_position_open_truth(payload)
         if open_truth:
             open_truth_reasons[str(open_truth)] += 1
+    for row in rejection_rows:
+        payload = _safe_json_loads(row["details"])
+        if isinstance(payload, dict):
+            rejection_payloads.append(payload)
     for row in sequence_rows:
         payload = _safe_json_loads(row["details"])
         if row["event"] == ENTRY_GATE_EVENT:
@@ -375,6 +696,11 @@ def build_report(db_path: Path, hours: int | None):
         },
         "position_open_rows": len(open_rows),
         "position_open_truth_classification_counts": open_truth_reasons.most_common(10),
+        "natural_entry_candidate_contract": _build_natural_entry_candidate_contract(
+            entry_payloads=entry_payloads,
+            rejection_payloads=rejection_payloads,
+            open_truth_reasons=open_truth_reasons,
+        ),
         "last_position_open": {
             **_position_open_identity(last_open_payload),
             "entry_reason": last_open_payload.get("entry_reason"),
