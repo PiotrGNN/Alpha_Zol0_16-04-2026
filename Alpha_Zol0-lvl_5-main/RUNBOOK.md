@@ -1,5 +1,58 @@
 # Runner Validation Runbook
 
+## Guarded Live Promotion Protocol (2026-04-20)
+
+### Purpose
+Execute Phase 1 LIVE rollout (ETHUSDTM only) following `PROMOTE_CANDIDATE`
+gate and `POST_GREEN_RUNTIME_CONTRACT_FIXED` validation.
+
+### Pre-requisites
+- Gate: `paper_readiness_gate_20260420_072346` — PASS / PROMOTE_CANDIDATE
+- Contract: POST_GREEN_RUNTIME_CONTRACT_FIXED — 17 runs, 5 triggered exits validated
+- KuCoin LIVE API credentials in environment:
+  `KUCOIN_API_KEY`, `KUCOIN_API_SECRET`, `KUCOIN_API_PASSPHRASE`
+
+### Launch (human trigger only — must confirm `CONFIRM_LIVE_LAUNCH`)
+```powershell
+Push-Location "d:\Alpha_Zol0-lvl_5-main\Alpha_Zol0-lvl_5-main"
+.\scripts\live_rollout_launch.ps1
+Pop-Location
+```
+
+### Key overrides (from `config/live_rollout_ethusdtm.env`)
+| Variable | Value | Reason |
+|---|---|---|
+| `LIVE` | `1` | Enable live mode |
+| `LIVE_ARMED` | `1` | Arm gate |
+| `LIVE_APPROVAL` | `I_UNDERSTAND_LIVE_RISK` | Approval phrase |
+| `ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST` | `ETHUSDTM:MOMENTUM:buy` | ETH-only restriction |
+| `EXIT_CLOSE_ATTEMPT_FEE_GUARD_COOLDOWN_SEC` | `10` | Override 300s default (documented 2026-04-20) |
+
+### Hard stop conditions (auto-detected by `scripts/live_rollout_monitor.py`)
+| Condition | Threshold |
+|---|---|
+| Abnormal exit delay | `post_green_bnr_time_forced_exit_sec` > 120s |
+| Consecutive losses | ≥ 3 consecutive losing trades |
+| Contract inconsistency | `position_close` missing post-green attribution fields |
+| Max drawdown | Cumulative PnL drawdown > 2% |
+
+### Milestones
+- 30 closed trades → run can be stopped voluntarily; run cohort analysis
+- Hard stop fired → halt bot process; inspect `tmp/live_hard_stop.json`
+
+### Post-session analysis
+```powershell
+Push-Location "d:\Alpha_Zol0-lvl_5-main\Alpha_Zol0-lvl_5-main"
+& "d:\Alpha_Zol0-lvl_5-main\.venv\Scripts\python.exe" `
+  scripts\live_cohort_analysis.py --db-path tmp\controlled_kpi_after_<ts>.db
+Pop-Location
+```
+
+Produces: `reports/live_rollout/cohort_<ts>.json` + `.md`
+Verdict: EXTEND / SCALE / ROLLBACK
+
+---
+
 ## Post-Green Contract Validation Protocol (2026-04-20, FROZEN)
 
 ### Purpose
