@@ -85,6 +85,22 @@ def _summarize_fills(items):
     )
 
 
+def _resolve_exit_reason(details, position):
+    details_obj = details if isinstance(details, dict) else {}
+    position_obj = position if isinstance(position, dict) else {}
+    return (
+        details_obj.get("reason")
+        or details_obj.get("exit_reason")
+        or details_obj.get("close_reason")
+        or details_obj.get("post_green_exit_reason")
+        or details_obj.get("post_green_rescue_exit_reason")
+        or position_obj.get("exit_reason")
+        or position_obj.get("close_reason")
+        or position_obj.get("post_green_exit_reason")
+        or position_obj.get("post_green_rescue_exit_reason")
+    )
+
+
 def _report_output_dir():
     base = os.environ.get("AUTO_REPORT_DIR", "reports/auto")
     try:
@@ -187,11 +203,7 @@ def _build_trades_vs_exchange_report(limit=50, use_fills=1, symbol=None):
             close_order_id = pos.get("close_order_id") or details.get("close_order_id")
             entry_fill = pos.get("fill_price")
             exit_fill = details.get("close_fill_price") or details.get("fill_price")
-            exit_reason = (
-                details.get("reason")
-                or details.get("exit_reason")
-                or pos.get("exit_reason")
-            )
+            exit_reason = _resolve_exit_reason(details, pos)
 
             entry_fill_price = None
             entry_fee = None
@@ -1422,12 +1434,12 @@ def get_closed_positions():
                     payload["realized_pnl"] = details.get("realized_pnl")
                 if details.get("close_fill_price") is not None:
                     payload["close_fill_price"] = details.get("close_fill_price")
-                if details.get("reason") is not None:
-                    payload["exit_reason"] = details.get("reason")
-                if details.get("exit_reason") is not None:
-                    payload["exit_reason"] = details.get("exit_reason")
                 if details.get("strategy") is not None:
                     payload["strategy"] = details.get("strategy")
+            exit_reason = _resolve_exit_reason(details, pos)
+            if exit_reason is not None:
+                payload["exit_reason"] = exit_reason
+                payload["close_reason"] = exit_reason
             payload["strategy"] = (
                 _normalize_strategy_name(payload.get("strategy")) or "Universal"
             )
@@ -1650,13 +1662,14 @@ def start_live(_: bool = Depends(_require_control_token)):
     Lazy-import `run_bot` to avoid circular import at module import time.
     """
     try:
-        from security.live_guard import is_live_armed
+        from security.live_guard import LIVE_BLOCKED_NOT_READY, is_live_armed
 
         armed, reason = is_live_armed()
         if not armed:
             logging.warning(f"/start-live blocked: {reason}")
+            error = LIVE_BLOCKED_NOT_READY if reason == LIVE_BLOCKED_NOT_READY else reason
             return JSONResponse(
-                content={"error": f"live_not_armed: {reason}"},
+                content={"error": error},
                 status_code=409,
             )
         from core.BotCore import run_bot
@@ -2891,11 +2904,7 @@ def report_trades_vs_exchange(
             close_order_id = pos.get("close_order_id") or details.get("close_order_id")
             entry_fill = pos.get("fill_price")
             exit_fill = details.get("close_fill_price") or details.get("fill_price")
-            exit_reason = (
-                details.get("reason")
-                or details.get("exit_reason")
-                or pos.get("exit_reason")
-            )
+            exit_reason = _resolve_exit_reason(details, pos)
 
             entry_fill_price = None
             entry_fee = None

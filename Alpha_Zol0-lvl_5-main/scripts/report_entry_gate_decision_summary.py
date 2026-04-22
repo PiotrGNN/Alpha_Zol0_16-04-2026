@@ -280,6 +280,7 @@ def _candidate_fields_from_rejection(payload: dict):
     )
     side = _first_scalar(
         payload.get("normalized_side_value"),
+        preview.get("raw_side"),
         preview.get("side"),
         preview.get("signal"),
         preview.get("direction"),
@@ -332,6 +333,54 @@ def _candidate_reason_records(counter: Counter):
     return records
 
 
+def _raw_side_text(value):
+    if value is None:
+        return None
+    if isinstance(value, (str, int, float)):
+        text = str(value).strip()
+        return text or None
+    if isinstance(value, list):
+        return "signals:empty" if not value else "signals:list"
+    if isinstance(value, dict):
+        return None
+    return type(value).__name__
+
+
+def _raw_side_values_from_rejection(payload: dict):
+    payload = payload if isinstance(payload, dict) else {}
+    values = []
+    candidates = payload.get("raw_side_candidates")
+    if isinstance(candidates, list):
+        for item in candidates:
+            if isinstance(item, dict):
+                raw = _raw_side_text(item.get("raw_value"))
+            else:
+                raw = _raw_side_text(item)
+            if raw and not raw.startswith("dict:"):
+                values.append(raw)
+    preview = payload.get("candidate_payload_preview")
+    if isinstance(preview, dict):
+        for key in ("raw_side", "_side", "side", "direction", "action", "signal"):
+            if key in preview:
+                raw = _raw_side_text(preview.get(key))
+                if raw:
+                    values.append(raw)
+    normalized_side = _raw_side_text(payload.get("normalized_side_value"))
+    if normalized_side and not values:
+        values.append(normalized_side)
+    return values
+
+
+def _raw_side_value_records(counter: Counter):
+    return [
+        {"raw_side": raw_side, "count": count}
+        for raw_side, count in sorted(
+            counter.items(),
+            key=lambda item: (-int(item[1]), str(item[0])),
+        )[:20]
+    ]
+
+
 def _entry_assignment_fields(payload: dict):
     payload = payload if isinstance(payload, dict) else {}
     trace = payload.get("natural_path_trace")
@@ -371,6 +420,7 @@ def _build_natural_entry_candidate_contract(
     guard_rejected_sides = Counter()
     invalid_side_candidates = Counter()
     rejection_reason_counts = Counter()
+    raw_side_value_counts = Counter()
     router_candidate_rows = 0
     empty_assignment_rows = 0
     natural_admitted_count = 0
@@ -415,6 +465,7 @@ def _build_natural_entry_candidate_contract(
     for payload in rejection_payloads:
         symbol, strategy, side = _candidate_fields_from_rejection(payload)
         reason = str(payload.get("rejection_reason_code") or "").strip()
+        raw_side_value_counts.update(_raw_side_values_from_rejection(payload))
         if symbol or strategy or side:
             router_candidate_sides[(symbol, strategy, side)] += 1
         if reason:
@@ -470,6 +521,8 @@ def _build_natural_entry_candidate_contract(
         reason_codes.append("ADMISSION_SIDE_FILTER_INTERSECTION_EMPTY")
     if router_candidates_exist and natural_admitted_count == 0:
         reason_codes.append("NO_NATURAL_ADMISSION")
+    if classification == "NO_ROUTER_CANDIDATES_OBSERVED":
+        reason_codes.append("NO_ROUTER_CANDIDATES_OBSERVED")
     if blocked_sides:
         reason_codes.append("ALLOWLIST_BLOCKLIST_REJECTIONS_PRESENT")
     if guard_rejected_sides:
@@ -491,13 +544,21 @@ def _build_natural_entry_candidate_contract(
         strategy_evidence_classification = "FALLBACK_ECONOMICS_NOT_STRATEGY_EVIDENCE"
     elif assisted_seed_evidence_only:
         strategy_evidence_classification = "ASSISTED_SEED_EVIDENCE_ONLY"
+    elif classification == "NO_ROUTER_CANDIDATES_OBSERVED":
+        strategy_evidence_classification = "NO_ROUTER_CANDIDATES_OBSERVED"
     elif classification == "NO_NATURAL_ENTRY_CANDIDATE":
         strategy_evidence_classification = "NO_NATURAL_ENTRY_CANDIDATE"
+    elif natural_admitted_count <= 0:
+        strategy_evidence_classification = "NO_NATURAL_ADMISSION"
     else:
         strategy_evidence_classification = "USABLE_STRATEGY_EVIDENCE"
 
     usable_strategy_economics = (
-        classification != "NO_NATURAL_ENTRY_CANDIDATE"
+        natural_admitted_count > 0
+        and classification not in {
+            "NO_NATURAL_ENTRY_CANDIDATE",
+            "NO_ROUTER_CANDIDATES_OBSERVED",
+        }
         and not fallback_trade_only
         and not assisted_seed_evidence_only
     )
@@ -524,6 +585,9 @@ def _build_natural_entry_candidate_contract(
         "guard_rejected_sides": _candidate_reason_records(guard_rejected_sides),
         "invalid_side_candidates": _candidate_reason_records(
             invalid_side_candidates
+        ),
+        "raw_side_value_counts_top20": _raw_side_value_records(
+            raw_side_value_counts
         ),
         "rejection_reason_counts": rejection_reason_counts.most_common(20),
         "reason_codes": reason_codes,

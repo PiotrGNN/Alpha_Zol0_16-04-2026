@@ -370,3 +370,84 @@ def test_build_history_db_and_main_with_temp_sources(monkeypatch, tmp_path, caps
     cli_report = json.loads(report_json_path.read_text(encoding="utf-8"))
     assert cli_report["rows_inserted"] == 1
     assert cli_report["fallback_used"] is True
+
+
+def test_build_history_db_side_fallback_selects_pair_with_positive_side(
+    monkeypatch,
+    tmp_path,
+):
+    module = _load_module()
+    monkeypatch.setattr(module, "WORKDIR", tmp_path)
+
+    source_dir = tmp_path / "tmp"
+    src = source_dir / "controlled_kpi_side_fallback.db"
+    rows = [
+        (
+            "2026-04-13T00:00:00+00:00",
+            {
+                "symbol": "ETHUSDTM",
+                "strategy": "TrendFollowing",
+                "realized_pnl": 0.30,
+                "position": {"symbol": "ETHUSDTM", "strategy": "TrendFollowing", "side": "buy"},
+            },
+        ),
+        (
+            "2026-04-13T00:01:00+00:00",
+            {
+                "symbol": "ETHUSDTM",
+                "strategy": "TrendFollowing",
+                "realized_pnl": 0.10,
+                "position": {"symbol": "ETHUSDTM", "strategy": "TrendFollowing", "side": "buy"},
+            },
+        ),
+        (
+            "2026-04-13T00:02:00+00:00",
+            {
+                "symbol": "ETHUSDTM",
+                "strategy": "TrendFollowing",
+                "realized_pnl": -0.20,
+                "position": {"symbol": "ETHUSDTM", "strategy": "TrendFollowing", "side": "sell"},
+            },
+        ),
+        (
+            "2026-04-13T00:03:00+00:00",
+            {
+                "symbol": "ETHUSDTM",
+                "strategy": "TrendFollowing",
+                "realized_pnl": -0.40,
+                "position": {"symbol": "ETHUSDTM", "strategy": "TrendFollowing", "side": "sell"},
+            },
+        ),
+    ]
+    _write_source_db(src, rows)
+
+    output_path = tmp_path / "tmp" / "alpha_history_side_fallback.db"
+    report = module.build_history_db(
+        output_path=output_path,
+        glob_patterns=["tmp/controlled_kpi_side_fallback.db"],
+        max_sources=10,
+        max_per_source=50,
+        max_total=100,
+        min_abs_pnl=0.0,
+        quality_filter=True,
+        min_pair_trades=4,
+        min_pair_winrate=0.6,
+        min_pair_expectancy=0.0,
+        fallback_top_pairs=0,
+        fallback_positive_side_pairs=1,
+        min_side_trades=2,
+        min_side_winrate=0.5,
+        min_side_expectancy=0.0,
+        exclude_strategies=set(),
+    )
+
+    assert report["rows_inserted"] == 4
+    assert report["pairs_total"] == 1
+    assert report["pairs_selected"] == 1
+    assert report["fallback_used"] is False
+    assert report["positive_side_fallback_used"] is True
+    assert report["positive_side_fallback_pairs"] == ["ETHUSDTM:TrendFollowing"]
+    assert report["positive_side_fallback_side_tokens"] == [
+        "ETHUSDTM:TrendFollowing:buy"
+    ]
+    assert report["pair_stats_top"][0]["selected"] is True

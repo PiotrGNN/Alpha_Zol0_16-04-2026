@@ -450,7 +450,14 @@ def _classify_exit_owner(exit_reason, source_branch=None):
         return "time_based_exit"
     if reason_norm in {"opposite_signal"}:
         return "signal_reversal_exit"
-    if reason_norm in {"paper_run_end_force_close", "paper_run_once", "paper_run_cycles"}:
+    if reason_norm in {"manual_close_request", "position_close_request", "close_request"}:
+        return "manual_close_request"
+    if reason_norm in {
+        "paper_run_end_force_close",
+        "paper_run_once",
+        "paper_run_once_force_close",
+        "paper_run_cycles",
+    }:
         return "run_end_cleanup_exit"
 
     if source_norm == "position_close_request":
@@ -461,6 +468,19 @@ def _classify_exit_owner(exit_reason, source_branch=None):
         return "time_based_exit"
 
     return "unclassified_exit_owner"
+
+
+def _deterministic_close_reason_fallback(source_branch=None):
+    source_norm = str(source_branch or "").strip().lower()
+    if source_norm in {"position_close_request", "manual_close_request", "close_request"}:
+        return {
+            "exit_reason": "manual_close_request",
+            "reason_source": "deterministic_fallback_manual_close_request",
+        }
+    return {
+        "exit_reason": "close_reason_unclassified",
+        "reason_source": "deterministic_fallback_unclassified",
+    }
 
 
 def _resolve_close_reason_with_owner(
@@ -490,8 +510,9 @@ def _resolve_close_reason_with_owner(
             break
 
     if final_exit_reason is None:
-        final_exit_reason = "close_reason_unclassified"
-        reason_source = "deterministic_fallback_unclassified"
+        fallback = _deterministic_close_reason_fallback(source_branch=source_branch)
+        final_exit_reason = fallback.get("exit_reason")
+        reason_source = fallback.get("reason_source")
 
     return {
         "exit_reason": final_exit_reason,
@@ -641,6 +662,76 @@ def _should_post_green_hold_guard_bypass(
         and net_after_fee <= 0.0
     )
     return bool(hard_window_bypass or severe_giveback_negative_residual_bypass)
+
+
+def _should_fail_closed_post_green_red_close(
+    *,
+    exit_reason,
+    selected_expected_net_after_fee,
+    post_green_peak_mfe,
+    pre_hard_close_best_feasible_net,
+):
+    reason_norm = str(exit_reason or "").strip().lower()
+    if reason_norm not in {
+        "post_green_protective_exit",
+        "auto_close_weak_peak_decay",
+        "weak_peak_stale_decay",
+        "weak_peak_stale_decay_hard_window",
+        "weak_peak_stale_decay_hard_window_feefloor_override",
+    }:
+        return False
+    try:
+        selected_net = float(selected_expected_net_after_fee)
+    except Exception:
+        selected_net = None
+    try:
+        peak_mfe = float(post_green_peak_mfe)
+    except Exception:
+        peak_mfe = None
+    try:
+        feasible_net = float(pre_hard_close_best_feasible_net)
+    except Exception:
+        feasible_net = None
+    if (
+        peak_mfe is not None
+        and peak_mfe > 0.0
+        and selected_net is not None
+        and selected_net <= 0.0
+        and feasible_net is not None
+        and feasible_net > 0.0
+    ):
+        return True
+    return False
+
+
+def _resolve_entry_candidate_strategy(candidate_payload):
+    if not isinstance(candidate_payload, dict):
+        return ""
+    strategy_candidates = []
+    for key in ("strategy", "main_strategy", "selected_strategy"):
+        if key in candidate_payload:
+            strategy_candidates.append(candidate_payload.get(key))
+    signal_payload = candidate_payload.get("signal")
+    if isinstance(signal_payload, dict):
+        for key in ("strategy", "main_strategy", "selected_strategy"):
+            if key in signal_payload:
+                strategy_candidates.append(signal_payload.get(key))
+    for value in strategy_candidates:
+        try:
+            strategy_text = str(value or "").strip()
+        except Exception:
+            strategy_text = ""
+        if strategy_text and strategy_text.lower() not in {"none", "null"}:
+            return strategy_text
+    return ""
+
+
+def should_bypass_symbol_strategy_guard_for_hold(side, entry_ignore_hold_signals):
+    try:
+        side_name = str(side or "").strip().lower()
+    except Exception:
+        side_name = ""
+    return bool(entry_ignore_hold_signals and side_name == "hold")
 
 
 def _build_post_green_hold_guard_bypass_telemetry(
@@ -3834,6 +3925,7 @@ def _paper_post_green_protective_exit_decision(
     micro_mfe_exit_min_time_since_peak_sec = 4.0
     micro_mfe_peak_to_burden_ratio_ceiling = 0.20
     bnr_time_forced_exit_sec = 1.0
+    bnr_loss_cap_abs = 0.0022
     metrics = {
         "post_green_attempt_seq": None,
         "post_green_branch_seq": None,
@@ -3854,6 +3946,7 @@ def _paper_post_green_protective_exit_decision(
         "post_green_trigger_giveback_ratio": None,
         "post_green_trigger_residual_edge": None,
         "post_green_bnr_time_forced_exit_sec": bnr_time_forced_exit_sec,
+        "post_green_bnr_loss_cap_abs": bnr_loss_cap_abs,
         "post_green_trigger_blocked_negative_residual": False,
         "post_green_trigger_residual_floor_mode": "absolute_negative_epsilon",
         "post_green_trigger_residual_floor_value": soft_residual_floor_abs,
@@ -4027,11 +4120,22 @@ def _paper_post_green_protective_exit_decision(
         and (peak_to_burden_ratio is None or peak_to_burden_ratio < 1.0)
         and giveback_ratio >= float(bnr_time_forced_exit_giveback_floor)
     )
-    if bnr_time_forced_exit_ready:
+    bnr_loss_cap_exit_ready = bool(
+        not bnr_time_forced_exit_ready
+        and current_net_val <= -float(bnr_loss_cap_abs)
+        and time_since_peak_sec >= float(bnr_time_forced_exit_sec)
+        and time_since_peak_sec <= 45.0
+        and (peak_to_burden_ratio is None or peak_to_burden_ratio < 1.0)
+    )
+    if bnr_time_forced_exit_ready or bnr_loss_cap_exit_ready:
         metrics["post_green_bnr_time_forced_exit"] = True
         metrics["post_green_trigger_mode"] = "bnr_time_forced_exit"
         metrics["post_green_exit_reason"] = "post_green_protective_exit"
-        metrics["post_green_trigger_reason_detail"] = "bnr_time_forced_exit"
+        metrics["post_green_trigger_reason_detail"] = (
+            "bnr_time_forced_exit"
+            if bnr_time_forced_exit_ready
+            else "bnr_loss_cap_exit"
+        )
         metrics["post_green_rescue_exit_reason"] = "post_green_protective_exit"
         _finalize_contract(branch_seq="bnr_time_forced_exit")
         return True, "bnr_time_forced_exit", metrics
@@ -4132,11 +4236,15 @@ def _paper_post_green_protective_exit_decision(
         # profit (peak_to_burden_ratio < 1.0) have no recovery hope — exit early
         # to cap the loss instead of waiting for the 90 s hard-window override.
         # Positions where MFE >= burden (ratio >= 1.0) are left for rescue_refine.
-        if bnr_time_forced_exit_ready:
+        if bnr_time_forced_exit_ready or bnr_loss_cap_exit_ready:
             metrics["post_green_bnr_time_forced_exit"] = True
             metrics["post_green_trigger_mode"] = "bnr_time_forced_exit"
             metrics["post_green_exit_reason"] = "post_green_protective_exit"
-            metrics["post_green_trigger_reason_detail"] = "bnr_time_forced_exit"
+            metrics["post_green_trigger_reason_detail"] = (
+                "bnr_time_forced_exit"
+                if bnr_time_forced_exit_ready
+                else "bnr_loss_cap_exit"
+            )
             metrics["post_green_rescue_exit_reason"] = "post_green_protective_exit"
             _finalize_contract(branch_seq="bnr_time_forced_exit")
             return True, "bnr_time_forced_exit", metrics
@@ -4501,9 +4609,13 @@ def _classify_entry_reason(entry_reason):
         "side_expectancy",
         "profit_gate",
         "profit_gate_exploration",
+        "profit_focus_history_not_ready",
+        "profit_focus_confidence_too_low",
         "tf_trend_entry_filtered",
         "net_target_guard",
         "rr_net_guard",
+        "missing_strategy_field",
+        "hold_ignored",
     }:
         if reason in {
             "symbol_allowlist",
@@ -4534,6 +4646,8 @@ def _classify_entry_reason(entry_reason):
             "side_expectancy",
             "profit_gate",
             "profit_gate_exploration",
+            "profit_focus_history_not_ready",
+            "profit_focus_confidence_too_low",
             "tf_trend_entry_filtered",
             "net_target_guard",
             "rr_net_guard",
@@ -4543,6 +4657,18 @@ def _classify_entry_reason(entry_reason):
     if reason:
         return "unknown_fallback"
     return "unknown_fallback"
+
+
+def _classify_entry_reason_with_gate_fallback(
+    *, entry_reason=None, effective_gate_reason=None
+):
+    classification = _classify_entry_reason(entry_reason)
+    if classification != "unknown_fallback":
+        return classification
+    gate_reason = _normalize_entry_reason(effective_gate_reason)
+    if gate_reason in {None, "risk_or_prefilter_block_fallback", "unknown_fallback"}:
+        return classification
+    return _classify_entry_reason(gate_reason)
 
 
 def _classify_entry_open_truth(
@@ -4626,6 +4752,68 @@ def _resolve_local_gate_reason(entry_reason, global_block_reason=None):
     return "risk_or_prefilter_block_fallback"
 
 
+def _has_strategy_alias_evidence(candidate_payload):
+    if not isinstance(candidate_payload, dict):
+        return False
+    strategy_candidates = []
+    for key in ("strategy", "main_strategy", "selected_strategy"):
+        if key in candidate_payload:
+            strategy_candidates.append(candidate_payload.get(key))
+    signal_payload = candidate_payload.get("signal")
+    if isinstance(signal_payload, dict):
+        for key in ("strategy", "main_strategy", "selected_strategy"):
+            if key in signal_payload:
+                strategy_candidates.append(signal_payload.get(key))
+    for value in strategy_candidates:
+        try:
+            strategy_text = str(value or "").strip()
+        except Exception:
+            strategy_text = ""
+        if strategy_text and strategy_text.lower() not in {"none", "null"}:
+            return True
+    return False
+
+
+def _derive_entry_reason_from_signal_funnel(
+    *,
+    entry_decision_raw=None,
+    entry_decision_final=None,
+    ensemble_signals=None,
+    filtered_ensemble_signals=None,
+    dropped_ensemble_signals=None,
+):
+    dropped_reason_set = set()
+    if isinstance(dropped_ensemble_signals, (list, tuple)):
+        for dropped_payload in dropped_ensemble_signals:
+            if not isinstance(dropped_payload, dict):
+                continue
+            dropped_reason = _normalize_entry_reason(dropped_payload.get("reason"))
+            if dropped_reason is not None:
+                dropped_reason_set.add(dropped_reason)
+    if (
+        str(entry_decision_raw or "").strip().lower() == "hold"
+        and str(entry_decision_final or "").strip().lower() == "hold"
+        and bool(ensemble_signals)
+        and not bool(filtered_ensemble_signals)
+    ):
+        preferred_dropped_reason = None
+        if len(dropped_reason_set) == 1:
+            preferred_dropped_reason = next(iter(dropped_reason_set))
+        else:
+            non_hold_reason_set = {
+                dropped_reason
+                for dropped_reason in dropped_reason_set
+                if dropped_reason not in {"hold_ignored", "ambiguous_hold_side"}
+            }
+            if len(non_hold_reason_set) == 1:
+                preferred_dropped_reason = next(iter(non_hold_reason_set))
+        if preferred_dropped_reason == "missing_strategy":
+            return "missing_strategy_field"
+        if preferred_dropped_reason is not None:
+            return preferred_dropped_reason
+    return None
+
+
 def _normalize_local_gate_reason_for_summary(
     *,
     local_gate_reason,
@@ -4635,6 +4823,7 @@ def _normalize_local_gate_reason_for_summary(
     entry_decision_final=None,
     ensemble_signals=None,
     filtered_ensemble_signals=None,
+    dropped_ensemble_signals=None,
 ):
     try:
         reason = str(local_gate_reason or "").strip()
@@ -4644,13 +4833,36 @@ def _normalize_local_gate_reason_for_summary(
         return reason or local_gate_reason
 
     entry_reason_norm = str(entry_reason or "").strip().lower()
+    main_strategy_missing = main_strategy is None
+    if not main_strategy_missing:
+        try:
+            main_strategy_norm = str(main_strategy or "").strip().lower()
+        except Exception:
+            main_strategy_norm = ""
+        main_strategy_missing = main_strategy_norm in {"", "none", "null"}
     if entry_reason_norm in {"", "none", "null"}:
+        derived_reason = _derive_entry_reason_from_signal_funnel(
+            entry_decision_raw=entry_decision_raw,
+            entry_decision_final=entry_decision_final,
+            ensemble_signals=ensemble_signals,
+            filtered_ensemble_signals=filtered_ensemble_signals,
+            dropped_ensemble_signals=dropped_ensemble_signals,
+        )
+        if derived_reason is not None:
+            return derived_reason
+        strategy_alias_present = False
+        if isinstance(ensemble_signals, (list, tuple)):
+            for candidate_payload in ensemble_signals:
+                if _has_strategy_alias_evidence(candidate_payload):
+                    strategy_alias_present = True
+                    break
         if (
-            main_strategy is None
+            main_strategy_missing
             and str(entry_decision_raw or "").strip().lower() == "hold"
             and str(entry_decision_final or "").strip().lower() == "hold"
             and bool(ensemble_signals)
             and not bool(filtered_ensemble_signals)
+            and not strategy_alias_present
         ):
             return "missing_strategy_field"
     return reason
@@ -4664,6 +4876,53 @@ def _normalize_entry_reason(reason):
     if reason_norm in ("", "null", "None", "none"):
         return None
     return reason_norm
+
+
+def _should_fail_closed_unknown_fallback_admission(
+    *,
+    simulate,
+    market_type,
+    allow,
+    entry_decision,
+    entry_reason,
+    signal_confidence_abs=None,
+    history_ready=None,
+    coldstart_mode=None,
+    min_signal_confidence_abs=0.55,
+):
+    if not bool(allow):
+        return False
+    decision_norm = str(entry_decision or "").strip().lower()
+    if decision_norm not in {"buy", "sell"}:
+        return False
+    if not bool(simulate):
+        return False
+    if str(market_type or "").strip().lower() != "futures":
+        return False
+    reason_norm = str(entry_reason or "").strip().lower()
+    if reason_norm in {
+        "seed_trades_override",
+        "insufficient_history_seed_only",
+        "insufficient_history_fail_open",
+    }:
+        return False
+    if _classify_entry_reason(entry_reason) != "unknown_fallback":
+        return False
+    try:
+        confidence_abs = float(signal_confidence_abs)
+    except Exception:
+        confidence_abs = None
+    if history_ready is False:
+        if coldstart_mode is not None and not _should_fail_closed_on_history_not_ready(
+            coldstart_mode
+        ):
+            return False
+        if confidence_abs is None:
+            return True
+        return confidence_abs < float(min_signal_confidence_abs)
+    if confidence_abs is None:
+        return True
+    return confidence_abs < float(min_signal_confidence_abs)
 
 
 def _resolve_entry_gate_reason_context(
@@ -12004,51 +12263,8 @@ def run_bot(simulate=False):
     if not simulate:
         armed, reason = is_live_armed()
         if not armed:
-            logger.warning(
-                f"LIVE requested but not armed; forcing PAPER mode. Reason: {reason}"
-            )
-            simulate = True
-    if not simulate and os.environ.get("LIVE", "0") == "1":
-        try:
-            require_prelive_pass = os.environ.get("PRELIVE_REQUIRE_PASS", "1") == "1"
-        except Exception:
-            require_prelive_pass = True
-        if require_prelive_pass:
-            try:
-                from utils.prelive_gate import evaluate_live_readiness
-
-                prelive_report = evaluate_live_readiness(
-                    lookback_hours=float(
-                        os.environ.get("PRELIVE_LOOKBACK_HOURS", "24")
-                    ),
-                    min_trades=int(os.environ.get("PRELIVE_MIN_TRADES", "20")),
-                    min_profit_factor=float(
-                        os.environ.get("PRELIVE_MIN_PROFIT_FACTOR", "1.05")
-                    ),
-                    min_winrate=float(os.environ.get("PRELIVE_MIN_WINRATE", "0.45")),
-                    max_drawdown=float(
-                        os.environ.get("PRELIVE_MAX_DRAWDOWN", "0.03")
-                    ),
-                )
-                if not prelive_report.get("passed"):
-                    logger.error(
-                        "PRELIVE gate failed. Forcing PAPER mode. Report: %s",
-                        prelive_report,
-                    )
-                    simulate = True
-                    try:
-                        infinity_logger.log("prelive_gate_blocked", prelive_report)
-                    except Exception:
-                        pass
-                else:
-                    logger.info("PRELIVE gate passed.")
-                    try:
-                        infinity_logger.log("prelive_gate_passed", prelive_report)
-                    except Exception:
-                        pass
-            except Exception as e:
-                logger.error("PRELIVE gate check failed: %s", e, exc_info=True)
-                simulate = True
+            logger.error("LIVE_BLOCKED_NOT_READY: %s", reason)
+            raise RuntimeError("LIVE_BLOCKED_NOT_READY")
 
     strategies_per_symbol = {}
     from strategies.sim_env import SimulatedTradingEnv  # moved import here
@@ -15725,6 +15941,41 @@ def run_bot(simulate=False):
                     )
                 except Exception:
                     pass
+                close_reason_resolution = _resolve_close_reason_with_owner(
+                    payload_exit_reason=exit_reason,
+                    close_execute_reason=exit_reason,
+                    execute_call_reason=exit_reason,
+                    candidate_reason=None,
+                    weak_peak_reason=None,
+                    source_branch="paper_run_end_force_close",
+                )
+                final_exit_reason = close_reason_resolution.get("exit_reason")
+                reason_source = close_reason_resolution.get("reason_source")
+                exit_owner = close_reason_resolution.get("exit_owner")
+                lifecycle_flags = _compute_lifecycle_ownership_flags(
+                    final_exit_reason,
+                    exit_owner,
+                )
+                if isinstance(pos, dict):
+                    pos["exit_reason"] = final_exit_reason
+                    pos["close_reason"] = final_exit_reason
+                    pos["exit_owner"] = exit_owner
+                    pos["exit_reason_source"] = reason_source
+                    pos["exit_reason_deterministic"] = bool(
+                        lifecycle_flags.get("exit_reason_deterministic")
+                    )
+                    pos["exit_owner_deterministic"] = bool(
+                        lifecycle_flags.get("exit_owner_deterministic")
+                    )
+                    pos["lifecycle_ownership_deterministic"] = bool(
+                        lifecycle_flags.get("lifecycle_ownership_deterministic")
+                    )
+                    pos["lifecycle_ownership_reason_codes"] = list(
+                        lifecycle_flags.get("lifecycle_ownership_reason_codes") or []
+                    )
+                    pos["lifecycle_ownership_state"] = lifecycle_flags.get(
+                        "lifecycle_ownership_state"
+                    )
                 infinity_logger.log(
                     "position_close",
                     {
@@ -15735,7 +15986,29 @@ def run_bot(simulate=False):
                         "fee_cost": fee_cost,
                         "fee_cost_close": fee_cost_close,
                         "funding_cost": funding_cost,
-                        "exit_reason": exit_reason,
+                        "reason": final_exit_reason,
+                        "exit_reason": final_exit_reason,
+                        "close_reason": final_exit_reason,
+                        "exit_owner": exit_owner,
+                        "exit_reason_source": reason_source,
+                        "exit_reason_deterministic": bool(
+                            lifecycle_flags.get("exit_reason_deterministic")
+                        ),
+                        "exit_owner_deterministic": bool(
+                            lifecycle_flags.get("exit_owner_deterministic")
+                        ),
+                        "lifecycle_ownership_deterministic": bool(
+                            lifecycle_flags.get(
+                                "lifecycle_ownership_deterministic"
+                            )
+                        ),
+                        "lifecycle_ownership_reason_codes": list(
+                            lifecycle_flags.get("lifecycle_ownership_reason_codes")
+                            or []
+                        ),
+                        "lifecycle_ownership_state": lifecycle_flags.get(
+                            "lifecycle_ownership_state"
+                        ),
                         "side": pos.get("side") if isinstance(pos, dict) else None,
                         "regime": (
                             pos.get("entry_regime")
@@ -16096,6 +16369,8 @@ def run_bot(simulate=False):
                 return "sell"
             return "hold"
         if isinstance(signal_obj, list):
+            if not signal_obj:
+                return "hold"
             for item in signal_obj:
                 side = _normalize_signal(item)
                 if side in ("buy", "sell"):
@@ -16108,12 +16383,12 @@ def run_bot(simulate=False):
         if isinstance(signal_obj, dict):
             raw = signal_obj.get("signal")
             if isinstance(raw, str):
-                return raw.lower()
+                return _normalize_signal(raw)
             if isinstance(raw, (int, float)):
                 return _normalize_signal(raw)
             raw = signal_obj.get("action")
             if isinstance(raw, str):
-                return raw.lower()
+                return _normalize_signal(raw)
             if isinstance(raw, (int, float)):
                 return _normalize_signal(raw)
             raw_type = signal_obj.get("type")
@@ -16124,12 +16399,12 @@ def run_bot(simulate=False):
                 if raw_type in ("entry", "scalp", "bias"):
                     side = signal_obj.get("side")
                     if isinstance(side, str):
-                        return side.lower()
+                        return _normalize_signal(side)
                 if raw_type in ("exit", "wait"):
                     return "hold"
             nested = signal_obj.get("signals")
             if isinstance(nested, list):
-                if len(nested) > 0:
+                if nested:
                     nested_side = _normalize_signal(nested)
                     if nested_side is not None:
                         return nested_side
@@ -16195,6 +16470,8 @@ def run_bot(simulate=False):
                             return side
             except Exception:
                 pass
+            if isinstance(nested, list) and not nested:
+                return "hold"
         return None
 
     def _drain_close_requests():
@@ -16661,6 +16938,63 @@ def run_bot(simulate=False):
                         )
                         if isinstance(pos, dict):
                             pos.update(post_green_close_contract)
+                        close_reason_resolution = _resolve_close_reason_with_owner(
+                            payload_exit_reason=(
+                                pos.get("exit_reason") if isinstance(pos, dict) else None
+                            ),
+                            close_execute_reason=(
+                                pos.get("close_reason") if isinstance(pos, dict) else None
+                            ),
+                            execute_call_reason=(
+                                pos.get("hard_close_reason")
+                                if isinstance(pos, dict)
+                                else None
+                            ),
+                            candidate_reason=(
+                                (
+                                    pos.get("exit_reason_candidate")
+                                    or pos.get("close_reason_candidate")
+                                    or pos.get("candidate_exit_reason")
+                                )
+                                if isinstance(pos, dict)
+                                else None
+                            ),
+                            weak_peak_reason=(
+                                pos.get("weak_peak_decay_reason")
+                                if isinstance(pos, dict)
+                                and bool(pos.get("weak_peak_decay_triggered"))
+                                else None
+                            ),
+                            source_branch="position_close_request",
+                        )
+                        final_exit_reason = close_reason_resolution.get("exit_reason")
+                        reason_source = close_reason_resolution.get("reason_source")
+                        exit_owner = close_reason_resolution.get("exit_owner")
+                        lifecycle_flags = _compute_lifecycle_ownership_flags(
+                            final_exit_reason,
+                            exit_owner,
+                        )
+                        if isinstance(pos, dict):
+                            pos["exit_reason"] = final_exit_reason
+                            pos["close_reason"] = final_exit_reason
+                            pos["exit_owner"] = exit_owner
+                            pos["exit_reason_source"] = reason_source
+                            pos["exit_reason_deterministic"] = bool(
+                                lifecycle_flags.get("exit_reason_deterministic")
+                            )
+                            pos["exit_owner_deterministic"] = bool(
+                                lifecycle_flags.get("exit_owner_deterministic")
+                            )
+                            pos["lifecycle_ownership_deterministic"] = bool(
+                                lifecycle_flags.get("lifecycle_ownership_deterministic")
+                            )
+                            pos["lifecycle_ownership_reason_codes"] = list(
+                                lifecycle_flags.get("lifecycle_ownership_reason_codes")
+                                or []
+                            )
+                            pos["lifecycle_ownership_state"] = lifecycle_flags.get(
+                                "lifecycle_ownership_state"
+                            )
                         try:
                             infinity_logger.log(
                                 "post_green_protective_exit_terminal_outcome",
@@ -16671,11 +17005,7 @@ def run_bot(simulate=False):
                                         else None
                                     ),
                                     "symbol": sym,
-                                    "final_exit_reason": (
-                                        pos.get("exit_reason")
-                                        if isinstance(pos, dict)
-                                        else None
-                                    ),
+                                    "final_exit_reason": final_exit_reason,
                                     **_post_green_terminal_marker,
                                 },
                             )
@@ -16692,6 +17022,22 @@ def run_bot(simulate=False):
                                 "fee_cost": fee_cost,
                                 "fee_cost_close": fee_cost_close,
                                 "funding_cost": funding_cost,
+                                "reason": final_exit_reason,
+                                "exit_reason": final_exit_reason,
+                                "close_reason": final_exit_reason,
+                                "exit_owner": exit_owner,
+                                "exit_reason_source": reason_source,
+                                "exit_reason_deterministic": bool(
+                                    lifecycle_flags.get("exit_reason_deterministic")
+                                ),
+                                "exit_owner_deterministic": bool(
+                                    lifecycle_flags.get("exit_owner_deterministic")
+                                ),
+                                "lifecycle_ownership_deterministic": bool(
+                                    lifecycle_flags.get(
+                                        "lifecycle_ownership_deterministic"
+                                    )
+                                ),
                                 "regime": pos.get("entry_regime"),
                                 "main_strategy": pos.get("entry_main_strategy")
                                 or pos.get("strategy"),
@@ -16714,6 +17060,10 @@ def run_bot(simulate=False):
                                             or pos.get("strategy")
                                         ),
                                     }
+                                ),
+                                "lifecycle_ownership_reason_codes": list(
+                                    lifecycle_flags.get("lifecycle_ownership_reason_codes")
+                                    or []
                                 ),
                                 **post_green_close_contract,
                             },
@@ -16918,6 +17268,63 @@ def run_bot(simulate=False):
                         )
                         if isinstance(pos, dict):
                             pos.update(post_green_close_contract)
+                        close_reason_resolution = _resolve_close_reason_with_owner(
+                            payload_exit_reason=(
+                                pos.get("exit_reason") if isinstance(pos, dict) else None
+                            ),
+                            close_execute_reason=(
+                                pos.get("close_reason") if isinstance(pos, dict) else None
+                            ),
+                            execute_call_reason=(
+                                pos.get("hard_close_reason")
+                                if isinstance(pos, dict)
+                                else None
+                            ),
+                            candidate_reason=(
+                                (
+                                    pos.get("exit_reason_candidate")
+                                    or pos.get("close_reason_candidate")
+                                    or pos.get("candidate_exit_reason")
+                                )
+                                if isinstance(pos, dict)
+                                else None
+                            ),
+                            weak_peak_reason=(
+                                pos.get("weak_peak_decay_reason")
+                                if isinstance(pos, dict)
+                                and bool(pos.get("weak_peak_decay_triggered"))
+                                else None
+                            ),
+                            source_branch="position_close_request",
+                        )
+                        final_exit_reason = close_reason_resolution.get("exit_reason")
+                        reason_source = close_reason_resolution.get("reason_source")
+                        exit_owner = close_reason_resolution.get("exit_owner")
+                        lifecycle_flags = _compute_lifecycle_ownership_flags(
+                            final_exit_reason,
+                            exit_owner,
+                        )
+                        if isinstance(pos, dict):
+                            pos["exit_reason"] = final_exit_reason
+                            pos["close_reason"] = final_exit_reason
+                            pos["exit_owner"] = exit_owner
+                            pos["exit_reason_source"] = reason_source
+                            pos["exit_reason_deterministic"] = bool(
+                                lifecycle_flags.get("exit_reason_deterministic")
+                            )
+                            pos["exit_owner_deterministic"] = bool(
+                                lifecycle_flags.get("exit_owner_deterministic")
+                            )
+                            pos["lifecycle_ownership_deterministic"] = bool(
+                                lifecycle_flags.get("lifecycle_ownership_deterministic")
+                            )
+                            pos["lifecycle_ownership_reason_codes"] = list(
+                                lifecycle_flags.get("lifecycle_ownership_reason_codes")
+                                or []
+                            )
+                            pos["lifecycle_ownership_state"] = lifecycle_flags.get(
+                                "lifecycle_ownership_state"
+                            )
                         try:
                             infinity_logger.log(
                                 "post_green_protective_exit_terminal_outcome",
@@ -16928,11 +17335,7 @@ def run_bot(simulate=False):
                                         else None
                                     ),
                                     "symbol": sym,
-                                    "final_exit_reason": (
-                                        pos.get("exit_reason")
-                                        if isinstance(pos, dict)
-                                        else None
-                                    ),
+                                    "final_exit_reason": final_exit_reason,
                                     **_post_green_terminal_marker,
                                 },
                             )
@@ -16948,12 +17351,32 @@ def run_bot(simulate=False):
                                 "realized_pnl": realized_pnl_net,
                                 "fee_cost": fee_cost,
                                 "funding_cost": funding_cost,
+                                "reason": final_exit_reason,
+                                "exit_reason": final_exit_reason,
+                                "close_reason": final_exit_reason,
+                                "exit_owner": exit_owner,
+                                "exit_reason_source": reason_source,
+                                "exit_reason_deterministic": bool(
+                                    lifecycle_flags.get("exit_reason_deterministic")
+                                ),
+                                "exit_owner_deterministic": bool(
+                                    lifecycle_flags.get("exit_owner_deterministic")
+                                ),
+                                "lifecycle_ownership_deterministic": bool(
+                                    lifecycle_flags.get(
+                                        "lifecycle_ownership_deterministic"
+                                    )
+                                ),
                                 "regime": pos.get("entry_regime"),
                                 "main_strategy": pos.get("entry_main_strategy")
                                 or pos.get("strategy"),
                                 "strategy": pos.get("strategy"),
                                 "entry_main_strategy": pos.get("entry_main_strategy")
                                 or pos.get("strategy"),
+                                "lifecycle_ownership_reason_codes": list(
+                                    lifecycle_flags.get("lifecycle_ownership_reason_codes")
+                                    or []
+                                ),
                                 **post_green_close_contract,
                                 "post_green_protective_terminal_candidate_seen": bool(
                                     _post_green_terminal_marker.get(
@@ -19809,6 +20232,80 @@ def run_bot(simulate=False):
                             return "trendfollowing_strength"
                         return None
 
+                    def _raw_side_diagnostic_value(value):
+                        if value is None:
+                            return None
+                        if isinstance(value, (str, int, float)):
+                            return str(value)
+                        if isinstance(value, list):
+                            return "signals:empty" if not value else "signals:list"
+                        if isinstance(value, dict):
+                            return None
+                        return type(value).__name__
+
+                    def _collect_candidate_raw_side_values(candidate_payload):
+                        if not isinstance(candidate_payload, dict):
+                            raw_text = _raw_side_diagnostic_value(candidate_payload)
+                            if raw_text is None:
+                                return []
+                            return [
+                                {
+                                    "source": "candidate",
+                                    "raw_value": raw_text,
+                                    "normalized_value": _normalize_signal(
+                                        candidate_payload
+                                    ),
+                                }
+                            ]
+                        collected = []
+
+                        def _add(source, value):
+                            raw_text = _raw_side_diagnostic_value(value)
+                            if raw_text is None:
+                                return
+                            collected.append(
+                                {
+                                    "source": source,
+                                    "raw_value": raw_text,
+                                    "normalized_value": _normalize_signal(value),
+                                }
+                            )
+
+                        for key in (
+                            "raw_side",
+                            "_side",
+                            "side",
+                            "direction",
+                            "action",
+                            "signal",
+                        ):
+                            if key in candidate_payload:
+                                if (
+                                    key == "signal"
+                                    and isinstance(candidate_payload.get(key), dict)
+                                ):
+                                    continue
+                                _add(f"candidate.{key}", candidate_payload.get(key))
+                        signal_payload = candidate_payload.get("signal")
+                        if isinstance(signal_payload, dict):
+                            for key in ("side", "direction", "action", "signal", "type"):
+                                if key in signal_payload:
+                                    _add(
+                                        f"candidate.signal.{key}",
+                                        signal_payload.get(key),
+                                    )
+                            nested_signals = signal_payload.get("signals")
+                            if isinstance(nested_signals, list):
+                                if not nested_signals:
+                                    _add("candidate.signal.signals", nested_signals)
+                                else:
+                                    for idx, item in enumerate(nested_signals[:5]):
+                                        _add(
+                                            f"candidate.signal.signals[{idx}]",
+                                            item,
+                                        )
+                        return collected
+
                     def _log_pre_entry_candidate_rejection(
                         *,
                         candidate,
@@ -19836,6 +20333,8 @@ def run_bot(simulate=False):
                             "allocation",
                             "_strategy",
                             "_side",
+                            "raw_side",
+                            "raw_side_source",
                         ):
                             if key in payload:
                                 value = payload.get(key)
@@ -19846,6 +20345,9 @@ def run_bot(simulate=False):
                                 else:
                                     preview[key] = value
                         try:
+                            raw_side_candidates = _collect_candidate_raw_side_values(
+                                payload
+                            )
                             infinity_logger.log(
                                 "pre_entry_candidate_rejection_trace",
                                 {
@@ -19863,6 +20365,10 @@ def run_bot(simulate=False):
                                     ),
                                     "candidate_has_side_field": "side" in payload,
                                     "candidate_has_direction_field": "direction" in payload,
+                                    "candidate_has_raw_side_field": (
+                                        "raw_side" in payload
+                                    ),
+                                    "raw_side_candidates": raw_side_candidates,
                                     "normalized_strategy_value": normalized_strategy_value,
                                     "normalized_side_value": normalized_side_value,
                                     "rejection_predicate_name": rejection_predicate_name,
@@ -19876,6 +20382,72 @@ def run_bot(simulate=False):
                             )
                         except Exception:
                             pass
+
+                    def _resolve_candidate_side(candidate_payload):
+                        if not isinstance(candidate_payload, dict):
+                            return None
+                        raw_candidates = []
+                        for key in (
+                            "_side",
+                            "side",
+                            "raw_side",
+                            "signal",
+                            "direction",
+                            "action",
+                        ):
+                            if key in candidate_payload:
+                                raw_candidates.append(candidate_payload.get(key))
+                        signal_payload = candidate_payload.get("signal")
+                        if isinstance(signal_payload, dict):
+                            raw_candidates.append(signal_payload)
+                            for key in ("side", "direction", "action", "signal", "type"):
+                                if key in signal_payload:
+                                    raw_candidates.append(signal_payload.get(key))
+                        metrics_payload = candidate_payload.get("metrics")
+                        if isinstance(metrics_payload, dict):
+                            trend_strength = metrics_payload.get("trend_strength")
+                            if isinstance(trend_strength, dict):
+                                raw_candidates.append(trend_strength.get("direction"))
+                        fallback_side = None
+                        for raw_value in raw_candidates:
+                            normalized_side = _normalize_signal(raw_value)
+                            if normalized_side in ("buy", "sell", "hold"):
+                                return normalized_side
+                            if fallback_side is None and normalized_side is not None:
+                                fallback_side = normalized_side
+                        return fallback_side
+
+                    def _candidate_explicit_hold_side(candidate_payload):
+                        if not isinstance(candidate_payload, dict):
+                            return False
+                        raw_candidates = []
+                        for key in (
+                            "_side",
+                            "side",
+                            "raw_side",
+                            "signal",
+                            "direction",
+                            "action",
+                        ):
+                            if key in candidate_payload:
+                                raw_candidates.append(candidate_payload.get(key))
+                        signal_payload = candidate_payload.get("signal")
+                        if isinstance(signal_payload, dict):
+                            for key in ("side", "direction", "action", "signal", "type"):
+                                if key in signal_payload:
+                                    raw_candidates.append(signal_payload.get(key))
+                        for raw_value in raw_candidates:
+                            if isinstance(raw_value, str):
+                                side_raw = raw_value.strip().lower()
+                                if side_raw in {"hold", "flat", "neutral", "0"}:
+                                    return True
+                            elif isinstance(raw_value, (int, float)):
+                                try:
+                                    if float(raw_value) == 0.0:
+                                        return True
+                                except Exception:
+                                    continue
+                        return False
 
                     for sig in ensemble_signals or []:
                         if not isinstance(sig, dict):
@@ -19900,7 +20472,7 @@ def run_bot(simulate=False):
                                 {"strategy": None, "reason": "malformed_signal"}
                             )
                             continue
-                        strategy_name = str(sig.get("strategy") or "")
+                        strategy_name = _resolve_entry_candidate_strategy(sig)
                         if entry_require_strategy_name and not str(strategy_name).strip():
                             _log_pre_entry_candidate_rejection(
                                 candidate=sig,
@@ -19915,7 +20487,7 @@ def run_bot(simulate=False):
                                     "selected_strategy": False,
                                 },
                                 normalized_strategy_value=strategy_name or None,
-                                normalized_side_value=_normalize_signal(sig.get("signal")),
+                                normalized_side_value=_resolve_candidate_side(sig),
                             )
                             dropped_ensemble_signals.append(
                                 {"strategy": strategy_name, "reason": "missing_strategy"}
@@ -19931,7 +20503,7 @@ def run_bot(simulate=False):
                                 consumer_missing_fields=None,
                                 consumer_alias_match_result=None,
                                 normalized_strategy_value=strategy_name or None,
-                                normalized_side_value=_normalize_signal(sig.get("signal")),
+                                normalized_side_value=_resolve_candidate_side(sig),
                             )
                             dropped_ensemble_signals.append(
                                 {"strategy": strategy_name, "reason": "router_error"}
@@ -19948,7 +20520,7 @@ def run_bot(simulate=False):
                                 consumer_missing_fields=None,
                                 consumer_alias_match_result=None,
                                 normalized_strategy_value=strategy_name or None,
-                                normalized_side_value=_normalize_signal(sig.get("signal")),
+                                normalized_side_value=_resolve_candidate_side(sig),
                             )
                             dropped_ensemble_signals.append(
                                 {"strategy": strategy_name, "reason": prefilter_reason}
@@ -19964,7 +20536,7 @@ def run_bot(simulate=False):
                                 consumer_missing_fields=None,
                                 consumer_alias_match_result=None,
                                 normalized_strategy_value=strategy_name or None,
-                                normalized_side_value=_normalize_signal(sig.get("signal")),
+                                normalized_side_value=_resolve_candidate_side(sig),
                             )
                             dropped_ensemble_signals.append(
                                 {"strategy": strategy_name, "reason": "strategy_error"}
@@ -19983,7 +20555,7 @@ def run_bot(simulate=False):
                                     consumer_missing_fields=None,
                                     consumer_alias_match_result=None,
                                     normalized_strategy_value=strategy_name or None,
-                                    normalized_side_value=_normalize_signal(sig.get("signal")),
+                                    normalized_side_value=_resolve_candidate_side(sig),
                                 )
                                 dropped_ensemble_signals.append(
                                     {
@@ -20016,7 +20588,7 @@ def run_bot(simulate=False):
                                     consumer_missing_fields=None,
                                     consumer_alias_match_result=None,
                                     normalized_strategy_value=strategy_name or None,
-                                    normalized_side_value=_normalize_signal(sig.get("signal")),
+                                    normalized_side_value=_resolve_candidate_side(sig),
                                 )
                                 dropped_ensemble_signals.append(
                                     {"strategy": strategy_name, "reason": "alpha_whitelist"}
@@ -20034,8 +20606,69 @@ def run_bot(simulate=False):
                                 except Exception:
                                     pass
                                 continue
+                        side = _resolve_candidate_side(sig)
+                        if should_bypass_symbol_strategy_guard_for_hold(
+                            side, entry_ignore_hold_signals
+                        ):
+                            explicit_hold_side = _candidate_explicit_hold_side(sig)
+                            hold_rejection_reason = (
+                                "hold_ignored"
+                                if explicit_hold_side
+                                else "ambiguous_hold_side"
+                            )
+                            hold_rejection_predicate = (
+                                "entry_ignore_hold_signals and explicit_side == 'hold'"
+                                if explicit_hold_side
+                                else (
+                                    "entry_ignore_hold_signals and normalized_side == "
+                                    "'hold' without explicit hold side marker"
+                                )
+                            )
+                            _log_pre_entry_candidate_rejection(
+                                candidate=sig,
+                                rejection_predicate_name=hold_rejection_predicate,
+                                rejection_reason_code=hold_rejection_reason,
+                                rejection_stage="pre_entry_candidate_rejection",
+                                consumer_expected_fields=["strategy", "signal"],
+                                consumer_missing_fields=None,
+                                consumer_alias_match_result=None,
+                                normalized_strategy_value=strategy_name or None,
+                                normalized_side_value=side,
+                            )
+                            dropped_ensemble_signals.append(
+                                {"strategy": strategy_name, "reason": hold_rejection_reason}
+                            )
+                            continue
                         strategy_guard = _symbol_strategy_guard_check(symbol, strategy_name)
-                        if isinstance(strategy_guard, dict) and strategy_guard.get("blocked"):
+                        strategy_guard_allowlist_key = None
+                        strategy_guard_allowlist_bypass = False
+                        if (
+                            side in ("buy", "sell")
+                            and strategy_name
+                            and entry_symbol_strategy_side_allowlist
+                        ):
+                            strategy_guard_allowlist_key = (
+                                f"{str(symbol or '').strip().upper()}:"
+                                f"{str(strategy_name or '').strip().upper()}:"
+                                f"{str(side).strip().lower()}"
+                            )
+                            strategy_guard_allowlist_bypass = (
+                                strategy_guard_allowlist_key
+                                in entry_symbol_strategy_side_allowlist
+                            )
+                        if isinstance(strategy_guard, dict):
+                            strategy_guard["allowlist_side_bypass"] = bool(
+                                strategy_guard_allowlist_bypass
+                            )
+                            if strategy_guard_allowlist_key:
+                                strategy_guard["allowlist_side_key"] = (
+                                    strategy_guard_allowlist_key
+                                )
+                        if (
+                            isinstance(strategy_guard, dict)
+                            and strategy_guard.get("blocked")
+                            and not strategy_guard_allowlist_bypass
+                        ):
                             _log_pre_entry_candidate_rejection(
                                 candidate=sig,
                                 rejection_predicate_name="_symbol_strategy_guard_check",
@@ -20045,14 +20678,13 @@ def run_bot(simulate=False):
                                 consumer_missing_fields=None,
                                 consumer_alias_match_result=None,
                                 normalized_strategy_value=strategy_name or None,
-                                normalized_side_value=_normalize_signal(sig.get("signal")),
+                                normalized_side_value=side,
                             )
                             guarded_symbol_strategies[strategy_name] = strategy_guard
                             dropped_ensemble_signals.append(
                                 {"strategy": strategy_name, "reason": "symbol_strategy_guard"}
                             )
                             continue
-                        side = _normalize_signal(sig.get("signal"))
                         try:
                             weight = float(sig.get("allocation", 0) or 0)
                         except Exception:
@@ -20197,23 +20829,10 @@ def run_bot(simulate=False):
                                 {"strategy": strategy_name, "reason": prefilter_reason}
                             )
                             continue
-                        if entry_ignore_hold_signals and side == "hold":
-                            _log_pre_entry_candidate_rejection(
-                                candidate=sig,
-                                rejection_predicate_name="entry_ignore_hold_signals and side == 'hold'",
-                                rejection_reason_code="hold_ignored",
-                                rejection_stage="pre_entry_candidate_rejection",
-                                consumer_expected_fields=["strategy", "signal"],
-                                consumer_missing_fields=None,
-                                consumer_alias_match_result=None,
-                                normalized_strategy_value=strategy_name or None,
-                                normalized_side_value=side,
-                            )
-                            dropped_ensemble_signals.append(
-                                {"strategy": strategy_name, "reason": "hold_ignored"}
-                            )
-                            continue
                         clean_sig = dict(sig)
+                        if strategy_name:
+                            clean_sig.setdefault("strategy", strategy_name)
+                            clean_sig.setdefault("main_strategy", strategy_name)
                         clean_sig["_side"] = side
                         clean_sig["_weight"] = weight
                         if isinstance(side_switch_status, dict):
@@ -20230,7 +20849,7 @@ def run_bot(simulate=False):
                                 strategy_name = str(cand.get("strategy") or "")
                             except Exception:
                                 strategy_name = ""
-                            side = _normalize_signal(cand.get("signal"))
+                            side = _resolve_candidate_side(cand)
                             try:
                                 weight = float(cand.get("allocation", 0) or 0)
                             except Exception:
@@ -20352,7 +20971,7 @@ def run_bot(simulate=False):
                                 ):
                                     skipped_weak_expectancy += 1
                                     continue
-                            side = _normalize_signal(cand.get("signal"))
+                            side = _resolve_candidate_side(cand)
                             try:
                                 weight = float(cand.get("allocation", 0) or 0)
                             except Exception:
@@ -22164,6 +22783,7 @@ def run_bot(simulate=False):
                                 exit_source_branch = None
                                 reverse_entry = False
                                 _selection_pool_kind = "none"
+                            _best_observed_feasible_net = None
                             try:
                                 _best_current_economic_net = None
                                 for _cand in layered_candidates:
@@ -22784,6 +23404,65 @@ def run_bot(simulate=False):
                                 },
                             )
 
+                        if (
+                            exit_reason == "post_green_protective_exit"
+                            and isinstance(current_pos, dict)
+                        ):
+                            _selected_expected_net_after_fee = _safe_float(
+                                selected_candidate.get("expected_net_after_fee")
+                                if isinstance(selected_candidate, dict)
+                                else _layered_net
+                            )
+                            _post_green_peak_mfe = _safe_float(
+                                current_pos.get("post_green_peak_mfe")
+                            )
+                            if (
+                                _post_green_peak_mfe is None
+                                and isinstance(_post_green_metrics, dict)
+                            ):
+                                _post_green_peak_mfe = _safe_float(
+                                    _post_green_metrics.get("post_green_peak_mfe")
+                                )
+                            _pre_hard_close_best_feasible_net = _safe_float(
+                                current_pos.get("pre_hard_close_best_feasible_net")
+                            )
+                            if _pre_hard_close_best_feasible_net is None:
+                                _pre_hard_close_best_feasible_net = _safe_float(
+                                    _best_observed_feasible_net
+                                )
+                            if _should_fail_closed_post_green_red_close(
+                                exit_reason=exit_reason,
+                                selected_expected_net_after_fee=_selected_expected_net_after_fee,
+                                post_green_peak_mfe=_post_green_peak_mfe,
+                                pre_hard_close_best_feasible_net=_pre_hard_close_best_feasible_net,
+                            ):
+                                _emit_close_diag(
+                                    "post_green_protective_exit_blocked_red_close",
+                                    {
+                                        "timestamp": datetime.now(
+                                            timezone.utc
+                                        ).isoformat(),
+                                        "symbol": symbol,
+                                        "trade_id": current_pos.get("trade_id"),
+                                        "selected_expected_net_after_fee": (
+                                            _selected_expected_net_after_fee
+                                        ),
+                                        "post_green_peak_mfe": _post_green_peak_mfe,
+                                        "pre_hard_close_best_feasible_net": (
+                                            _pre_hard_close_best_feasible_net
+                                        ),
+                                        "source_branch": exit_source_branch,
+                                    },
+                                )
+                                current_pos["post_green_exit_fail_closed"] = True
+                                current_pos["post_green_exit_fail_closed_reason"] = (
+                                    "positive_alternative_feasible"
+                                )
+                                selected_candidate = None
+                                exit_reason = None
+                                exit_source_branch = None
+                                reverse_entry = False
+
                         if exit_reason:
                             selected_reason_name = (
                                 selected_candidate.get("reason")
@@ -23395,7 +24074,13 @@ def run_bot(simulate=False):
                                 pass
                             current_side = _pos_side(current_pos)
                     entry_decision = decision_value
-                    entry_reason = None
+                    entry_reason = _derive_entry_reason_from_signal_funnel(
+                        entry_decision_raw=decision_value,
+                        entry_decision_final=decision_value,
+                        ensemble_signals=ensemble_signals,
+                        filtered_ensemble_signals=filtered_ensemble_signals,
+                        dropped_ensemble_signals=dropped_ensemble_signals,
+                    )
                     entry_decision_raw = entry_decision
                     entry_decision_final = entry_decision
                     applied_invert = False
@@ -27281,6 +27966,23 @@ def run_bot(simulate=False):
                         paper_gate_active=bool(gate_active),
                     )
                     final_allow = bool(allow and entry_decision in ("buy", "sell"))
+                    if _should_fail_closed_unknown_fallback_admission(
+                        simulate=simulate,
+                        market_type=market_type,
+                        allow=allow,
+                        entry_decision=entry_decision,
+                        entry_reason=entry_reason,
+                        signal_confidence_abs=_safe_float(abs(signal_score)),
+                        history_ready=history_ready_safe,
+                        coldstart_mode=entry_edge_coldstart_mode,
+                    ):
+                        allow = False
+                        final_allow = False
+                        if not str(entry_reason or "").strip():
+                            if not history_ready_safe:
+                                entry_reason = "profit_focus_history_not_ready"
+                            else:
+                                entry_reason = "profit_focus_confidence_too_low"
                     global_block_reason = None
                     if (
                         bool(gate_active)
@@ -27301,6 +28003,7 @@ def run_bot(simulate=False):
                             entry_decision_final=entry_decision,
                             ensemble_signals=ensemble_signals,
                             filtered_ensemble_signals=filtered_ensemble_signals,
+                            dropped_ensemble_signals=dropped_ensemble_signals,
                         )
                     entry_gate_reason_context = _resolve_entry_gate_reason_context(
                         global_block_reason=global_block_reason,
@@ -27432,8 +28135,11 @@ def run_bot(simulate=False):
                         "entry_decision_raw": entry_decision_raw,
                         "entry_decision_final": entry_decision,
                         "entry_reason": entry_reason,
-                        "entry_reason_classification": _classify_entry_reason(
-                            entry_reason
+                        "entry_reason_classification": (
+                            _classify_entry_reason_with_gate_fallback(
+                                entry_reason=entry_reason,
+                                effective_gate_reason=effective_gate_reason,
+                            )
                         ),
                         "entry_live_edge": entry_live_edge_status,
                         "entry_edge_over_fee": entry_edge_over_fee_status,

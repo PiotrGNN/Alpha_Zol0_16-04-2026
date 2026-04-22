@@ -1,4 +1,5 @@
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -448,7 +449,7 @@ def test_paper_env_overrides_parent_mock_flags(monkeypatch):
     assert env["ZOL0_ALLOW_MOCK"] == "0"
 
 
-def test_run_controlled_kpi_relaxes_explicit_side_allowlist_for_gate(
+def test_run_controlled_kpi_uses_natural_paper_validation_by_default(
     monkeypatch,
     tmp_path,
 ):
@@ -521,10 +522,22 @@ def test_run_controlled_kpi_relaxes_explicit_side_allowlist_for_gate(
     command = commands[0]
     after_idx = command.index("--after-min")
     assert command[after_idx + 1] == "2"
+    assert "--paper-auto-open" in command
     close_idx = command.index("--paper-auto-close-sec")
     assert command[close_idx + 1] == "20"
-    idx = command.index("--after-env")
-    assert command[idx + 1] == "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST=0"
+    after_env_values = [
+        command[idx + 1]
+        for idx, token in enumerate(command)
+        if token == "--after-env" and idx + 1 < len(command)
+    ]
+    assert "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST=0" in after_env_values
+    assert "PAPER_AUTO_OPEN_STARTUP_ENABLE=0" in after_env_values
+    assert "PAPER_AUTO_OPEN_FALLBACK_ENABLE=0" in after_env_values
+    assert "SEED_TRADES_ENABLE=0" in after_env_values
+    assert "SYMBOL_STRATEGY_GUARD_ENABLE=0" in after_env_values
+    assert "SIDE_GUARD_ENABLE=0" in after_env_values
+    assert "ENTRY_EDGE_COLDSTART_MODE=fail_open" in after_env_values
+    assert "ENTRY_CUTOFF_BEFORE_END_SEC=30" in after_env_values
     assert bundle["summary"]["rows"] == 2
     assert Path(bundle["summary_json"]).exists()
 
@@ -632,6 +645,7 @@ def test_run_controlled_kpi_applies_eth_momentum_buy_after_env_overrides(
     )
 
     command = commands[0]
+    assert "--paper-auto-open" in command
     after_env_values = [
         command[idx + 1]
         for idx, token in enumerate(command)
@@ -654,6 +668,8 @@ def test_run_controlled_kpi_applies_eth_momentum_buy_after_env_overrides(
         f"ALPHA_BOOTSTRAP_SOURCE_DB_URL=sqlite:///{missing_source_posix}"
         in after_env_values
     )
+    assert "ENTRY_EDGE_COLDSTART_MODE=fail_open" in after_env_values
+    assert "ENTRY_CUTOFF_BEFORE_END_SEC=30" in after_env_values
     assert bundle["summary"]["rows"] == 2
     assert Path(bundle["summary_json"]).exists()
 
@@ -817,7 +833,7 @@ def test_check_run_fails_when_use_mock_true(tmp_path):
     assert checks["use_mock_false"] is False
 
 
-def test_check_run_classifies_diagnostic_no_open_run(tmp_path):
+def test_check_run_blocks_no_open_run_without_natural_contract(tmp_path):
     bundle = _build_after_bundle(
         tmp_path,
         "run_diagnostic",
@@ -826,11 +842,82 @@ def test_check_run_classifies_diagnostic_no_open_run(tmp_path):
     ok, errors, checks = gate._check_run(bundle, {})
 
     assert ok is False
-    assert "paper_auto_open_false" in errors
+    assert "paper_auto_open_false" not in errors
     assert "diagnostic_no_open_run" in errors
+    assert "natural_entry_candidate_contract_missing" in errors
     assert checks["paper_auto_open_true"] is False
     assert checks["diagnostic_no_open_run"] is True
-    assert checks["paper_validation_classification"] == "DIAGNOSTIC_NO_OPEN_RUN"
+    assert (
+        checks["paper_validation_classification"]
+        == "NATURAL_ENTRY_CONTRACT_MISSING"
+    )
+
+
+def test_check_run_allows_natural_paper_validation_without_auto_open(tmp_path):
+    bundle = _build_after_bundle(
+        tmp_path,
+        "run_natural_without_auto_open",
+        paper_auto_open=False,
+    )
+    contract = {
+        "classification": "NATURAL_ENTRY_CANDIDATE_PRESENT",
+        "usable_strategy_economics": True,
+        "strategy_evidence_classification": "USABLE_STRATEGY_EVIDENCE",
+        "router_candidate_rows": 3,
+        "natural_admitted_count": 2,
+        "assisted_seed_admitted_count": 0,
+        "assisted_seed_open_count": 0,
+        "fallback_open_count": 0,
+        "reason_codes": ["ROUTER_CANDIDATES_EXIST"],
+    }
+    bundle["summary"]["natural_entry_candidate_contract"] = contract
+
+    ok, errors, checks = gate._check_run(bundle, {})
+
+    assert ok is True
+    assert errors == []
+    assert checks["paper_auto_open_true"] is False
+    assert checks["diagnostic_no_open_run"] is False
+    assert (
+        checks["paper_validation_classification"]
+        == "NATURAL_PAPER_VALIDATION_CANDIDATE"
+    )
+    assert checks["strategy_evidence_valid"] is True
+    assert checks["usable_strategy_economics"] is True
+    assert checks["natural_entry_candidate_contract"] == contract
+
+
+def test_check_run_records_no_natural_admission_without_operational_failure(
+    tmp_path,
+):
+    bundle = _build_after_bundle(
+        tmp_path,
+        "run_no_natural_admission",
+        paper_auto_open=False,
+    )
+    contract = {
+        "classification": "NATURAL_ENTRY_CANDIDATE_PRESENT",
+        "usable_strategy_economics": False,
+        "strategy_evidence_classification": "NO_NATURAL_ADMISSION",
+        "router_candidate_rows": 4,
+        "natural_admitted_count": 0,
+        "assisted_seed_admitted_count": 0,
+        "assisted_seed_open_count": 0,
+        "fallback_open_count": 0,
+        "reason_codes": ["ROUTER_CANDIDATES_EXIST", "NO_NATURAL_ADMISSION"],
+    }
+    bundle["summary"]["natural_entry_candidate_contract"] = contract
+
+    ok, errors, checks = gate._check_run(bundle, {})
+
+    assert ok is True
+    assert errors == []
+    assert checks["paper_auto_open_true"] is False
+    assert checks["diagnostic_no_open_run"] is False
+    assert checks["paper_validation_classification"] == "NO_NATURAL_ADMISSION"
+    assert checks["strategy_evidence_valid"] is False
+    assert checks["evidence_reason_codes"] == ["no_natural_admission"]
+    assert checks["natural_entry_candidate_contract"] == contract
 
 
 def test_check_run_fails_closed_on_no_natural_entry_candidate(tmp_path):
@@ -1091,6 +1178,71 @@ def test_load_economics_context_marks_negative_exact_evidence_as_no_go(
     assert context["go_no_go"] == "NO-GO"
     assert "SCORECARD_NO_GO" in context["reason_codes"]
     assert "AVG_NET_PNL_NEGATIVE" in context["reason_codes"]
+
+
+def test_load_economics_context_blocks_assisted_only_strategy_evidence(tmp_path):
+    scorecard_path = tmp_path / "analysis" / "scorecard.json"
+    _write_json(
+        scorecard_path,
+        {
+            "global_kpis": {
+                "avg_profit_factor": 2.0,
+                "avg_net_pnl": 0.01,
+                "expectancy": 0.01,
+                "avg_winrate": 0.7,
+                "green_to_red_share": 0.1,
+                "strategy_validation_contract": {
+                    "usable_strategy_economics": False,
+                    "classification": "NO_NATURAL_STRATEGY_TRADES",
+                    "reason_codes": [
+                        "ASSISTED_ENTRY_EVIDENCE_ONLY",
+                        "NATURAL_ENTRY_TRADE_COUNT_BELOW_MIN",
+                    ],
+                },
+                "natural_entry_metrics": {
+                    "trade_count": 0,
+                    "expectancy": None,
+                    "winrate": None,
+                    "profit_factor": None,
+                    "green_to_red_share": None,
+                },
+            }
+        },
+    )
+
+    context = gate._load_economics_context(
+        {
+            "status": "PASS",
+            "reason_codes": [],
+            "scorecard_path": str(scorecard_path),
+            "accepted_run_count": 60,
+            "required_accepted_runs": 60,
+        }
+    )
+
+    assert context["status"] == "UNCONFIRMED"
+    assert context["go_no_go"] == "UNCONFIRMED"
+    assert context["usable_strategy_economics"] is False
+    assert "STRATEGY_ECONOMICS_NOT_USABLE" in context["reason_codes"]
+    assert "ASSISTED_ENTRY_EVIDENCE_ONLY" in context["reason_codes"]
+    assert context["expectancy"] is None
+    assert context["natural_entry_trade_count"] == 0
+
+
+def test_live_guard_loader_adds_workdir_for_script_execution(monkeypatch):
+    workdir_text = str(gate.WORKDIR)
+    original_path = list(sys.path)
+    monkeypatch.setattr(
+        sys,
+        "path",
+        [path for path in original_path if path != workdir_text],
+    )
+
+    evaluate, write_snapshot = gate._load_live_guard_functions()
+
+    assert callable(evaluate)
+    assert callable(write_snapshot)
+    assert sys.path[0] == workdir_text
 
 
 def test_load_bootstrap_contract_uses_scorecard_sources_when_manifest_missing(

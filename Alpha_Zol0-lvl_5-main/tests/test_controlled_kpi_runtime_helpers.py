@@ -324,7 +324,7 @@ def test_base_env_and_variant_env_contracts(controlled_kpi_run_module, tmp_path)
         variant_overrides={"ENTRY_FILTER_STRICT": 7, "ANOTHER_OVERRIDE": "value"},
     )
     assert after_env["ENTRY_FILTER_STRICT"] == "7"
-    assert after_env["ENTRY_IGNORE_HOLD_SIGNALS"] == "0"
+    assert after_env["ENTRY_IGNORE_HOLD_SIGNALS"] == "1"
     assert after_env["SEED_TRADES_ENABLE"] == "0"
     assert after_env["PAPER_AUTO_OPEN_STARTUP_ENABLE"] == "0"
     assert after_env["PAPER_AUTO_OPEN_FALLBACK_ENABLE"] == "0"
@@ -447,6 +447,23 @@ def test_runtime_helper_contracts(controlled_kpi_run_module, monkeypatch, tmp_pa
     )
     assert module._canonical_bucket_from_payload(canonical_payload) is None
     assert module._canonical_bucket_from_payload(None) is None
+
+
+def test_resolve_run_id_contract(controlled_kpi_run_module):
+    module = controlled_kpi_run_module
+
+    assert module._resolve_run_id("20260420_191500") == "20260420_191500"
+    assert module._resolve_run_id(" 20260420_191500 ") == "20260420_191500"
+
+    generated = module._resolve_run_id(None)
+    assert len(generated) == 15
+    assert generated[8] == "_"
+    assert generated.replace("_", "").isdigit()
+
+    with pytest.raises(SystemExit, match="--run-id must match YYYYMMDD_HHMMSS"):
+        module._resolve_run_id("2026-04-20_191500")
+    with pytest.raises(SystemExit, match="--run-id must match YYYYMMDD_HHMMSS"):
+        module._resolve_run_id("bad")
 
 
 def test_collect_metrics_emits_profitability_exit_timing_fields(
@@ -719,6 +736,15 @@ def test_data_integrity_and_refresh_history_contracts(
     assert calls[1]["capture_output"] is True
     assert calls[1]["text"] is True
     assert calls[1]["check"] is False
+    cmd = calls[1]["cmd"]
+    assert "--fallback-positive-side-pairs" in cmd
+    assert cmd[cmd.index("--fallback-positive-side-pairs") + 1] == "0"
+    assert "--min-side-trades" in cmd
+    assert cmd[cmd.index("--min-side-trades") + 1] == "2"
+    assert "--min-side-winrate" in cmd
+    assert cmd[cmd.index("--min-side-winrate") + 1] == "0.45"
+    assert "--min-side-expectancy" in cmd
+    assert cmd[cmd.index("--min-side-expectancy") + 1] == "0.0"
 
 
 def test_collect_metrics_and_log_reader_contracts(
@@ -1826,7 +1852,7 @@ def test_run_variant_post_promotion_reevaluation_forced_cycle_handoff_requests_o
     assert result["diagnostic_env_flags"]["LIVE"] == "0"
 
 
-def test_run_variant_post_promotion_forced_cycle_execution_lock_defers_shutdown_until_completion(
+def test_run_variant_post_promotion_forced_cycle_execution_lock_defers_shutdown_until_completion(  # noqa: E501
     controlled_kpi_run_module,
     monkeypatch,
     tmp_path,
@@ -2204,8 +2230,14 @@ def test_run_variant_post_promotion_forced_cycle_execution_lock_defers_shutdown_
         and record.get("deferred_reason") == "post_promotion_execution_lock_active"
         for record in result["runner_diagnostics"]
     )
-    assert any(record["event"] == "forced_cycle_started" for record in result["runner_diagnostics"])
-    assert any(record["event"] == "forced_cycle_completed" for record in result["runner_diagnostics"])
+    assert any(
+        record["event"] == "forced_cycle_started"
+        for record in result["runner_diagnostics"]
+    )
+    assert any(
+        record["event"] == "forced_cycle_completed"
+        for record in result["runner_diagnostics"]
+    )
     assert len(enqueue_close_calls) >= 1
     assert any(
         call["reason"] == "controlled_kpi_window_end"
@@ -4126,7 +4158,10 @@ def test_run_variant_close_drain_soft_warning_retry_and_failure_shutdown(
     assert result["variant"] == "after"
     assert result["research_post_promotion_reeval_grace_sec"] == 5.0
     assert result["runner_shutdown_reason"] == "deterministic_stall_pending_close_drain"
-    assert result["shutdown_classification"] == "deterministic_stall_pending_close_drain"
+    assert (
+        result["shutdown_classification"]
+        == "deterministic_stall_pending_close_drain"
+    )
     assert result["process_stop_mode"] == "wrapper_kill_after_failure"
     assert result["process_returncode_raw"] == 1
     assert result["process_returncode"] == 1

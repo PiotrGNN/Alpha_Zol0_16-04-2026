@@ -1,17 +1,61 @@
 # KuCoin Futures OrderExecutor request shape (no real network)
+import json
+
 from core.OrderExecutor import OrderExecutor
 from core import kill_switch
 
 
-def test_kucoin_futures_order_executor_request_shape(monkeypatch):
+def _write_ready_snapshot(monkeypatch, tmp_path):
+    path = tmp_path / "live_readiness_snapshot.json"
+    path.write_text(
+        json.dumps(
+            {
+                "runtime_state": {
+                    "last_run": {
+                        "process_returncode": 0,
+                        "shutdown_classification": (
+                            "close_flush_done_pending_positions_zero"
+                        ),
+                        "pending_positions": 0,
+                        "close_request_backlog": 0,
+                    },
+                    "data_validity": {
+                        "accepted_corpus_exists": True,
+                        "no_rejected_runs_in_active_dataset": True,
+                        "corpus_size_trades": 60,
+                    },
+                    "strategy_validation": {
+                        "usable_strategy_economics": True,
+                        "economic_go_no_go": "GO",
+                        "profitability_metrics": {
+                            "expectancy": 0.01,
+                            "winrate": 0.55,
+                            "profit_factor": 1.2,
+                            "green_to_red_share": 0.2,
+                        }
+                    },
+                    "critical_blockers": {
+                        "CLOSE_FINALIZATION_BROKEN": False,
+                        "LINKAGE_LAYER_NO_EFFECT": False,
+                        "TERMINAL_TIMING_CUTOFF_CONFIRMED": False,
+                    },
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("LIVE_READINESS_SNAPSHOT_PATH", str(path))
+
+
+def test_kucoin_futures_order_executor_request_shape(monkeypatch, tmp_path):
     monkeypatch.setenv("LIVE", "1")
     monkeypatch.setenv("LIVE_ARMED", "1")
-    monkeypatch.setenv("LIVE_APPROVAL", "I_UNDERSTAND_LIVE_RISK")
     monkeypatch.setenv("MARKET_TYPE", "futures")
     monkeypatch.setenv("ZOL0_TOKEN", "testtoken")
     monkeypatch.setenv("KUCOIN_API_KEY", "k")
     monkeypatch.setenv("KUCOIN_API_SECRET", "s")
     monkeypatch.setenv("KUCOIN_API_PASSPHRASE", "p")
+    _write_ready_snapshot(monkeypatch, tmp_path)
     kill_switch.reset()
 
     captured = {}

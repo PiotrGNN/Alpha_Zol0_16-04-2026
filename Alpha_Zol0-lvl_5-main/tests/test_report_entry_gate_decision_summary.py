@@ -150,6 +150,26 @@ def test_build_report_baseline_pairing_still_works(tmp_path):
     assert report["ordering"]["trailing_summary_rows"] == 0
 
 
+def test_build_report_marks_no_router_candidates_as_unusable_strategy_evidence(
+    tmp_path,
+):
+    db_path = tmp_path / "no_router_candidates.db"
+    _init_db(db_path)
+    _insert(db_path, "entry_gate_decision_summary", _payload(symbol="ETHUSDTM"))
+    _insert(db_path, "risk_decision", _risk_payload(symbol="ETHUSDTM"))
+
+    report = build_report(db_path, hours=None)
+    contract = report["natural_entry_candidate_contract"]
+
+    assert contract["classification"] == "NO_ROUTER_CANDIDATES_OBSERVED"
+    assert contract["usable_strategy_economics"] is False
+    assert (
+        contract["strategy_evidence_classification"]
+        == "NO_ROUTER_CANDIDATES_OBSERVED"
+    )
+    assert "NO_ROUTER_CANDIDATES_OBSERVED" in contract["reason_codes"]
+
+
 def test_build_report_counts_position_open_truth_classification(tmp_path):
     db_path = tmp_path / "open_truth.db"
     _init_db(db_path)
@@ -417,6 +437,58 @@ def test_build_report_detects_filter_to_none_no_natural_candidate(tmp_path):
     } in contract["guard_rejected_sides"]
     assert "FILTER_TO_NONE_BEFORE_ASSIGNMENT" in contract["reason_codes"]
     assert "FALLBACK_ECONOMICS_NOT_STRATEGY_EVIDENCE" in contract["reason_codes"]
+
+
+def test_build_report_dumps_top_raw_side_values_for_rejections(tmp_path):
+    db_path = tmp_path / "raw_side_values.db"
+    _init_db(db_path)
+    _insert(db_path, "entry_gate_decision_summary", _payload(symbol="XRPUSDTM"))
+    _insert(db_path, "risk_decision", _risk_payload(symbol="XRPUSDTM"))
+    for _ in range(3):
+        _insert(
+            db_path,
+            "pre_entry_candidate_rejection_trace",
+            {
+                "symbol": "XRPUSDTM",
+                "normalized_strategy_value": "MeanReversion",
+                "normalized_side_value": "hold",
+                "raw_side_candidates": [
+                    {
+                        "source": "signal.signals",
+                        "raw_value": "signals:empty",
+                        "normalized_value": "hold",
+                    }
+                ],
+                "rejection_reason_code": "hold_ignored",
+                "rejection_stage": "pre_entry_candidate_rejection",
+            },
+        )
+    _insert(
+        db_path,
+        "pre_entry_candidate_rejection_trace",
+        {
+            "symbol": "XRPUSDTM",
+            "normalized_strategy_value": "Momentum",
+            "normalized_side_value": "buy",
+            "raw_side_candidates": [
+                {
+                    "source": "signal",
+                    "raw_value": "long",
+                    "normalized_value": "buy",
+                }
+            ],
+            "rejection_reason_code": "alpha_whitelist",
+            "rejection_stage": "pre_entry_candidate_rejection",
+        },
+    )
+
+    report = build_report(db_path, hours=None)
+    contract = report["natural_entry_candidate_contract"]
+
+    assert contract["raw_side_value_counts_top20"][:2] == [
+        {"raw_side": "signals:empty", "count": 3},
+        {"raw_side": "long", "count": 1},
+    ]
 
 
 def test_main_prints_report_json_for_cli_invocation(tmp_path, monkeypatch, capsys):

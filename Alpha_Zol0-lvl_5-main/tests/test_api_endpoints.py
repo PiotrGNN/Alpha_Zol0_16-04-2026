@@ -6,6 +6,7 @@ import json
 
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from uuid import uuid4
 
 from sqlalchemy import create_engine
@@ -62,7 +63,6 @@ def _build_client(monkeypatch, overrides=None):
         "ZOL0_TOKEN": "testtoken",
         "LIVE": "0",
         "LIVE_ARMED": "0",
-        "LIVE_APPROVAL": "",
     }
     if overrides:
         defaults.update(overrides)
@@ -77,6 +77,49 @@ def _build_client(monkeypatch, overrides=None):
 
     importlib.reload(api_status)
     return _ManagedTestClient(api_status.app), api_status
+
+
+def _write_ready_snapshot(monkeypatch, tmp_path):
+    path = tmp_path / "live_readiness_snapshot.json"
+    path.write_text(
+        json.dumps(
+            {
+                "runtime_state": {
+                    "last_run": {
+                        "process_returncode": 0,
+                        "shutdown_classification": (
+                            "close_flush_done_pending_positions_zero"
+                        ),
+                        "pending_positions": 0,
+                        "close_request_backlog": 0,
+                    },
+                    "data_validity": {
+                        "accepted_corpus_exists": True,
+                        "no_rejected_runs_in_active_dataset": True,
+                        "corpus_size_trades": 60,
+                    },
+                    "strategy_validation": {
+                        "usable_strategy_economics": True,
+                        "economic_go_no_go": "GO",
+                        "profitability_metrics": {
+                            "expectancy": 0.01,
+                            "winrate": 0.55,
+                            "profit_factor": 1.2,
+                            "green_to_red_share": 0.2,
+                        }
+                    },
+                    "critical_blockers": {
+                        "CLOSE_FINALIZATION_BROKEN": False,
+                        "LINKAGE_LAYER_NO_EFFECT": False,
+                        "TERMINAL_TIMING_CUTOFF_CONFIRMED": False,
+                    },
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("LIVE_READINESS_SNAPSHOT_PATH", str(path))
+    return path
 
 
 @pytest.fixture()
@@ -122,6 +165,47 @@ def test_start_live_blocked_by_default(api_client, monkeypatch):
     assert resp.status_code in (403, 409)
     data = resp.json()
     assert "error" in data
+
+
+def test_start_live_allowed_when_live_ready(monkeypatch, tmp_path):
+    readiness_path = _write_ready_snapshot(monkeypatch, tmp_path)
+    client, api_mod = _build_client(
+        monkeypatch,
+        {
+            "LIVE": "1",
+            "LIVE_ARMED": "1",
+            "LIVE_READINESS_SNAPSHOT_PATH": str(readiness_path),
+            "KUCOIN_API_KEY": "k",
+            "KUCOIN_API_SECRET": "s",
+            "KUCOIN_API_PASSPHRASE": "p",
+        },
+    )
+    calls = []
+
+    try:
+        import core.BotCore as botcore
+
+        def fake_run_bot(simulate=False):
+            calls.append({"simulate": simulate})
+
+        class DummyThread:
+            def __init__(self, target=None, kwargs=None, daemon=None):
+                self.target = target
+                self.kwargs = kwargs or {}
+                self.daemon = daemon
+
+            def start(self):
+                self.target(**self.kwargs)
+
+        monkeypatch.setattr(botcore, "run_bot", fake_run_bot)
+        monkeypatch.setattr(api_mod, "threading", SimpleNamespace(Thread=DummyThread))
+
+        resp = client.post("/start-live", headers={"X-API-Token": "testtoken"})
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "started"
+        assert calls == [{"simulate": False}]
+    finally:
+        client.close()
 
 
 def test_control_routes_require_header_token(api_client):
@@ -705,3 +789,51 @@ def test_closed_positions_prefers_fresh_db_events(monkeypatch):
     closed = state.json().get("closed_positions", [])
     assert closed
     assert closed[0]["symbol"] == "ETHUSDTM"
+
+
+def test_closed_positions_resolves_exit_reason_from_post_green_fallback(monkeypatch):
+    db_path = Path("tmp") / f"test_api_{uuid4().hex}.db"
+    client, api_status = _build_client(
+        monkeypatch,
+        overrides={
+            "USE_MOCK": "1",
+            "DATABASE_URL": f"sqlite:///{db_path.resolve().as_posix()}",
+        },
+    )
+    from core.db_models import LogEntry
+    import core.db_models as db_models
+
+    api_status.init_db()
+    db_models.engine.dispose()
+
+    db = api_status.SessionLocal()
+    try:
+        details = {
+            "symbol": "ETHUSDTM",
+            "position": {
+                "symbol": "ETHUSDTM",
+                "side": "buy",
+                "entry_price": 2000.0,
+                "close_price": 1998.0,
+                "strategy": "Momentum",
+                "post_green_exit_reason": "post_green_protective_exit",
+            },
+            "close_price": 1998.0,
+        }
+        db.add(
+            LogEntry(
+                timestamp=datetime.now(timezone.utc),
+                event="position_close",
+                details=json.dumps(details),
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    resp = client.get("/positions/closed")
+    assert resp.status_code == 200
+    rows = resp.json()
+    assert rows
+    assert rows[0]["symbol"] == "ETHUSDTM"
+    assert rows[0]["exit_reason"] == "post_green_protective_exit"

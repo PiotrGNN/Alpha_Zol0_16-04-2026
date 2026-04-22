@@ -125,7 +125,7 @@ def test_classify_exit_owner_covers_all_fallback_buckets():
 
 def test_classify_exit_owner_run_once_force_close_without_branch():
     assert _classify_exit_owner("paper_run_once_force_close") == (
-        "unclassified_exit_owner"
+        "run_end_cleanup_exit"
     )
 
 
@@ -143,6 +143,9 @@ def test_resolve_close_reason_has_deterministic_non_unknown_fallback():
         source_branch="position_close_request",
     )
 
-    assert resolved["exit_reason"] == "close_reason_unclassified"
-    assert resolved["reason_source"] == "deterministic_fallback_unclassified"
+    assert resolved["exit_reason"] == "manual_close_request"
+    assert (
+        resolved["reason_source"]
+        == "deterministic_fallback_manual_close_request"
+    )
     assert resolved["exit_owner"] == "manual_close_request"

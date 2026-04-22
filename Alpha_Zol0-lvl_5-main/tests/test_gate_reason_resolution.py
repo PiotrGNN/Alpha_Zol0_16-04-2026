@@ -1,12 +1,15 @@
 from core.BotCore import (
     _classify_entry_gate_bucket,
     _classify_entry_reason,
+    _classify_entry_reason_with_gate_fallback,
+    _derive_entry_reason_from_signal_funnel,
     _classify_entry_open_truth,
     _build_entry_identity_fields,
     _diagnostic_gate_trace,
     _normalize_local_gate_reason_for_summary,
     _resolve_entry_gate_reason_context,
     _resolve_local_gate_reason,
+    _should_fail_closed_unknown_fallback_admission,
 )
 
 
@@ -28,6 +31,34 @@ def test_case_4_existing_reason_not_overwritten():
     assert _classify_entry_reason("entry_live_edge_proxy") == "risk_block"
     assert _classify_entry_reason("symbol_blocklist") == "risk_block"
     assert _classify_entry_reason("hysteresis") == "prefilter_block"
+    assert _classify_entry_reason("profit_focus_history_not_ready") == "risk_block"
+    assert _classify_entry_reason("profit_focus_confidence_too_low") == "risk_block"
+    assert _classify_entry_reason("missing_strategy_field") == "prefilter_block"
+    assert _classify_entry_reason("hold_ignored") == "prefilter_block"
+
+
+def test_gate_reason_fallback_uses_effective_gate_reason():
+    assert (
+        _classify_entry_reason_with_gate_fallback(
+            entry_reason=None,
+            effective_gate_reason="missing_strategy_field",
+        )
+        == "prefilter_block"
+    )
+    assert (
+        _classify_entry_reason_with_gate_fallback(
+            entry_reason=None,
+            effective_gate_reason="hold_ignored",
+        )
+        == "prefilter_block"
+    )
+    assert (
+        _classify_entry_reason_with_gate_fallback(
+            entry_reason="current_side",
+            effective_gate_reason="missing_strategy_field",
+        )
+        == "position_hold"
+    )
 
 
 def test_local_gate_fallback_resolution():
@@ -95,6 +126,202 @@ def test_local_gate_reason_normalization_does_not_change_final_allow_semantics()
     assert normalized == "missing_strategy_field"
     assert final_allow_before is False
     assert final_allow_after is False
+
+
+def test_local_gate_reason_normalization_prefers_dropped_hold_reason():
+    normalized = _normalize_local_gate_reason_for_summary(
+        local_gate_reason="risk_or_prefilter_block_fallback",
+        entry_reason=None,
+        main_strategy=None,
+        entry_decision_raw="hold",
+        entry_decision_final="hold",
+        ensemble_signals=[{"signal": "hold"}],
+        filtered_ensemble_signals=[],
+        dropped_ensemble_signals=[{"reason": "hold_ignored"}],
+    )
+
+    assert normalized == "hold_ignored"
+
+
+def test_local_gate_reason_normalization_prefers_non_hold_block_over_hold_noise():
+    normalized = _normalize_local_gate_reason_for_summary(
+        local_gate_reason="risk_or_prefilter_block_fallback",
+        entry_reason=None,
+        main_strategy=None,
+        entry_decision_raw="hold",
+        entry_decision_final="hold",
+        ensemble_signals=[{"signal": "hold"}, {"signal": "sell"}],
+        filtered_ensemble_signals=[],
+        dropped_ensemble_signals=[
+            {"reason": "hold_ignored"},
+            {"reason": "symbol_strategy_side_blocklist"},
+            {"reason": "hold_ignored"},
+        ],
+    )
+
+    assert normalized == "symbol_strategy_side_blocklist"
+
+
+def test_derive_entry_reason_from_signal_funnel_prefers_dropped_hold_reason():
+    reason = _derive_entry_reason_from_signal_funnel(
+        entry_decision_raw="hold",
+        entry_decision_final="hold",
+        ensemble_signals=[{"signal": "hold"}],
+        filtered_ensemble_signals=[],
+        dropped_ensemble_signals=[{"reason": "hold_ignored"}],
+    )
+
+    assert reason == "hold_ignored"
+
+
+def test_derive_entry_reason_from_signal_funnel_prefers_non_hold_block():
+    reason = _derive_entry_reason_from_signal_funnel(
+        entry_decision_raw="hold",
+        entry_decision_final="hold",
+        ensemble_signals=[{"signal": "hold"}, {"signal": "sell"}],
+        filtered_ensemble_signals=[],
+        dropped_ensemble_signals=[
+            {"reason": "hold_ignored"},
+            {"reason": "symbol_strategy_side_allowlist"},
+        ],
+    )
+
+    assert reason == "symbol_strategy_side_allowlist"
+
+
+def test_derive_entry_reason_from_signal_funnel_maps_missing_strategy():
+    reason = _derive_entry_reason_from_signal_funnel(
+        entry_decision_raw="hold",
+        entry_decision_final="hold",
+        ensemble_signals=[{"signal": "buy"}],
+        filtered_ensemble_signals=[],
+        dropped_ensemble_signals=[{"reason": "missing_strategy"}],
+    )
+
+    assert reason == "missing_strategy_field"
+
+
+def test_unknown_fallback_admission_is_blocked_in_kucoin_paper_futures():
+    assert (
+        _should_fail_closed_unknown_fallback_admission(
+            simulate=True,
+            market_type="futures",
+            allow=True,
+            entry_decision="buy",
+            entry_reason=None,
+        )
+        is True
+    )
+    assert (
+        _should_fail_closed_unknown_fallback_admission(
+            simulate=True,
+            market_type="futures",
+            allow=True,
+            entry_decision="buy",
+            entry_reason=None,
+            signal_confidence_abs=0.35,
+            history_ready=True,
+        )
+        is True
+    )
+    assert (
+        _should_fail_closed_unknown_fallback_admission(
+            simulate=True,
+            market_type="futures",
+            allow=True,
+            entry_decision="buy",
+            entry_reason=None,
+            signal_confidence_abs=None,
+            history_ready=False,
+        )
+        is True
+    )
+
+
+def test_unknown_fallback_admission_guard_does_not_block_non_fallback_or_non_paper():
+    assert (
+        _should_fail_closed_unknown_fallback_admission(
+            simulate=True,
+            market_type="futures",
+            allow=True,
+            entry_decision="buy",
+            entry_reason="seed_trades_override",
+        )
+        is False
+    )
+    assert (
+        _should_fail_closed_unknown_fallback_admission(
+            simulate=True,
+            market_type="futures",
+            allow=True,
+            entry_decision="buy",
+            entry_reason=None,
+            signal_confidence_abs=0.75,
+            history_ready=True,
+        )
+        is False
+    )
+    assert (
+        _should_fail_closed_unknown_fallback_admission(
+            simulate=True,
+            market_type="futures",
+            allow=True,
+            entry_decision="buy",
+            entry_reason=None,
+            signal_confidence_abs=0.75,
+            history_ready=False,
+        )
+        is False
+    )
+    assert (
+        _should_fail_closed_unknown_fallback_admission(
+            simulate=False,
+            market_type="futures",
+            allow=True,
+            entry_decision="buy",
+            entry_reason=None,
+        )
+        is False
+    )
+    assert (
+        _should_fail_closed_unknown_fallback_admission(
+            simulate=True,
+            market_type="spot",
+            allow=True,
+            entry_decision="buy",
+            entry_reason=None,
+        )
+        is False
+    )
+
+
+def test_unknown_fallback_admission_guard_respects_fail_open_coldstart():
+    assert (
+        _should_fail_closed_unknown_fallback_admission(
+            simulate=True,
+            market_type="futures",
+            allow=True,
+            entry_decision="buy",
+            entry_reason=None,
+            signal_confidence_abs=0.45,
+            history_ready=False,
+            coldstart_mode="fail_open",
+        )
+        is False
+    )
+    assert (
+        _should_fail_closed_unknown_fallback_admission(
+            simulate=True,
+            market_type="futures",
+            allow=True,
+            entry_decision="buy",
+            entry_reason=None,
+            signal_confidence_abs=0.45,
+            history_ready=False,
+            coldstart_mode="seed_only",
+        )
+        is True
+    )
 
 
 def test_entry_gate_reason_normalization_handles_exceptions_and_fallbacks():

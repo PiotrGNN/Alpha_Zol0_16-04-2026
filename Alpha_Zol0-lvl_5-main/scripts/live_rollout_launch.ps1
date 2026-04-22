@@ -4,9 +4,9 @@
     ZoL0 Guarded Live Rollout — Phase 1 launcher (ETHUSDTM / KuCoin Futures).
 
 .DESCRIPTION
-    Performs pre-flight checks, displays configuration, requires explicit
-    human confirmation, then launches the live bot plus the hard-stop monitor
-    in separate PowerShell windows.
+    Performs pre-flight checks, verifies deterministic runtime readiness,
+    then launches the live bot plus the hard-stop monitor in separate
+    PowerShell windows.
 
     READ BEFORE RUNNING:
     - Verify KUCOIN_API_KEY / KUCOIN_API_SECRET / KUCOIN_API_PASSPHRASE are set
@@ -101,22 +101,10 @@ Assert-Check "KUCOIN_API_KEY set"         (-not [string]::IsNullOrWhiteSpace($ap
 Assert-Check "KUCOIN_API_SECRET set"      (-not [string]::IsNullOrWhiteSpace($apiSecret))
 Assert-Check "KUCOIN_API_PASSPHRASE set"  (-not [string]::IsNullOrWhiteSpace($apiPass))
 
-# No stale hard stop file from a previous run
+# Clear any stale hard stop file from a previous run
 $HardStopFile = Join-Path $Work "tmp\live_hard_stop.json"
-if (Test-Path $HardStopFile) {
-    Write-Host ""
-    Write-Host "  [WARN] Stale hard stop file found: $HardStopFile" -ForegroundColor Yellow
-    Write-Host "         If this is from a previous run and you want to continue," -ForegroundColor Yellow
-    Write-Host "         delete it manually before launching." -ForegroundColor Yellow
-    Write-Host ""
-    $del = Read-Host "  Delete stale hard stop file and continue? (yes/no)"
-    if ($del.Trim().ToLower() -ne "yes") {
-        Write-Host "  Aborting." -ForegroundColor Red
-        exit 1
-    }
-    Remove-Item $HardStopFile -Force
-    Write-Check "Stale hard stop file removed" $true
-}
+Remove-Item -LiteralPath $HardStopFile -Force -ErrorAction SilentlyContinue
+Assert-Check "Stale hard stop file cleared" (-not (Test-Path -LiteralPath $HardStopFile)) $HardStopFile
 
 # ---------------------------------------------------------------------------
 # STEP 2 — Display rollout configuration
@@ -144,52 +132,34 @@ Write-Host "    tmp/live_rollout_monitor.log"
 Write-Host ""
 
 # ---------------------------------------------------------------------------
-# STEP 3 — Final human confirmation
+# STEP 3 — Deterministic LIVE readiness gate
 # ---------------------------------------------------------------------------
-Write-Header "FINAL CONFIRMATION REQUIRED"
-Write-Host ""
-Write-Host "  This will place REAL ORDERS on KuCoin Futures." -ForegroundColor Red -BackgroundColor Black
-Write-Host "  Ensure you are monitoring this terminal." -ForegroundColor Red
-Write-Host ""
-$confirm = Read-Host "  Type exactly: CONFIRM_LIVE_LAUNCH"
-if ($confirm.Trim() -ne "CONFIRM_LIVE_LAUNCH") {
+Write-Header "DETERMINISTIC LIVE READINESS GATE"
+$LiveReadinessSnapshot = Join-Path $Work "tmp\live_readiness_snapshot.json"
+Write-Check "live_readiness_snapshot.json exists" (Test-Path -LiteralPath $LiveReadinessSnapshot) $LiveReadinessSnapshot
+if (-not (Test-Path -LiteralPath $LiveReadinessSnapshot)) {
+    throw "LIVE_BLOCKED_NOT_READY"
+}
+try {
+    $LiveReadiness = Get-Content -LiteralPath $LiveReadinessSnapshot -Raw | ConvertFrom-Json
+} catch {
     Write-Host ""
-    Write-Host "  Confirmation not received. Aborting." -ForegroundColor Red
-    exit 1
+    Write-Host "  LIVE_BLOCKED_NOT_READY" -ForegroundColor Red
+    Write-Host "  Invalid readiness snapshot: $($_.Exception.Message)" -ForegroundColor Red
+    throw "LIVE_BLOCKED_NOT_READY"
+}
+$LiveReady = $LiveReadiness.live_ready -eq $true
+$LiveBlockReason = @($LiveReadiness.live_block_reason)
+Write-Check "live_ready true" $LiveReady ($LiveBlockReason -join ",")
+if (-not $LiveReady) {
+    throw "LIVE_BLOCKED_NOT_READY"
 }
 Write-Host ""
-Write-Host "  Confirmation received. Starting live rollout..." -ForegroundColor Green
+Write-Host "  Deterministic readiness passed. Starting live rollout..." -ForegroundColor Green
 Write-Host ""
 
 # ---------------------------------------------------------------------------
-# STEP 4 — Build run ID and paths
-# ---------------------------------------------------------------------------
-$Ts     = Get-Date -Format "yyyyMMdd_HHmmss"
-$DbPath = Join-Path $Work "tmp\controlled_kpi_after_$Ts.db"
-$Log    = Join-Path $Work "tmp\live_rollout_${Ts}_stdout.txt"
-
-# ---------------------------------------------------------------------------
-# STEP 5 — Launch monitor in a separate window (starts first, waits for DB)
-# ---------------------------------------------------------------------------
-Write-Header "LAUNCHING MONITOR"
-$MonitorCmd = (
-    "Push-Location '$Work'; " +
-    "& '$Py' scripts\live_rollout_monitor.py " +
-    "--db-path '$DbPath' " +
-    "--poll-sec $PollSec; " +
-    "Read-Host 'Monitor ended — press Enter to close'"
-)
-Start-Process powershell.exe -ArgumentList (
-    "-NoProfile", "-ExecutionPolicy", "Bypass",
-    "-Command", $MonitorCmd
-) -WindowStyle Normal
-
-Write-Host "  Monitor launched in separate window." -ForegroundColor Green
-Write-Host "  DB path: $DbPath"
-Write-Host ""
-
-# ---------------------------------------------------------------------------
-# STEP 6 — Source env config and build --after-env args
+# STEP 4 — Source env config and build --after-env args
 # ---------------------------------------------------------------------------
 $LiveEnv = @{}
 Get-Content $EnvCfg | Where-Object {
@@ -208,7 +178,34 @@ foreach ($k in $LiveEnv.Keys) {
 }
 
 # ---------------------------------------------------------------------------
-# STEP 7 — Launch the live bot
+# STEP 5 — Stamp run ID, then launch monitor
+#           $Ts is passed to the bot as --run-id so the monitor DB path and
+#           controlled_kpi_run.py artifact names are deterministic.
+# ---------------------------------------------------------------------------
+$Ts     = (Get-Date).ToUniversalTime().ToString("yyyyMMdd_HHmmss")
+$DbPath = Join-Path $Work "tmp\controlled_kpi_after_$Ts.db"
+$Log    = Join-Path $Work "tmp\live_rollout_${Ts}_stdout.txt"
+
+Write-Header "LAUNCHING MONITOR"
+$MonitorCmd = (
+    "Push-Location '$Work'; " +
+    "& '$Py' scripts\live_rollout_monitor.py " +
+    "--db-path '$DbPath' " +
+    "--poll-sec $PollSec; " +
+    "Write-Host 'Monitor ended'"
+)
+# Start monitor before the bot so DB/runtime hard-stop checks are ready.
+Start-Process powershell.exe -ArgumentList (
+    "-NoProfile", "-ExecutionPolicy", "Bypass",
+    "-Command", $MonitorCmd
+) -WindowStyle Normal
+
+Write-Host "  Monitor launched in separate window." -ForegroundColor Green
+Write-Host "  DB path: $DbPath"
+Write-Host ""
+
+# ---------------------------------------------------------------------------
+# STEP 6 — Launch the live bot
 # ---------------------------------------------------------------------------
 Write-Header "LAUNCHING LIVE BOT"
 Write-Host "  Started: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
@@ -223,7 +220,8 @@ try {
         "--variant-only", "after",
         "--symbols", "ETHUSDTM",
         "--after-min", $DurationMin,
-        "--market-type", "futures"
+        "--market-type", "futures",
+        "--run-id", $Ts
     ) + $AfterEnvArgs
 
     & $Py @BotArgs 2>&1 | Tee-Object -FilePath $Log

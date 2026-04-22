@@ -707,6 +707,36 @@ def test_post_green_protective_exit_bnr_time_triggers_before_old_shared_hold_flo
     assert metrics["post_green_trigger_reason_detail"] == "bnr_time_forced_exit"
 
 
+def test_post_green_protective_exit_bnr_loss_cap_triggers_before_deep_giveback_floor():
+    now_dt = datetime(2026, 4, 3, 12, 0, 0, tzinfo=timezone.utc)
+    position = {
+        "symbol": "ETHUSDTM",
+        "mfe": 0.0010,
+        "peak_mfe_ts": (now_dt - timedelta(seconds=6.0)).isoformat(),
+        "open_snapshot": {"source": "kucoin_futures_ticker"},
+    }
+
+    should_trigger, skip_reason, metrics = _paper_post_green_protective_exit_decision(
+        simulate=True,
+        symbol="ETHUSDTM",
+        position=position,
+        current_net_after_fee=-0.0022,
+        pos_age_sec=170.0,
+        paper_auto_close_sec=10.0,
+        paper_auto_close_hard_sec=180.0,
+        now_dt=now_dt,
+    )
+
+    assert should_trigger is True
+    assert skip_reason == "bnr_time_forced_exit"
+    assert metrics["post_green_trigger_mode"] == "bnr_time_forced_exit"
+    assert metrics["post_green_trigger_reason_detail"] == "bnr_loss_cap_exit"
+    assert metrics["post_green_bnr_loss_cap_abs"] == pytest.approx(0.0022, abs=1e-12)
+    assert metrics["post_green_giveback_ratio"] < 5.51
+    assert metrics["post_green_peak_to_burden_ratio"] is not None
+    assert metrics["post_green_peak_to_burden_ratio"] < 1.0
+
+
 def test_post_green_protective_exit_bnr_time_no_trigger_before_floor():
     now_dt = datetime(2026, 4, 3, 12, 0, 0, tzinfo=timezone.utc)
     position = {

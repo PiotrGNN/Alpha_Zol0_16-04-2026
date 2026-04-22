@@ -468,6 +468,44 @@ def _choose_allowed_pairs(
     return allowed, True, rejection_telemetry
 
 
+def _choose_positive_side_fallback_pairs(
+    pair_side_stats,
+    *,
+    max_pairs: int,
+    min_side_trades: int,
+    min_side_winrate: float,
+    min_side_expectancy: float,
+):
+    ranked = []
+    for pair_side, st in (pair_side_stats or {}).items():
+        if not isinstance(pair_side, tuple) or len(pair_side) != 3:
+            continue
+        symbol, strategy, side = pair_side
+        n = int(st.get("trade_count") or 0)
+        wr = float(st.get("winrate") or 0.0)
+        exp = float(st.get("expectancy") or 0.0)
+        if (
+            n < int(min_side_trades)
+            or wr < float(min_side_winrate)
+            or exp <= float(min_side_expectancy)
+        ):
+            continue
+        ranked.append((exp, wr, n, symbol, strategy, side))
+
+    ranked.sort(reverse=True)
+    allowed_pairs = set()
+    selected_side_tokens = []
+    for _, _, _, symbol, strategy, side in ranked:
+        pair = (symbol, strategy)
+        if pair in allowed_pairs:
+            continue
+        allowed_pairs.add(pair)
+        selected_side_tokens.append(f"{symbol}:{strategy}:{side}")
+        if len(allowed_pairs) >= max(1, int(max_pairs)):
+            break
+    return allowed_pairs, selected_side_tokens
+
+
 def build_history_db(
     output_path: Path,
     glob_patterns,
@@ -480,6 +518,10 @@ def build_history_db(
     min_pair_winrate: float,
     min_pair_expectancy: float,
     fallback_top_pairs: int,
+    fallback_positive_side_pairs: int = 0,
+    min_side_trades: int = 2,
+    min_side_winrate: float = 0.45,
+    min_side_expectancy: float = 0.0,
     exclude_strategies=None,
 ):
     sources = _iter_sources(glob_patterns)
@@ -572,6 +614,9 @@ def build_history_db(
     pair_side_stats = _pair_side_stats(normalized_rows)
     allowed_pairs = set()
     fallback_used = False
+    positive_side_fallback_used = False
+    positive_side_fallback_pairs = set()
+    positive_side_fallback_side_tokens = []
     rejection_telemetry: dict = {}
     if quality_filter:
         allowed_pairs, fallback_used, rejection_telemetry = _choose_allowed_pairs(
@@ -581,6 +626,22 @@ def build_history_db(
             min_pair_expectancy=float(min_pair_expectancy),
             fallback_top_pairs=max(0, int(fallback_top_pairs)),
         )
+        if (
+            not allowed_pairs
+            and int(fallback_positive_side_pairs) > 0
+        ):
+            positive_side_fallback_pairs, positive_side_fallback_side_tokens = (
+                _choose_positive_side_fallback_pairs(
+                    pair_side_stats,
+                    max_pairs=max(1, int(fallback_positive_side_pairs)),
+                    min_side_trades=max(1, int(min_side_trades)),
+                    min_side_winrate=float(min_side_winrate),
+                    min_side_expectancy=float(min_side_expectancy),
+                )
+            )
+            if positive_side_fallback_pairs:
+                allowed_pairs = set(positive_side_fallback_pairs)
+                positive_side_fallback_used = True
     else:
         allowed_pairs = set(pair_stats.keys())
 
@@ -672,8 +733,18 @@ def build_history_db(
         "min_pair_winrate": float(min_pair_winrate),
         "min_pair_expectancy": float(min_pair_expectancy),
         "fallback_top_pairs": int(fallback_top_pairs),
+        "fallback_positive_side_pairs": int(fallback_positive_side_pairs),
+        "min_side_trades": int(min_side_trades),
+        "min_side_winrate": float(min_side_winrate),
+        "min_side_expectancy": float(min_side_expectancy),
         "exclude_strategies": sorted(list(exclude_strategies or set())),
         "fallback_used": bool(fallback_used),
+        "positive_side_fallback_used": bool(positive_side_fallback_used),
+        "positive_side_fallback_pairs": [
+            f"{pair[0]}:{pair[1]}"
+            for pair in sorted(positive_side_fallback_pairs)
+        ],
+        "positive_side_fallback_side_tokens": positive_side_fallback_side_tokens,
         "pairs_total": len(pair_stats),
         "pairs_selected": len(allowed_pairs),
         "pairs_rejected_per_rule": rejection_telemetry,
@@ -721,6 +792,18 @@ def main():
         help="If no pair passes quality filter, keep top-N pairs by expectancy.",
     )
     parser.add_argument(
+        "--fallback-positive-side-pairs",
+        type=int,
+        default=0,
+        help=(
+            "If quality filter selects no pairs, keep up to N pairs that have at "
+            "least one positive side bucket passing side thresholds."
+        ),
+    )
+    parser.add_argument("--min-side-trades", type=int, default=2)
+    parser.add_argument("--min-side-winrate", type=float, default=0.45)
+    parser.add_argument("--min-side-expectancy", type=float, default=0.0)
+    parser.add_argument(
         "--report-json",
         type=str,
         default="",
@@ -751,6 +834,10 @@ def main():
         min_pair_winrate=float(args.min_pair_winrate),
         min_pair_expectancy=float(args.min_pair_expectancy),
         fallback_top_pairs=max(0, int(args.fallback_top_pairs)),
+        fallback_positive_side_pairs=max(0, int(args.fallback_positive_side_pairs)),
+        min_side_trades=max(1, int(args.min_side_trades)),
+        min_side_winrate=float(args.min_side_winrate),
+        min_side_expectancy=float(args.min_side_expectancy),
         exclude_strategies=_parse_csv_set(args.exclude_strategies),
     )
     report_json_path = None
@@ -771,7 +858,9 @@ def main():
         f"dedup={report['dedup_size']} "
         f"pairs_total={report['pairs_total']} "
         f"pairs_selected={report['pairs_selected']} "
-        f"fallback_used={int(bool(report.get('fallback_used')))}"
+        f"fallback_used={int(bool(report.get('fallback_used')))} "
+        f"positive_side_fallback_used="
+        f"{int(bool(report.get('positive_side_fallback_used')))}"
     )
     for row in report.get("source_stats_top") or []:
         if len(row) == 4:

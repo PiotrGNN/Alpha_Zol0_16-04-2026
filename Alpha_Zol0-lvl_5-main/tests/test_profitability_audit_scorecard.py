@@ -173,7 +173,7 @@ def _results_dir_from_manifest(module, manifest_path: Path) -> Path:
     result_descriptor = (
         ((manifest_entry.get("bundled_artifacts") or {}).get("result_json")) or {}
     )
-    return Path(str(result_descriptor.get("path") or "")).parent
+    return module._resolve_repo_path(result_descriptor.get("path") or "").parent
 
 
 def test_phase2_build_audit_from_manifest_contract():
@@ -933,6 +933,107 @@ def test_load_alpha_bucket_rankings_reads_close_rows_and_skips_bad_json(tmp_path
     assert row["trade_count"] == 1
     assert row["net_pnl"] == 1.5
     assert row["dominant_issue"] == "pozytywny"
+
+
+def test_strategy_validation_metrics_from_accepted_run_dbs(tmp_path):
+    module = _load_module()
+    db_path = tmp_path / "accepted_run.db"
+    conn = sqlite3.connect(str(db_path))
+    try:
+        conn.execute("CREATE TABLE logs (timestamp TEXT, event TEXT, details TEXT)")
+        rows = [
+            {
+                "realized_pnl": -2.0,
+                "position": {"mfe": 0.5, "realized_pnl": -2.0},
+            },
+            {
+                "position": {
+                    "max_unrealized_pnl": 0.0,
+                    "realized_pnl": 3.0,
+                },
+            },
+        ]
+        for idx, details in enumerate(rows):
+            conn.execute(
+                "INSERT INTO logs (timestamp, event, details) VALUES (?, ?, ?)",
+                (
+                    f"2026-04-10T00:0{idx}:00+00:00",
+                    "position_close",
+                    json.dumps(details),
+                ),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+    metrics = module._strategy_validation_metrics_from_accepted_runs(
+        [{"db_path": str(db_path)}]
+    )
+
+    assert metrics["trade_count"] == 2
+    assert metrics["expectancy"] == 0.5
+    assert metrics["winrate"] == 0.5
+    assert metrics["green_to_red_count"] == 1
+    assert metrics["green_to_red_share"] == 0.5
+
+
+def test_strategy_validation_metrics_fail_closed_for_assisted_only_corpus(tmp_path):
+    module = _load_module()
+    db_path = tmp_path / "assisted_only.db"
+    conn = sqlite3.connect(str(db_path))
+    try:
+        conn.execute("CREATE TABLE logs (timestamp TEXT, event TEXT, details TEXT)")
+        rows = [
+            {
+                "position": {
+                    "symbol": "ETHUSDTM",
+                    "strategy": "TrendFollowing",
+                    "side": "buy",
+                    "entry_reason": "seed_trades_override",
+                    "decision_router_path": "TrendFollowing",
+                    "entry_expected_edge_after_fee": 0.0,
+                    "mfe": 0.0,
+                    "realized_pnl": -0.02,
+                },
+            },
+            {
+                "position": {
+                    "symbol": "ETHUSDTM",
+                    "strategy": "auto_test",
+                    "side": "buy",
+                    "selection_source": "paper_auto_open_fallback",
+                    "mfe": 0.0,
+                    "realized_pnl": -0.01,
+                },
+            },
+        ]
+        for idx, details in enumerate(rows):
+            conn.execute(
+                "INSERT INTO logs (timestamp, event, details) VALUES (?, ?, ?)",
+                (
+                    f"2026-04-10T00:1{idx}:00+00:00",
+                    "position_close",
+                    json.dumps(details),
+                ),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+    metrics = module._strategy_validation_metrics_from_accepted_runs(
+        [{"db_path": str(db_path)}]
+    )
+
+    assert metrics["trade_count"] == 2
+    assert metrics["natural_entry_metrics"]["trade_count"] == 0
+    assert metrics["natural_entry_metrics"]["expectancy"] is None
+    assert metrics["strategy_validation_contract"]["usable_strategy_economics"] is False
+    assert metrics["strategy_validation_contract"]["classification"] == (
+        "NO_NATURAL_STRATEGY_TRADES"
+    )
+    assert "ASSISTED_ENTRY_EVIDENCE_ONLY" in metrics["strategy_validation_contract"][
+        "reason_codes"
+    ]
 
 
 def test_load_alpha_bucket_rankings_raises_for_missing_db(tmp_path):

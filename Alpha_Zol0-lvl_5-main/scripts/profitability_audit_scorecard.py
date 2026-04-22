@@ -25,6 +25,16 @@ ACCEPTED_CORPUS_DIR = Path(
 DEFAULT_LIMIT = 20
 DEFAULT_ALLOWED_DATES = ("2026-04-08", "2026-04-09")
 FLOAT_TOLERANCE = 1e-9
+STRATEGY_VALIDATION_MIN_NATURAL_TRADES = 60
+NATURAL_ENTRY_TRUTH_CLASSES = {
+    "NATURAL_STRATEGY_ENTRY",
+    "EDGE_DISCOVERED_DYNAMIC",
+}
+ASSISTED_ENTRY_TRUTH_CLASSES = {
+    "PAPER_AUTO_OPEN_FALLBACK",
+    "BOOTSTRAP_ALLOWLIST_ASSISTED",
+    "SEED_TRADES_OVERRIDE_ASSISTED",
+}
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -79,6 +89,18 @@ def _round6(value: float) -> float:
 
 def _clamp01(value: float) -> float:
     return max(0.0, min(1.0, float(value)))
+
+
+def _dedupe_reason_codes(codes: list[str]) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for code in codes:
+        text = str(code or "").strip()
+        if not text or text in seen:
+            continue
+        out.append(text)
+        seen.add(text)
+    return out
 
 
 def _score_status(score: float) -> str:
@@ -412,6 +434,229 @@ def _safe_size(path: Path) -> int:
         return int(path.stat().st_size)
     except Exception:
         return 0
+
+
+def _entry_truth_classification(
+    *,
+    details: dict[str, Any],
+    position: dict[str, Any],
+) -> str:
+    selection_source = str(
+        position.get("selection_source") or details.get("selection_source") or ""
+    ).strip().lower()
+    entry_reason = str(
+        position.get("entry_reason") or details.get("entry_reason") or ""
+    ).strip().lower()
+    decision_router_path = str(
+        position.get("decision_router_path")
+        or details.get("decision_router_path")
+        or ""
+    ).strip().lower()
+    override_reason = str(
+        position.get("override_reason") or details.get("override_reason") or ""
+    ).strip().lower()
+    strategy = str(
+        position.get("strategy")
+        or position.get("entry_main_strategy")
+        or details.get("strategy")
+        or details.get("main_strategy")
+        or ""
+    ).strip().lower()
+
+    if (
+        selection_source == "paper_auto_open_fallback"
+        or decision_router_path == "paper_auto_open_fallback"
+        or override_reason == "paper_auto_open_fallback"
+        or entry_reason == "auto_test_open"
+        or strategy == "auto_test"
+    ):
+        return "PAPER_AUTO_OPEN_FALLBACK"
+    if (
+        selection_source == "entry_symbol_strategy_side_allowlist"
+        or decision_router_path == "paper_auto_open_allowlisted"
+        or override_reason == "paper_auto_open_allowlisted"
+        or entry_reason == "paper_auto_open_allowlisted"
+    ):
+        return "BOOTSTRAP_ALLOWLIST_ASSISTED"
+    if entry_reason == "seed_trades_override":
+        return "SEED_TRADES_OVERRIDE_ASSISTED"
+    if entry_reason == "decision_passed" and override_reason in {"", "none"}:
+        return "NATURAL_STRATEGY_ENTRY"
+    if entry_reason in {
+        "edge_discovered_dynamic",
+        "entry_live_edge",
+        "live_edge_discovered",
+        "dynamic_edge_discovered",
+    }:
+        return "EDGE_DISCOVERED_DYNAMIC"
+    return "UNKNOWN_REQUIRES_REVIEW"
+
+
+def _trade_metrics_from_values(
+    values: list[dict[str, float | None]],
+) -> dict[str, Any]:
+    realized = [
+        float(item["pnl"])
+        for item in values
+        if item.get("pnl") is not None
+    ]
+    trade_count = len(realized)
+    wins = sum(1 for value in realized if value > 0.0)
+    losses = sum(1 for value in realized if value < 0.0)
+    gross_profit = sum(value for value in realized if value > 0.0)
+    gross_loss_abs = abs(sum(value for value in realized if value < 0.0))
+    net_pnl = sum(realized)
+    profit_factor = _profit_factor(gross_profit, gross_loss_abs)
+    expectancy = (net_pnl / trade_count) if trade_count > 0 else None
+    winrate = (wins / trade_count) if trade_count > 0 else None
+
+    missing_mfe_count = 0
+    ever_profitable_count = 0
+    green_to_red_count = 0
+    for item in values:
+        pnl_val = item.get("pnl")
+        mfe_val = item.get("mfe")
+        if pnl_val is None:
+            continue
+        if mfe_val is None:
+            missing_mfe_count += 1
+            continue
+        if float(mfe_val) > 0.0:
+            ever_profitable_count += 1
+            if float(pnl_val) <= 0.0:
+                green_to_red_count += 1
+
+    green_to_red_share = (
+        green_to_red_count / trade_count if trade_count > 0 else None
+    )
+
+    return {
+        "trade_count": trade_count,
+        "net_pnl": _round6(net_pnl),
+        "expectancy": _round6(expectancy) if expectancy is not None else None,
+        "winrate": _round6(winrate) if winrate is not None else None,
+        "profit_factor": _display_profit_factor(profit_factor),
+        "wins": wins,
+        "losses": losses,
+        "gross_profit": _round6(gross_profit),
+        "gross_loss_abs": _round6(gross_loss_abs),
+        "ever_profitable_count": ever_profitable_count,
+        "green_to_red_count": green_to_red_count,
+        "green_to_red_share": (
+            _round6(green_to_red_share)
+            if green_to_red_share is not None
+            else None
+        ),
+        "missing_mfe_count": missing_mfe_count,
+    }
+
+
+def _strategy_validation_metrics_from_accepted_runs(
+    accepted_runs: list[dict[str, Any]],
+) -> dict[str, Any]:
+    all_values: list[dict[str, float | None]] = []
+    natural_values: list[dict[str, float | None]] = []
+    truth_counts: dict[str, int] = {}
+
+    for run in accepted_runs:
+        db_path = _resolve_repo_path(run.get("db_path") or "")
+        if not db_path.exists():
+            raise FileNotFoundError(f"accepted run db not found: {db_path}")
+        conn = sqlite3.connect(str(db_path))
+        try:
+            rows = conn.execute(
+                "SELECT details FROM logs WHERE event='position_close'"
+            ).fetchall()
+        finally:
+            conn.close()
+
+        for (details_text,) in rows:
+            try:
+                details = json.loads(details_text or "{}")
+            except Exception:
+                continue
+            if not isinstance(details, dict):
+                continue
+            position = (
+                details.get("position")
+                if isinstance(details.get("position"), dict)
+                else {}
+            )
+            pnl_decompose = (
+                position.get("pnl_decompose")
+                if isinstance(position.get("pnl_decompose"), dict)
+                else details.get("pnl_decompose")
+                if isinstance(details.get("pnl_decompose"), dict)
+                else {}
+            )
+            pnl = details.get("realized_pnl")
+            if pnl is None:
+                pnl = position.get("realized_pnl")
+            if pnl is None:
+                pnl = position.get("realized_net")
+            if pnl is None:
+                pnl = pnl_decompose.get("net_pnl")
+            pnl_val = _safe_float(pnl, None)
+            if pnl_val is None:
+                continue
+
+            mfe = position.get("mfe")
+            if mfe is None:
+                mfe = position.get("max_unrealized_pnl")
+            if mfe is None:
+                mfe = details.get("mfe")
+            mfe_val = _safe_float(mfe, None)
+            trade_value = {"pnl": float(pnl_val), "mfe": mfe_val}
+            all_values.append(trade_value)
+
+            truth = _entry_truth_classification(details=details, position=position)
+            truth_counts[truth] = int(truth_counts.get(truth, 0)) + 1
+            if truth in NATURAL_ENTRY_TRUTH_CLASSES:
+                natural_values.append(trade_value)
+
+    all_metrics = _trade_metrics_from_values(all_values)
+    natural_metrics = _trade_metrics_from_values(natural_values)
+
+    natural_trade_count = int(natural_metrics["trade_count"])
+    assisted_trade_count = sum(
+        int(truth_counts.get(classification, 0))
+        for classification in ASSISTED_ENTRY_TRUTH_CLASSES
+    )
+    unknown_trade_count = int(truth_counts.get("UNKNOWN_REQUIRES_REVIEW", 0))
+    reason_codes: list[str] = []
+    if assisted_trade_count:
+        reason_codes.append("ASSISTED_ENTRY_EVIDENCE_PRESENT")
+    if unknown_trade_count:
+        reason_codes.append("UNKNOWN_ENTRY_EVIDENCE_PRESENT")
+    if natural_trade_count == 0:
+        classification = "NO_NATURAL_STRATEGY_TRADES"
+        reason_codes.append("NATURAL_ENTRY_TRADE_COUNT_ZERO")
+        if assisted_trade_count:
+            reason_codes.append("ASSISTED_ENTRY_EVIDENCE_ONLY")
+    elif natural_trade_count < STRATEGY_VALIDATION_MIN_NATURAL_TRADES:
+        classification = "NATURAL_STRATEGY_EVIDENCE_INSUFFICIENT"
+        reason_codes.append("NATURAL_ENTRY_TRADE_COUNT_BELOW_MIN")
+    else:
+        classification = "NATURAL_STRATEGY_EVIDENCE_SUFFICIENT"
+        reason_codes.append("NATURAL_ENTRY_EVIDENCE_AVAILABLE")
+
+    usable_strategy_economics = (
+        natural_trade_count >= STRATEGY_VALIDATION_MIN_NATURAL_TRADES
+    )
+    strategy_contract = {
+        "classification": classification,
+        "strategy_evidence_classification": classification,
+        "usable_strategy_economics": usable_strategy_economics,
+        "min_natural_entry_trade_count": STRATEGY_VALIDATION_MIN_NATURAL_TRADES,
+        "natural_entry_trade_count": natural_trade_count,
+        "assisted_entry_trade_count": assisted_trade_count,
+        "unknown_entry_trade_count": unknown_trade_count,
+        "truth_classification_counts": dict(sorted(truth_counts.items())),
+        "reason_codes": _dedupe_reason_codes(reason_codes),
+    }
+    all_metrics["natural_entry_metrics"] = natural_metrics
+    all_metrics["strategy_validation_contract"] = strategy_contract
+    return all_metrics
 
 
 def _mtime_utc(path: Path) -> str | None:
@@ -1318,6 +1563,10 @@ def build_audit(
         failed = [name for name, ok in validation["checks"].items() if not ok]
         raise ValueError(f"audit validation failed: {', '.join(failed)}")
 
+    strategy_validation_metrics = _strategy_validation_metrics_from_accepted_runs(
+        accepted_runs
+    )
+
     result = {
         "metadata": {
             "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -1361,10 +1610,18 @@ def build_audit(
             "avg_profit_factor": _round6(avg_profit_factor),
             "avg_net_pnl": _round6(total_net_pnl / len(accepted_runs)),
             "total_net_pnl": _round6(total_net_pnl),
+            "expectancy": strategy_validation_metrics["expectancy"],
             "avg_trade_count": _round6(avg_trade_count),
             "total_trade_count": sum(run["trade_count"] for run in accepted_runs),
             "avg_conversion_rate": _round6(avg_conversion_rate),
             "avg_winrate": _round6(avg_winrate),
+            "green_to_red_share": strategy_validation_metrics["green_to_red_share"],
+            "natural_entry_metrics": strategy_validation_metrics[
+                "natural_entry_metrics"
+            ],
+            "strategy_validation_contract": strategy_validation_metrics[
+                "strategy_validation_contract"
+            ],
             "avg_max_drawdown": _round6(avg_max_drawdown),
             "avg_win_over_avg_loss": _round6(avg_win_loss_ratio),
             "symbol_ranking": symbol_rankings,

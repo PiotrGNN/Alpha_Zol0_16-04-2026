@@ -205,6 +205,13 @@ def test_paper_force_close_open_positions_closes_single_position(
         str(e.get("exit_reason") or "") == "paper_run_once_force_close"
         for e in target_events
     ), "Target close event must record paper_run_once_force_close exit reason"
+    assert any(
+        str(e.get("reason") or "") == "paper_run_once_force_close"
+        and str(e.get("close_reason") or "") == "paper_run_once_force_close"
+        and str(e.get("exit_owner") or "") == "run_end_cleanup_exit"
+        and str(e.get("exit_reason_source") or "") == "position_payload_exit_reason"
+        for e in target_events
+    ), "Target close event must carry deterministic close reason and owner"
 
 
 # ---------------------------------------------------------------------------
@@ -322,6 +329,15 @@ def test_drain_close_requests_processes_db_request_and_closes_position(
         and str(payload.get("trade_id") or "") == "drain-test-001"
         for name, payload in events
     ), "Drain diagnostics must be emitted for the requested trade"
+    assert any(
+        name == "position_close"
+        and str(payload.get("symbol") or "").upper() == "ETHUSDTM"
+        and str((payload.get("position") or {}).get("trade_id") or "")
+        == "drain-test-001"
+        and str(payload.get("exit_reason") or "").strip() != ""
+        and str(payload.get("close_reason") or "").strip() != ""
+        for name, payload in events
+    ), "position_close from drain path must carry deterministic exit_reason/close_reason"
 
 
 # ---------------------------------------------------------------------------
@@ -611,6 +627,8 @@ def test_drain_close_requests_handles_malformed_rows_invalid_qty_and_success_pat
         and str(payload.get("symbol") or "").upper() == "ETHUSDTM"
         and str((payload.get("position") or {}).get("trade_id") or "")
         == "drain-mixed-001"
+        and str(payload.get("exit_reason") or "").strip() != ""
+        and str(payload.get("close_reason") or "").strip() != ""
         for name, payload in events
     )
 

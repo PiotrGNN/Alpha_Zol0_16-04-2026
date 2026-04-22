@@ -150,7 +150,195 @@ def test_strict_bucket_gate_skips_missing_or_weak_reports():
         ],
         "pair_side_stats_top": [],
     }
-    assert module._derive_profitability_bucket_gate(weak_report)["overrides"] == {}
+    assert module._derive_profitability_bucket_gate(
+        weak_report, _disable_contract_fallback=True
+    )["overrides"] == {}
+
+
+def test_strict_bucket_gate_requires_at_least_two_side_trades_for_allowlist():
+    module = _load_module()
+    report = {
+        "pair_stats_top": [
+            {
+                "symbol": "XRPUSDTM",
+                "strategy": "Momentum",
+                "trade_count": 8,
+                "winrate": 0.45,
+                "expectancy": 0.01,
+                "selected": True,
+            },
+            {
+                "symbol": "XRPUSDTM",
+                "strategy": "TrendFollowing",
+                "trade_count": 8,
+                "winrate": 0.45,
+                "expectancy": 0.01,
+                "selected": True,
+            },
+        ],
+        "pair_side_stats_top": [
+            {
+                "symbol": "XRPUSDTM",
+                "strategy": "Momentum",
+                "side": "sell",
+                "trade_count": 1,
+                "winrate": 1.0,
+                "expectancy": 0.12,
+            },
+            {
+                "symbol": "XRPUSDTM",
+                "strategy": "TrendFollowing",
+                "side": "sell",
+                "trade_count": 1,
+                "winrate": 1.0,
+                "expectancy": 0.05,
+            },
+            {
+                "symbol": "XRPUSDTM",
+                "strategy": "Momentum",
+                "side": "buy",
+                "trade_count": 3,
+                "winrate": 0.33,
+                "expectancy": -0.05,
+            },
+            {
+                "symbol": "XRPUSDTM",
+                "strategy": "TrendFollowing",
+                "side": "buy",
+                "trade_count": 4,
+                "winrate": 0.0,
+                "expectancy": -0.35,
+            },
+        ],
+    }
+
+    derived = module._derive_profitability_bucket_gate(
+        report, _disable_contract_fallback=True
+    )
+
+    assert derived["positive_side_allowlist"] == []
+    assert "ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST" not in derived["overrides"]
+
+
+def test_strict_bucket_gate_does_not_use_contract_fallback_when_live_side_rows_present(
+    monkeypatch, tmp_path
+):
+    module = _load_module()
+    contract_path = (
+        tmp_path / "analysis" / "zol0_positive_side_allowlist_contract_current.json"
+    )
+    contract_path.parent.mkdir(parents=True, exist_ok=True)
+    contract_path.write_text(
+        json.dumps(
+            {
+                "status": "PASS",
+                "positive_side_allowlist": ["ETHUSDTM:TRENDFOLLOWING:buy"],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(module, "WORKDIR", tmp_path)
+
+    report = {
+        "pair_stats_top": [
+            {
+                "symbol": "ETHUSDTM",
+                "strategy": "TrendFollowing",
+                "trade_count": 12,
+                "winrate": 0.30,
+                "expectancy": -0.0020,
+                "selected": True,
+            }
+        ],
+        "pair_side_stats_top": [
+            {
+                "symbol": "ETHUSDTM",
+                "strategy": "TrendFollowing",
+                "side": "buy",
+                "trade_count": 12,
+                "winrate": 0.30,
+                "expectancy": -0.0020,
+                "net_pnl": -0.024,
+                "gross_pnl": -0.010,
+                "fee_total": 0.014,
+            }
+        ],
+    }
+
+    derived = module._derive_profitability_bucket_gate(report)
+
+    assert derived["positive_side_allowlist"] == []
+    assert "ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST" not in derived["overrides"]
+
+
+def test_strict_bucket_gate_uses_contract_fallback_when_no_valid_side_rows(
+    monkeypatch, tmp_path
+):
+    module = _load_module()
+    contract_path = (
+        tmp_path / "analysis" / "zol0_positive_side_allowlist_contract_current.json"
+    )
+    contract_path.parent.mkdir(parents=True, exist_ok=True)
+    contract_path.write_text(
+        json.dumps(
+            {
+                "status": "PASS",
+                "positive_side_allowlist": ["ETHUSDTM:TRENDFOLLOWING:buy"],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(module, "WORKDIR", tmp_path)
+
+    report = {
+        "pair_stats_top": [],
+        "pair_side_stats_top": ["malformed-row"],
+    }
+
+    derived = module._derive_profitability_bucket_gate(report)
+
+    assert derived["positive_side_allowlist"] == ["ETHUSDTM:TRENDFOLLOWING:buy"]
+    assert derived["overrides"]["ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST"] == (
+        "ETHUSDTM:TRENDFOLLOWING:buy"
+    )
+
+
+def test_strict_bucket_gate_filters_contract_fallback_to_active_run_symbols(
+    monkeypatch, tmp_path
+):
+    module = _load_module()
+    contract_path = (
+        tmp_path / "analysis" / "zol0_positive_side_allowlist_contract_current.json"
+    )
+    contract_path.parent.mkdir(parents=True, exist_ok=True)
+    contract_path.write_text(
+        json.dumps(
+            {
+                "status": "PASS",
+                "positive_side_allowlist": [
+                    "SOLUSDTM:TRENDFOLLOWING:sell",
+                    "ADAUSDTM:TRENDFOLLOWING:buy",
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(module, "WORKDIR", tmp_path)
+
+    report = {
+        "pair_stats_top": [],
+        "pair_side_stats_top": ["malformed-row"],
+    }
+
+    derived = module._derive_profitability_bucket_gate(
+        report,
+        active_run_symbols={"BTCUSDTM", "SOLUSDTM"},
+    )
+
+    assert derived["positive_side_allowlist"] == ["SOLUSDTM:TRENDFOLLOWING:sell"]
+    assert derived["overrides"]["ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST"] == (
+        "SOLUSDTM:TRENDFOLLOWING:sell,SOLUSDTM:UNIVERSAL:sell"
+    )
 
 
 def test_strict_bucket_gate_blocks_cost_burden_side_without_allowlist():
@@ -181,7 +369,9 @@ def test_strict_bucket_gate_blocks_cost_burden_side_without_allowlist():
         ],
     }
 
-    derived = module._derive_profitability_bucket_gate(report)
+    derived = module._derive_profitability_bucket_gate(
+        report, _disable_contract_fallback=True
+    )
     overrides = derived["overrides"]
 
     assert derived["positive_side_allowlist"] == []
@@ -191,6 +381,70 @@ def test_strict_bucket_gate_blocks_cost_burden_side_without_allowlist():
     assert overrides == {
         "ENTRY_SYMBOL_STRATEGY_SIDE_BLOCKLIST": "ETHUSDTM:TRENDFOLLOWING:buy"
     }
+
+
+def test_strict_bucket_gate_avoids_allowlist_blocklist_conflict_on_universal_sell_expansion():
+    module = _load_module()
+    report = {
+        "pair_stats_top": [
+            {
+                "symbol": "XRPUSDTM",
+                "strategy": "Momentum",
+                "trade_count": 10,
+                "winrate": 0.60,
+                "expectancy": 0.0012,
+                "selected": True,
+            }
+        ],
+        "pair_side_stats_top": [
+            {
+                "symbol": "XRPUSDTM",
+                "strategy": "Momentum",
+                "side": "sell",
+                "trade_count": 6,
+                "winrate": 0.60,
+                "expectancy": 0.0015,
+                "net_pnl": 0.009,
+                "gross_pnl": 0.015,
+                "fee_total": 0.006,
+            },
+            {
+                "symbol": "XRPUSDTM",
+                "strategy": "Universal",
+                "side": "sell",
+                "trade_count": 7,
+                "winrate": 0.57,
+                "expectancy": -0.0005,
+                "net_pnl": -0.0035,
+                "gross_pnl": 0.0010,
+                "fee_total": 0.0045,
+            },
+        ],
+    }
+
+    derived = module._derive_profitability_bucket_gate(
+        report, _disable_contract_fallback=True
+    )
+    overrides = derived["overrides"]
+    allow_tokens = {
+        token.strip()
+        for token in str(
+            overrides.get("ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST", "")
+        ).split(",")
+        if token.strip()
+    }
+    block_tokens = {
+        token.strip()
+        for token in str(
+            overrides.get("ENTRY_SYMBOL_STRATEGY_SIDE_BLOCKLIST", "")
+        ).split(",")
+        if token.strip()
+    }
+
+    assert "XRPUSDTM:MOMENTUM:sell" in allow_tokens
+    assert "XRPUSDTM:UNIVERSAL:sell" not in allow_tokens
+    assert "XRPUSDTM:UNIVERSAL:sell" in block_tokens
+    assert allow_tokens.isdisjoint(block_tokens)
 
 
 def test_strict_bucket_gate_handles_malformed_rows_and_side_normalization():
@@ -539,7 +793,12 @@ def test_prebuilt_manifest_flags_path_and_checksum_mismatches(monkeypatch, tmp_p
     db_path.write_text("db", encoding="utf-8")
     report_path = tmp_shadow / "alpha_history_report.json"
     report_path.write_text(
-        json.dumps({"rows_inserted": 2, "output": str(report_path.with_name("other.db"))}),
+        json.dumps(
+            {
+                "rows_inserted": 2,
+                "output": str(report_path.with_name("other.db")),
+            }
+        ),
         encoding="utf-8",
     )
 
@@ -557,7 +816,9 @@ def test_prebuilt_manifest_flags_path_and_checksum_mismatches(monkeypatch, tmp_p
                 },
                 "selection": {"accepted_run_ids": ["run_a"]},
                 "prebuilt_source": {
-                    "source_scorecard_path": "analysis/zol0_profitability_audit_scorecard.json",
+                    "source_scorecard_path": (
+                        "analysis/zol0_profitability_audit_scorecard.json"
+                    ),
                     "db_path": str(db_path),
                     "db_size_bytes": db_path.stat().st_size + 1,
                     "db_sha256": "0" * 64,
@@ -722,6 +983,52 @@ def test_entry_admission_contract_passes_with_explicit_side_allowlist():
         "BTCUSDTM:TRENDFOLLOWING:sell"
     ]
     assert "EXPLICIT_SIDE_ALLOWLIST_PRESENT" in contract["reason_codes"]
+
+
+def test_entry_admission_contract_fails_closed_on_side_allowlist_blocklist_conflict():
+    module = _load_module()
+    contract = module._derive_entry_admission_contract(
+        variant_only="after",
+        paper_auto_open=True,
+        after_overrides={
+            "ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST": "ETHUSDTM:TRENDFOLLOWING:long",
+            "ENTRY_SYMBOL_STRATEGY_SIDE_BLOCKLIST": "ethusdtm:trendfollowing:buy",
+        },
+        alpha_bootstrap_runtime_contract={"status": "PASS"},
+        strict_bucket_gate={"positive_side_allowlist": []},
+    )
+
+    assert contract["status"] == "FAIL_CLOSED"
+    assert contract["validation_classification"] == (
+        "ENTRY_SIDE_ALLOWLIST_BLOCKLIST_CONFLICT"
+    )
+    assert "ENTRY_SIDE_ALLOWLIST_BLOCKLIST_CONFLICT" in contract["reason_codes"]
+    assert contract["conflicting_side_tokens"] == [
+        "ETHUSDTM:TRENDFOLLOWING:buy"
+    ]
+
+
+def test_entry_admission_contract_fails_closed_when_strict_allowlist_conflicts():
+    module = _load_module()
+    contract = module._derive_entry_admission_contract(
+        variant_only="after",
+        paper_auto_open=True,
+        after_overrides={
+            "ENTRY_SYMBOL_STRATEGY_SIDE_BLOCKLIST": "BTCUSDTM:TRENDFOLLOWING:sell",
+        },
+        alpha_bootstrap_runtime_contract={"status": "PASS"},
+        strict_bucket_gate={
+            "positive_side_allowlist": ["BTCUSDTM:TRENDFOLLOWING:sell"]
+        },
+    )
+
+    assert contract["status"] == "FAIL_CLOSED"
+    assert contract["validation_classification"] == (
+        "ENTRY_SIDE_ALLOWLIST_BLOCKLIST_CONFLICT"
+    )
+    assert contract["conflicting_side_tokens"] == [
+        "BTCUSDTM:TRENDFOLLOWING:sell"
+    ]
 
 
 def test_positive_side_allowlist_contract_applies_exact_allowlist():
@@ -1074,6 +1381,29 @@ def test_alpha_bootstrap_refresh_contract_marks_unconfirmed_when_rows_missing():
     assert refresh["exact_source_contract"]["status"] == "UNCONFIRMED"
 
 
+def test_alpha_bootstrap_refresh_contract_keeps_pass_for_prebuilt_seed_only_gap():
+    module = _load_module()
+    refresh = module._finalize_alpha_bootstrap_refresh_contract(
+        {
+            "ran": True,
+            "output_exists": True,
+            "returncode": 0,
+            "report": {"rows_inserted": 0},
+            "exact_source_contract": {
+                "active": True,
+                "source_mode": "prebuilt_alpha_history_db",
+                "prebuilt_alpha_history_rows_inserted": 85,
+                "reason_codes": [],
+            },
+        }
+    )
+
+    assert refresh["status"] == "PASS"
+    assert refresh["success"] is True
+    assert refresh["reason_codes"] == ["external_rows_inserted_zero"]
+    assert refresh["exact_source_contract"]["status"] == "PASS"
+
+
 def test_exact_source_contract_prefers_valid_prebuilt_db(tmp_path, monkeypatch):
     module = _load_module()
     monkeypatch.setattr(module, "WORKDIR", tmp_path)
@@ -1302,7 +1632,7 @@ def test_exact_source_contract_flags_missing_and_unreadable_scorecards(
     assert unreadable_contract["reason_codes"] == ["scorecard_unreadable"]
 
 
-def test_exact_source_contract_covers_prebuilt_source_failures_and_manifest_reason_propagation(
+def test_exact_source_contract_covers_prebuilt_source_failures_and_manifest_reasons(
     tmp_path,
     monkeypatch,
 ):

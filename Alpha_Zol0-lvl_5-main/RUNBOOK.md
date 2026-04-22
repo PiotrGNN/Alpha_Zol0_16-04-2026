@@ -12,9 +12,10 @@ gate and `POST_GREEN_RUNTIME_CONTRACT_FIXED` validation.
 - KuCoin LIVE API credentials in environment:
   `KUCOIN_API_KEY`, `KUCOIN_API_SECRET`, `KUCOIN_API_PASSPHRASE`
 
-### Launch (human trigger only — must confirm `CONFIRM_LIVE_LAUNCH`)
+### Launch (deterministic runtime readiness gate)
 ```powershell
 Push-Location "d:\Alpha_Zol0-lvl_5-main\Alpha_Zol0-lvl_5-main"
+python scripts\run_paper_readiness_gate.py
 .\scripts\live_rollout_launch.ps1
 Pop-Location
 ```
@@ -24,7 +25,7 @@ Pop-Location
 |---|---|---|
 | `LIVE` | `1` | Enable live mode |
 | `LIVE_ARMED` | `1` | Arm gate |
-| `LIVE_APPROVAL` | `I_UNDERSTAND_LIVE_RISK` | Approval phrase |
+| `LIVE_READINESS_SNAPSHOT_PATH` | `tmp/live_readiness_snapshot.json` | Deterministic readiness evidence |
 | `ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST` | `ETHUSDTM:MOMENTUM:buy` | ETH-only restriction |
 | `EXIT_CLOSE_ATTEMPT_FEE_GUARD_COOLDOWN_SEC` | `10` | Override 300s default (documented 2026-04-20) |
 

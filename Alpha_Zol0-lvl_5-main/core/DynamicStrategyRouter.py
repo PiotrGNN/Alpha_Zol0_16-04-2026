@@ -95,15 +95,17 @@ class DynamicStrategyRouter:
         # Example: regime-based allocation logic
         alloc = {s.name: 0.0 for s in self.strategies}
         if regime == "trend":
-            alloc["TrendFollowing"] = 0.50
-            alloc["Momentum"] = 0.30
-            alloc["MeanReversion"] = 0.20
+            alloc["TrendFollowing"] = 0.40
+            alloc["Momentum"] = 0.25
+            alloc["MeanReversion"] = 0.15
+            alloc["Universal"] = 0.20
         elif regime == "sideways":
             # Directional strategies only – GridTrading/MarketMaking are
             # non-directional and cancel buy/sell votes → removed.
-            alloc["Momentum"] = 0.40
-            alloc["TrendFollowing"] = 0.30
-            alloc["MeanReversion"] = 0.30
+            alloc["Momentum"] = 0.35
+            alloc["TrendFollowing"] = 0.25
+            alloc["MeanReversion"] = 0.25
+            alloc["Universal"] = 0.15
         elif regime == "sentiment":
             alloc["Sentiment"] = 0.7
             alloc["Breakout"] = 0.2
@@ -267,6 +269,155 @@ class DynamicStrategyRouter:
         self.last_allocations = alloc
         return alloc
 
+    @staticmethod
+    def _normalize_router_side(value):
+        if value is None:
+            return None
+        if isinstance(value, str):
+            text = value.strip().lower()
+            if text in ("1", "+1", "long", "bull", "up", "buy"):
+                return "buy"
+            if text in ("-1", "short", "bear", "down", "sell"):
+                return "sell"
+            if text in ("0", "flat", "neutral", "wait", "hold", "none"):
+                return "hold"
+            return text or None
+        if isinstance(value, (int, float)):
+            try:
+                number = float(value)
+            except Exception:
+                return None
+            if not math.isfinite(number):
+                return None
+            if number > 0:
+                return "buy"
+            if number < 0:
+                return "sell"
+            return "hold"
+        if isinstance(value, list):
+            if not value:
+                return "hold"
+            for item in value:
+                side = DynamicStrategyRouter._normalize_router_side(item)
+                if side in ("buy", "sell"):
+                    return side
+            for item in value:
+                side = DynamicStrategyRouter._normalize_router_side(item)
+                if side == "hold":
+                    return side
+            return None
+        if isinstance(value, dict):
+            for key in ("_side", "side", "direction", "action", "signal"):
+                if key in value:
+                    side = DynamicStrategyRouter._normalize_router_side(value.get(key))
+                    if side in ("buy", "sell", "hold"):
+                        return side
+            raw_type = DynamicStrategyRouter._normalize_router_side(value.get("type"))
+            if raw_type in ("buy", "sell", "hold"):
+                return raw_type
+            if str(value.get("type") or "").strip().lower() in ("exit", "wait"):
+                return "hold"
+            nested = value.get("signals")
+            if isinstance(nested, list):
+                if nested:
+                    nested_side = DynamicStrategyRouter._normalize_router_side(nested)
+                    if nested_side in ("buy", "sell", "hold"):
+                        return nested_side
+            analysis = value.get("analysis")
+            if isinstance(analysis, dict):
+                for key in ("direction", "trend"):
+                    side = DynamicStrategyRouter._normalize_router_side(
+                        analysis.get(key)
+                    )
+                    if side in ("buy", "sell", "hold"):
+                        return side
+            metrics = value.get("metrics")
+            if isinstance(metrics, dict):
+                trend_strength = metrics.get("trend_strength")
+                if isinstance(trend_strength, dict):
+                    side = DynamicStrategyRouter._normalize_router_side(
+                        trend_strength.get("direction")
+                    )
+                    if side in ("buy", "sell", "hold"):
+                        return side
+            if isinstance(nested, list) and not nested:
+                return "hold"
+        return None
+
+    @staticmethod
+    def _raw_side_text(value):
+        if value is None:
+            return None
+        if isinstance(value, (str, int, float)):
+            return str(value)
+        if isinstance(value, list):
+            return "signals:empty" if not value else "signals:list"
+        if isinstance(value, dict):
+            return None
+        return type(value).__name__
+
+    @classmethod
+    def _router_side_from_payload(cls, payload):
+        if not isinstance(payload, dict):
+            return (
+                cls._raw_side_text(payload),
+                cls._normalize_router_side(payload),
+                "signal",
+            )
+
+        for key in ("_side", "side", "direction", "action", "signal"):
+            if key not in payload:
+                continue
+            raw = payload.get(key)
+            side = cls._normalize_router_side(raw)
+            if side in ("buy", "sell", "hold"):
+                return cls._raw_side_text(raw), side, f"signal.{key}"
+
+        nested = payload.get("signals")
+        empty_nested_signals = False
+        if isinstance(nested, list):
+            if not nested:
+                empty_nested_signals = True
+            for item in nested:
+                raw, side, source = cls._router_side_from_payload(item)
+                if side in ("buy", "sell", "hold"):
+                    return raw, side, f"signal.signals.{source}"
+
+        raw_type = payload.get("type")
+        side = cls._normalize_router_side(raw_type)
+        if side in ("buy", "sell", "hold"):
+            return cls._raw_side_text(raw_type), side, "signal.type"
+        if str(raw_type or "").strip().lower() in ("exit", "wait"):
+            return cls._raw_side_text(raw_type), "hold", "signal.type"
+
+        analysis = payload.get("analysis")
+        if isinstance(analysis, dict):
+            for key in ("direction", "trend"):
+                if key not in analysis:
+                    continue
+                raw = analysis.get(key)
+                side = cls._normalize_router_side(raw)
+                if side in ("buy", "sell", "hold"):
+                    return cls._raw_side_text(raw), side, f"signal.analysis.{key}"
+
+        metrics = payload.get("metrics")
+        if isinstance(metrics, dict):
+            trend_strength = metrics.get("trend_strength")
+            if isinstance(trend_strength, dict):
+                raw = trend_strength.get("direction")
+                side = cls._normalize_router_side(raw)
+                if side in ("buy", "sell", "hold"):
+                    return (
+                        cls._raw_side_text(raw),
+                        side,
+                        "signal.metrics.trend_strength.direction",
+                    )
+
+        if empty_nested_signals:
+            return "signals:empty", "hold", "signal.signals"
+
+        return None, cls._normalize_router_side(payload), "signal"
+
     def route(self, market_state: Dict[str, Any]) -> List[Dict[str, Any]]:
         # Get performance stats
         perf_stats = self.perf_tracker.get_all_stats() if self.perf_tracker else {}
@@ -297,13 +448,19 @@ class DynamicStrategyRouter:
                             sig = analyze_fn()
                         else:
                             sig = analyze_fn(**call_args)
-                    signals.append(
-                        {
-                            "strategy": s.name,
-                            "allocation": alloc[s.name],
-                            "signal": sig,
-                        }
-                    )
+                    routed_signal = {
+                        "strategy": s.name,
+                        "allocation": alloc[s.name],
+                        "signal": sig,
+                    }
+                    raw_side, side, side_source = self._router_side_from_payload(sig)
+                    if raw_side is not None:
+                        routed_signal["raw_side"] = raw_side
+                    if side_source:
+                        routed_signal["raw_side_source"] = side_source
+                    if side is not None:
+                        routed_signal["side"] = side
+                    signals.append(routed_signal)
                 except Exception as e:
                     signals.append(
                         {

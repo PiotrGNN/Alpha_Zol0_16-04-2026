@@ -26,6 +26,13 @@ FORBIDDEN_SHARED_ARTIFACT_NAMES = {
 }
 DEFAULT_GATE_AFTER_ENV_OVERRIDES = {
     "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST": "0",
+    "PAPER_AUTO_OPEN_STARTUP_ENABLE": "0",
+    "PAPER_AUTO_OPEN_FALLBACK_ENABLE": "0",
+    "SEED_TRADES_ENABLE": "0",
+    "SYMBOL_STRATEGY_GUARD_ENABLE": "0",
+    "SIDE_GUARD_ENABLE": "0",
+    "ENTRY_EDGE_COLDSTART_MODE": "fail_open",
+    "ENTRY_CUTOFF_BEFORE_END_SEC": "30",
 }
 ETH_MOMENTUM_BUY_AFTER_ENV_PRESET = "eth_momentum_buy_after"
 
@@ -189,6 +196,18 @@ def _sha256_file(path: Path) -> str | None:
 
 def _load_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _load_live_guard_functions():
+    workdir_text = str(WORKDIR)
+    if workdir_text not in sys.path:
+        sys.path.insert(0, workdir_text)
+    from security.live_guard import (
+        evaluate_live_readiness_contract,
+        write_live_readiness_snapshot,
+    )
+
+    return evaluate_live_readiness_contract, write_live_readiness_snapshot
 
 
 def _preferred_or_latest_file(
@@ -504,6 +523,7 @@ def _run_controlled_kpi(
     run_id: str,
     summary_hours: int,
     after_env_overrides: dict | None = None,
+    paper_auto_open: bool = True,
 ) -> dict:
     cmd = [
         sys.executable,
@@ -512,7 +532,6 @@ def _run_controlled_kpi(
         "after",
         "--after-min",
         "2",
-        "--paper-auto-open",
         "--paper-auto-close-sec",
         "20",
         "--quality-profile",
@@ -524,6 +543,8 @@ def _run_controlled_kpi(
         "--timeframe",
         "1",
     ]
+    if paper_auto_open:
+        cmd.append("--paper-auto-open")
     cmd.extend(_build_gate_after_env_args(after_env_overrides))
     proc = subprocess.run(
         cmd,
@@ -659,6 +680,22 @@ def _check_run(
         ((after_report.get("log_health") or {}).get("error_count")),
         -1,
     )
+    final_close_drain_snapshot = (
+        after_report.get("final_close_drain_snapshot")
+        if isinstance(after_report.get("final_close_drain_snapshot"), dict)
+        else {}
+    )
+    shutdown_classification = str(
+        after_report.get("shutdown_classification") or ""
+    ).strip()
+    pending_positions = _safe_int(
+        final_close_drain_snapshot.get("pending_positions"),
+        None,
+    )
+    close_request_backlog = _safe_int(
+        final_close_drain_snapshot.get("close_request_backlog"),
+        None,
+    )
     use_mock_value = params.get("use_mock")
     use_mock_false = use_mock_value is False
     paper_auto_open_true = bool(params.get("paper_auto_open"))
@@ -667,6 +704,7 @@ def _check_run(
         if isinstance(summary.get("natural_entry_candidate_contract"), dict)
         else {}
     )
+    natural_entry_contract_present = bool(natural_entry_candidate_contract)
     natural_entry_classification = str(
         natural_entry_candidate_contract.get("classification") or ""
     ).strip()
@@ -684,15 +722,30 @@ def _check_run(
         if natural_entry_candidate_contract
         else True
     )
-    paper_validation_classification = (
-        "PAPER_VALIDATION_CANDIDATE"
-        if paper_auto_open_true
-        else "DIAGNOSTIC_NO_OPEN_RUN"
+    strategy_evidence_valid = bool(
+        natural_entry_contract_present
+        and usable_strategy_economics is True
+        and strategy_evidence_classification == "USABLE_STRATEGY_EVIDENCE"
     )
-    if assisted_seed_evidence_only:
+    diagnostic_no_open_run = bool(
+        not paper_auto_open_true and not natural_entry_contract_present
+    )
+    if strategy_evidence_valid:
+        paper_validation_classification = "NATURAL_PAPER_VALIDATION_CANDIDATE"
+    elif assisted_seed_evidence_only:
         paper_validation_classification = "ASSISTED_SEED_EVIDENCE_ONLY"
     elif no_natural_entry_candidate:
         paper_validation_classification = "NO_NATURAL_ENTRY_CANDIDATE"
+    elif not natural_entry_contract_present:
+        paper_validation_classification = "NATURAL_ENTRY_CONTRACT_MISSING"
+    elif strategy_evidence_classification:
+        paper_validation_classification = strategy_evidence_classification
+    else:
+        paper_validation_classification = (
+            "PAPER_VALIDATION_CANDIDATE"
+            if paper_auto_open_true
+            else "DIAGNOSTIC_NO_OPEN_RUN"
+        )
     live_trace_detected = "LIVE=1" in (
         (bundle.get("stdout", "") or "") + (bundle.get("stderr", "") or "")
     )
@@ -756,10 +809,13 @@ def _check_run(
         errors.append("after_log_error_count_nonzero")
     if not use_mock_false:
         errors.append("use_mock_not_false")
-    if not paper_auto_open_true:
-        errors.append("paper_auto_open_false")
+    if diagnostic_no_open_run:
         errors.append("diagnostic_no_open_run")
     evidence_reason_codes = []
+    if not natural_entry_contract_present:
+        evidence_reason_codes.append("natural_entry_candidate_contract_missing")
+        if diagnostic_no_open_run:
+            errors.append("natural_entry_candidate_contract_missing")
     if no_natural_entry_candidate:
         evidence_reason_codes.append("no_natural_entry_candidate")
         if strategy_evidence_classification == "FALLBACK_ECONOMICS_NOT_STRATEGY_EVIDENCE":
@@ -768,6 +824,13 @@ def _check_run(
         evidence_reason_codes.append("assisted_seed_evidence_only")
         if usable_strategy_economics is False:
             evidence_reason_codes.append("assisted_economics_not_strategy_evidence")
+    if (
+        natural_entry_contract_present
+        and not strategy_evidence_valid
+        and strategy_evidence_classification
+        and not evidence_reason_codes
+    ):
+        evidence_reason_codes.append(strategy_evidence_classification.lower())
 
     bootstrap_runtime_contract = _resolve_alpha_bootstrap_runtime_contract(report)
     bootstrap_runtime_status = str(
@@ -799,16 +862,20 @@ def _check_run(
         "after_db_nonzero": after_db_nonzero,
         "report_after_only": report_after_only,
         "process_returncode_ok": after_process_returncode == 0,
+        "process_returncode": after_process_returncode,
+        "shutdown_classification": shutdown_classification,
+        "pending_positions": pending_positions,
+        "close_request_backlog": close_request_backlog,
         "log_errors_zero": after_log_error_count == 0,
         "use_mock_false": use_mock_false,
         "paper_auto_open_true": paper_auto_open_true,
         "paper_validation_classification": paper_validation_classification,
-        "diagnostic_no_open_run": not paper_auto_open_true,
+        "diagnostic_no_open_run": diagnostic_no_open_run,
         "no_natural_entry_candidate": no_natural_entry_candidate,
         "assisted_seed_evidence_only": assisted_seed_evidence_only,
         "usable_strategy_economics": usable_strategy_economics is not False,
         "strategy_evidence_classification": strategy_evidence_classification,
-        "strategy_evidence_valid": len(evidence_reason_codes) == 0,
+        "strategy_evidence_valid": strategy_evidence_valid,
         "evidence_reason_codes": evidence_reason_codes,
         "natural_entry_candidate_contract": natural_entry_candidate_contract,
         "unique_paths_ok": len(duplicate_path_hits) == 0,
@@ -1455,6 +1522,8 @@ def _load_corpus_contract() -> dict:
     accepted_corpus_total_trade_count = None
     selection_source = ""
     selection_required_limit = 0
+    candidate_run_count = None
+    selection_accepted_run_count = None
 
     if scorecard_path is None:
         reason_codes.append("SCORECARD_MISSING")
@@ -1494,6 +1563,11 @@ def _load_corpus_contract() -> dict:
         selection = ((scorecard.get("metadata") or {}).get("selection") or {})
         selection_source = str(selection.get("selection_source") or "").strip()
         selection_required_limit = _safe_int(selection.get("required_limit"), 0)
+        candidate_run_count = _safe_int(selection.get("candidate_run_count"), None)
+        selection_accepted_run_count = _safe_int(
+            selection.get("accepted_run_count"),
+            None,
+        )
         accepted_run_ids_raw = selection.get("accepted_run_ids") or []
         accepted_run_ids = [
             str(run_id).strip()
@@ -1624,6 +1698,8 @@ def _load_corpus_contract() -> dict:
         "accepted_manifest_hash_mismatch_count": accepted_manifest_hash_mismatch_count,
         "accepted_run_ids": accepted_run_ids,
         "accepted_run_count": len(accepted_run_ids),
+        "candidate_run_count": candidate_run_count,
+        "selection_accepted_run_count": selection_accepted_run_count,
         "accepted_corpus_total_trade_count": accepted_corpus_total_trade_count,
         "required_accepted_runs": required_accepted_runs,
         "strict_accepted_run_count": strict_accepted_run_count,
@@ -1668,8 +1744,91 @@ def _load_economics_context(corpus_contract: dict) -> dict:
         }
 
     global_kpis = scorecard.get("global_kpis") or {}
-    avg_profit_factor = _safe_float(global_kpis.get("avg_profit_factor"), None)
-    avg_net_pnl = _safe_float(global_kpis.get("avg_net_pnl"), None)
+    strategy_contract = (
+        global_kpis.get("strategy_validation_contract")
+        if isinstance(global_kpis.get("strategy_validation_contract"), dict)
+        else {}
+    )
+    natural_metrics = (
+        global_kpis.get("natural_entry_metrics")
+        if isinstance(global_kpis.get("natural_entry_metrics"), dict)
+        else {}
+    )
+    has_strategy_contract = bool(strategy_contract)
+    usable_strategy_economics = (
+        strategy_contract.get("usable_strategy_economics")
+        if has_strategy_contract
+        else True
+    )
+    strategy_evidence_classification = str(
+        strategy_contract.get("strategy_evidence_classification")
+        or strategy_contract.get("classification")
+        or ""
+    ).strip()
+    natural_entry_trade_count = _safe_int(
+        natural_metrics.get(
+            "trade_count",
+            strategy_contract.get("natural_entry_trade_count"),
+        ),
+        None,
+    )
+    metric_source = "global_kpis"
+    if has_strategy_contract:
+        if usable_strategy_economics is not True:
+            return {
+                "status": "UNCONFIRMED",
+                "go_no_go": "UNCONFIRMED",
+                "reason_codes": _dedupe_codes(
+                    [
+                        "EXACT_CORPUS_EVIDENCE_UNCONFIRMED",
+                        "STRATEGY_ECONOMICS_NOT_USABLE",
+                    ]
+                    + list(strategy_contract.get("reason_codes") or [])
+                ),
+                "scorecard_path": str(scorecard_path),
+                "usable_strategy_economics": False,
+                "strategy_evidence_classification": (
+                    strategy_evidence_classification
+                ),
+                "natural_entry_trade_count": natural_entry_trade_count,
+                "metric_source": "natural_entry_metrics",
+                "avg_profit_factor": _safe_float(
+                    natural_metrics.get("profit_factor"),
+                    None,
+                ),
+                "avg_net_pnl": _safe_float(natural_metrics.get("net_pnl"), None),
+                "expectancy": _safe_float(natural_metrics.get("expectancy"), None),
+                "winrate": _safe_float(natural_metrics.get("winrate"), None),
+                "green_to_red_share": _safe_float(
+                    natural_metrics.get("green_to_red_share"),
+                    None,
+                ),
+                "accepted_run_count": corpus_contract.get("accepted_run_count"),
+                "required_accepted_runs": corpus_contract.get(
+                    "required_accepted_runs"
+                ),
+            }
+        metric_source = "natural_entry_metrics"
+        avg_profit_factor = _safe_float(natural_metrics.get("profit_factor"), None)
+        avg_net_pnl = _safe_float(natural_metrics.get("net_pnl"), None)
+        expectancy = _safe_float(natural_metrics.get("expectancy"), None)
+        avg_winrate = _safe_float(natural_metrics.get("winrate"), None)
+        green_to_red_share = _safe_float(
+            natural_metrics.get("green_to_red_share"),
+            None,
+        )
+    else:
+        avg_profit_factor = _safe_float(global_kpis.get("avg_profit_factor"), None)
+        avg_net_pnl = _safe_float(global_kpis.get("avg_net_pnl"), None)
+        expectancy = _safe_float(
+            global_kpis.get("expectancy", global_kpis.get("avg_expectancy")),
+            None,
+        )
+        avg_winrate = _safe_float(
+            global_kpis.get("winrate", global_kpis.get("avg_winrate")),
+            None,
+        )
+        green_to_red_share = _safe_float(global_kpis.get("green_to_red_share"), None)
     profitable_run_rate = _safe_float(global_kpis.get("profitable_run_rate"), None)
     pf_gt_1_rate = _safe_float(global_kpis.get("pf_gt_1_rate"), None)
 
@@ -1682,6 +1841,10 @@ def _load_economics_context(corpus_contract: dict) -> dict:
                 "SCORECARD_GLOBAL_KPIS_INCOMPLETE",
             ],
             "scorecard_path": str(scorecard_path),
+            "usable_strategy_economics": usable_strategy_economics,
+            "strategy_evidence_classification": strategy_evidence_classification,
+            "natural_entry_trade_count": natural_entry_trade_count,
+            "metric_source": metric_source,
         }
 
     go_no_go = "GO" if avg_profit_factor >= 1.0 and avg_net_pnl >= 0.0 else "NO-GO"
@@ -1706,8 +1869,15 @@ def _load_economics_context(corpus_contract: dict) -> dict:
         "scorecard_path": str(scorecard_path),
         "avg_profit_factor": avg_profit_factor,
         "avg_net_pnl": avg_net_pnl,
+        "expectancy": expectancy,
+        "winrate": avg_winrate,
+        "green_to_red_share": green_to_red_share,
         "profitable_run_rate": profitable_run_rate,
         "pf_gt_1_rate": pf_gt_1_rate,
+        "usable_strategy_economics": usable_strategy_economics,
+        "strategy_evidence_classification": strategy_evidence_classification,
+        "natural_entry_trade_count": natural_entry_trade_count,
+        "metric_source": metric_source,
         "accepted_run_count": corpus_contract.get("accepted_run_count"),
         "required_accepted_runs": corpus_contract.get("required_accepted_runs"),
     }
@@ -1772,6 +1942,95 @@ def _derive_global_decision(
         "collect exact corpus evidence and rerun readiness gate",
         _dedupe_codes(["ECONOMICS_UNCONFIRMED"] + list(economic_reason_codes)),
     )
+
+
+def _derive_live_readiness_state(report: dict) -> dict:
+    per_run_checks = list(report.get("per_run_checks") or [])
+    last_run = per_run_checks[-1] if per_run_checks else {}
+    last_checks = last_run.get("checks") if isinstance(last_run, dict) else {}
+    if not isinstance(last_checks, dict):
+        last_checks = {}
+    corpus_contract = report.get("corpus_contract") or {}
+    economics_context = report.get("economics_context") or {}
+    reason_codes = []
+    for source in (
+        report.get("global_reason_codes") or [],
+        (report.get("operational_channel") or {}).get("reason_codes") or [],
+        (report.get("economic_channel") or {}).get("reason_codes") or [],
+        (report.get("artifact_contract") or {}).get("reason_codes") or [],
+        corpus_contract.get("reason_codes") or [],
+        (report.get("bootstrap_contract") or {}).get("reason_codes") or [],
+    ):
+        if isinstance(source, list):
+            reason_codes.extend(source)
+        elif source:
+            reason_codes.append(str(source))
+
+    candidate_run_count = _safe_int(corpus_contract.get("candidate_run_count"), None)
+    accepted_run_count = _safe_int(corpus_contract.get("accepted_run_count"), None)
+    if candidate_run_count is not None and accepted_run_count is not None:
+        rejected_run_count = max(0, candidate_run_count - accepted_run_count)
+        no_rejected_runs = rejected_run_count == 0
+    else:
+        rejected_run_count = None
+        no_rejected_runs = None
+
+    return {
+        "source": "run_paper_readiness_gate",
+        "source_timestamp": report.get("timestamp"),
+        "last_run": {
+            "run_id": last_run.get("run_id") if isinstance(last_run, dict) else "",
+            "process_returncode": last_checks.get("process_returncode"),
+            "shutdown_classification": last_checks.get("shutdown_classification"),
+            "pending_positions": last_checks.get("pending_positions"),
+            "close_request_backlog": last_checks.get("close_request_backlog"),
+        },
+        "data_validity": {
+            "accepted_corpus_exists": bool(
+                corpus_contract.get("status") == "PASS"
+                and corpus_contract.get("accepted_artifacts_present")
+                and corpus_contract.get("accepted_artifacts_nonzero")
+                and _safe_int(corpus_contract.get("accepted_run_count"), 0) > 0
+            ),
+            "no_rejected_runs_in_active_dataset": no_rejected_runs,
+            "rejected_run_count": rejected_run_count,
+            "corpus_size_trades": corpus_contract.get(
+                "accepted_corpus_total_trade_count"
+            ),
+            "accepted_manifest_path": corpus_contract.get("accepted_manifest_path"),
+            "accepted_corpus_bundle_dir": corpus_contract.get(
+                "accepted_corpus_bundle_dir"
+            ),
+        },
+        "strategy_validation": {
+            "usable_strategy_economics": economics_context.get(
+                "usable_strategy_economics"
+            ),
+            "strategy_evidence_classification": economics_context.get(
+                "strategy_evidence_classification"
+            ),
+            "natural_entry_trade_count": economics_context.get(
+                "natural_entry_trade_count"
+            ),
+            "economic_go_no_go": economics_context.get("go_no_go"),
+            "economic_status": economics_context.get("status"),
+            "reason_codes": list(economics_context.get("reason_codes") or []),
+            "profitability_metrics": {
+                "expectancy": economics_context.get("expectancy"),
+                "winrate": economics_context.get("winrate"),
+                "profit_factor": economics_context.get("avg_profit_factor"),
+                "green_to_red_share": economics_context.get("green_to_red_share"),
+            }
+        },
+        "critical_blockers": {
+            blocker: blocker in set(reason_codes)
+            for blocker in (
+                "CLOSE_FINALIZATION_BROKEN",
+                "LINKAGE_LAYER_NO_EFFECT",
+                "TERMINAL_TIMING_CUTOFF_CONFIRMED",
+            )
+        },
+    }
 
 
 def run_gate() -> dict:
@@ -1952,8 +2211,27 @@ def run_gate() -> dict:
         "global_reason_codes": global_reason_codes,
         "next_allowed_step": next_allowed_step,
     }
+    live_readiness_state = _derive_live_readiness_state(report)
+    evaluate_live_readiness_contract, write_live_readiness_snapshot = (
+        _load_live_guard_functions()
+    )
+
+    live_readiness = evaluate_live_readiness_contract(live_readiness_state)
+    report["live_ready"] = bool(live_readiness.get("live_ready"))
+    report["live_block_reason"] = list(live_readiness.get("live_block_reason") or [])
+    report["live_readiness"] = live_readiness
     out_dir = PAPER_REPORT_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
+    live_snapshot_path = out_dir / "live_readiness_snapshot.json"
+    tmp_live_snapshot_path = WORKDIR / "tmp" / "live_readiness_snapshot.json"
+    write_live_readiness_snapshot(live_readiness, live_snapshot_path)
+    write_live_readiness_snapshot(live_readiness, tmp_live_snapshot_path)
+    report["artifacts"]["live_readiness_snapshot_json"] = str(
+        live_snapshot_path.resolve()
+    )
+    report["artifacts"]["runtime_live_readiness_snapshot_json"] = str(
+        tmp_live_snapshot_path.resolve()
+    )
     json_path = out_dir / f"paper_readiness_gate_{timestamp}.json"
     md_path = out_dir / f"paper_readiness_gate_{timestamp}.md"
     json_path.write_text(
@@ -1972,6 +2250,8 @@ def run_gate() -> dict:
         f"- operational_gate_status: {operational_gate_status}",
         f"- paper_operational_confidence: {paper_operational_confidence}",
         f"- paper_ready: {paper_ready}",
+        f"- live_ready: {report['live_ready']}",
+        f"- live_block_reason: {','.join(report['live_block_reason'])}",
         f"- global_verdict: {global_verdict}",
         f"- global_reason_codes: {','.join(global_reason_codes)}",
         f"- next_allowed_step: {next_allowed_step}",

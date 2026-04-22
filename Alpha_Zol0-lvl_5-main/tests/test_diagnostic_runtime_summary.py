@@ -669,13 +669,16 @@ def test_finalize_forced_cycle_trigger_contract_detects_mode_mismatch():
     assert "request_reason_mismatch" in contract["reason_codes"]
 
 
-def test_successful_shutdown_normalizes_wrapper_managed_returncode():
+def test_successful_shutdown_normalizes_wrapper_returncode_when_drain_complete():
     mod = _load_controlled_kpi_run()
     assert (
         mod._normalize_process_returncode(
             shutdown_classification="real_post_promotion_read_observed",
             raw_returncode=1,
-            final_close_drain_snapshot={"pending_positions": 0},
+            final_close_drain_snapshot={
+                "pending_positions": 0,
+                "close_request_backlog": 0,
+            },
         )
         == 0
     )
@@ -683,7 +686,21 @@ def test_successful_shutdown_normalizes_wrapper_managed_returncode():
         mod._normalize_process_returncode(
             shutdown_classification="real_post_promotion_read_observed",
             raw_returncode=1,
-            final_close_drain_snapshot={"pending_positions": 1},
+            final_close_drain_snapshot={
+                "pending_positions": 1,
+                "close_request_backlog": 0,
+            },
+        )
+        == 1
+    )
+    assert (
+        mod._normalize_process_returncode(
+            shutdown_classification="close_flush_done_pending_positions_zero",
+            raw_returncode=1,
+            final_close_drain_snapshot={
+                "pending_positions": 0,
+                "close_request_backlog": 1,
+            },
         )
         == 1
     )
@@ -718,6 +735,34 @@ def test_final_shutdown_recheck_handles_missing_snapshot_as_not_applicable():
     assert resolved["final_termination_reason"] is None
     assert resolved["final_progress_complete"] is False
     assert resolved["final_drain_recheck_result"] == "not_applicable"
+
+
+def test_final_shutdown_recheck_downgrades_success_when_pending_positions_remain():
+    mod = _load_controlled_kpi_run()
+    resolved = mod._resolve_final_shutdown_state(
+        shutdown_classification="close_flush_done_pending_positions_zero",
+        termination_reason="close_flush_done_pending_positions_zero",
+        final_close_drain_snapshot={
+            "position_open_count": 13,
+            "position_close_count": 12,
+            "pending_positions": 1,
+            "close_request_backlog": 0,
+            "progress_complete": False,
+        },
+    )
+    assert (
+        resolved["final_shutdown_classification"]
+        == "close_drain_incomplete_pending_positions"
+    )
+    assert (
+        resolved["final_termination_reason"]
+        == "close_drain_incomplete_pending_positions"
+    )
+    assert resolved["final_progress_complete"] is False
+    assert (
+        resolved["final_drain_recheck_result"]
+        == "success_classification_invalidated_by_final_snapshot"
+    )
 
 
 def test_final_shutdown_recheck_revises_latched_stall_after_late_drain_completion():

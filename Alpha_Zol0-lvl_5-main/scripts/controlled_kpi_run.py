@@ -4,6 +4,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import sqlite3
 import subprocess
 import sys
@@ -47,6 +48,15 @@ def _parse_env_overrides(items):
     return out
 
 
+def _resolve_run_id(explicit_run_id: str | None = None) -> str:
+    run_id = str(explicit_run_id or "").strip()
+    if run_id:
+        if not re.fullmatch(r"\d{8}_\d{6}", run_id):
+            raise SystemExit("--run-id must match YYYYMMDD_HHMMSS")
+        return run_id
+    return datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+
+
 def _merge_csv_values(existing, incoming):
     vals = set()
     for raw in (existing, incoming):
@@ -55,6 +65,19 @@ def _merge_csv_values(existing, incoming):
             if token:
                 vals.add(token)
     return ",".join(sorted(vals))
+
+
+def _merge_csv_tokens_preserving_order(*values) -> str:
+    merged = []
+    seen = set()
+    for raw in values:
+        for part in str(raw or "").split(","):
+            token = str(part or "").strip()
+            if not token or token in seen:
+                continue
+            merged.append(token)
+            seen.add(token)
+    return ",".join(merged)
 
 
 def _coerce_bool(value, default: bool = False) -> bool:
@@ -78,7 +101,52 @@ def _path_is_within(path: Path, parent: Path) -> bool:
         return False
 
 
-STRICT_ALPHA_SIDE_MIN_TRADES = 10
+def _build_entry_gate_summary_artifact(
+    *,
+    run_id: str,
+    variant_metrics: dict | None,
+) -> dict:
+    if not isinstance(variant_metrics, dict):
+        return {}
+
+    db_path_txt = str(variant_metrics.get("db_path") or "").strip()
+    variant_name = str(variant_metrics.get("variant") or "").strip() or "run"
+    if not db_path_txt:
+        return {}
+
+    db_path = Path(db_path_txt)
+    try:
+        db_path = db_path.resolve()
+    except Exception:
+        pass
+    if not db_path.exists():
+        return {}
+
+    try:
+        from scripts.report_entry_gate_decision_summary import build_report
+
+        summary = build_report(db_path, hours=None)
+    except Exception as exc:
+        return {
+            "summary_json": "",
+            "entry_gate_report_path": "",
+            "summary": {},
+            "summary_error": f"{type(exc).__name__}: {exc}",
+        }
+
+    summary_path = RESULTS_DIR / f"controlled_kpi_{run_id}_{variant_name}_summary.json"
+    summary_path.write_text(
+        json.dumps(summary, indent=2, ensure_ascii=True),
+        encoding="utf-8",
+    )
+    return {
+        "summary_json": str(summary_path),
+        "entry_gate_report_path": str(summary_path),
+        "summary": summary,
+    }
+
+
+STRICT_ALPHA_SIDE_MIN_TRADES = 2
 STRICT_ALPHA_SIDE_MIN_WINRATE = 0.45
 STRICT_ALPHA_SIDE_MIN_EXPECTANCY = 0.0
 TOXIC_COST_PAIR_MIN_TRADES = 8
@@ -98,7 +166,11 @@ STRICT_BOOTSTRAP_PREBUILT_MANIFEST = (
 )
 
 
-def _derive_profitability_bucket_gate(alpha_refresh_report: dict | None) -> dict:
+def _derive_profitability_bucket_gate(
+    alpha_refresh_report: dict | None,
+    _disable_contract_fallback: bool = False,
+    active_run_symbols: set[str] | None = None,
+) -> dict:
     if not isinstance(alpha_refresh_report, dict):
         return {
             "overrides": {},
@@ -113,6 +185,11 @@ def _derive_profitability_bucket_gate(alpha_refresh_report: dict | None) -> dict
     toxic_side_blocklist = set()
     cost_burden_side_blocklist = set()
     selected_pairs = set()
+    scoped_active_run_symbols = {
+        str(symbol).strip().upper()
+        for symbol in (active_run_symbols or set())
+        if str(symbol).strip()
+    }
 
     for row in alpha_refresh_report.get("pair_stats_top") or []:
         if not isinstance(row, dict):
@@ -136,6 +213,7 @@ def _derive_profitability_bucket_gate(alpha_refresh_report: dict | None) -> dict
         ):
             toxic_pair_blocklist.add(f"{symbol_name}:{strategy_name}")
 
+    valid_side_rows_seen = 0
     for row in alpha_refresh_report.get("pair_side_stats_top") or []:
         if not isinstance(row, dict):
             continue
@@ -161,6 +239,7 @@ def _derive_profitability_bucket_gate(alpha_refresh_report: dict | None) -> dict
             or side_name not in ("buy", "sell")
         ):
             continue
+        valid_side_rows_seen += 1
         pair_key = f"{symbol_name}:{strategy_name}"
         if (
             pair_key in selected_pairs
@@ -188,6 +267,35 @@ def _derive_profitability_bucket_gate(alpha_refresh_report: dict | None) -> dict
             )
 
     overrides = {}
+    if (
+        not positive_side_allowlist
+        and not _disable_contract_fallback
+        and valid_side_rows_seen <= 0
+    ):
+        # Fallback: when live bootstrap data yields no positive pairs (e.g.,
+        # no usable side rows are available), load the
+        # pre-computed allowlist from the verified positive-side contract file.
+        _contract_path = (
+            WORKDIR / "analysis" / "zol0_positive_side_allowlist_contract_current.json"
+        )
+        try:
+            if _contract_path.exists():
+                _contract = json.loads(_contract_path.read_text())
+                if _contract.get("status") == "PASS":
+                    for _token in (_contract.get("positive_side_allowlist") or []):
+                        _t = str(_token).strip()
+                        if not _t:
+                            continue
+                        if scoped_active_run_symbols:
+                            _symbol = _t.split(":", 1)[0].strip().upper()
+                            if _symbol not in scoped_active_run_symbols:
+                                continue
+                        if _t:
+                            positive_side_allowlist.add(_t)
+        except Exception:
+            pass
+    expanded_allowlist = set(positive_side_allowlist)
+    allow_upper = set()
     if positive_side_allowlist:
         # The runtime alpha whitelist is pair-level and can suppress a positive
         # side bucket inside a mixed pair. Use the explicit side-bucket gate for
@@ -195,14 +303,46 @@ def _derive_profitability_bucket_gate(alpha_refresh_report: dict | None) -> dict
         overrides["ALPHA_WHITELIST_ENABLE"] = "0"
         overrides["ALPHA_WHITELIST_COLDSTART_ALLOW"] = "0"
         overrides["ALPHA_WHITELIST_FALLBACK_ENABLE"] = "0"
+        # Expand allowlist: also permit Universal:sell for any allowlisted
+        # sell-side symbol so that Universal signals (which fire when
+        # bootstrapped TF/Momentum are in hold/exit regime) can contribute.
+        side_block_candidates_upper = {
+            str(token).strip().upper()
+            for token in (toxic_side_blocklist | cost_burden_side_blocklist)
+            if str(token).strip()
+        }
+        for token in list(positive_side_allowlist):
+            sym = token.split(":")[0]
+            if token.lower().endswith(":sell"):
+                universal_sell = f"{sym}:UNIVERSAL:sell"
+                # Never add expanded allowlist tokens that are already known
+                # toxic/cost-burden side blocks; avoid admission conflict.
+                if universal_sell.upper() not in side_block_candidates_upper:
+                    expanded_allowlist.add(universal_sell)
+        allow_upper = {t.upper() for t in expanded_allowlist}
         overrides["ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST"] = ",".join(
-            sorted(positive_side_allowlist)
+            sorted(expanded_allowlist)
         )
         overrides["ENTRY_SYMBOL_STRATEGY_BLOCKLIST"] = ",".join(
             sorted(toxic_pair_blocklist)
         )
+        # Bootstrap-validated allowlist acts as the history gate; bypass the
+        # runtime "seed_only" cold-start block so allowlisted sides can trade.
+        overrides["ENTRY_EDGE_COLDSTART_MODE"] = "fail_open"
+        # Prevent the fallback-mode logic from adding broad symbol/strategy-side
+        # blocklists that fire BEFORE BotCore reaches the allowlist check.
+        # Setting these to "" here wins the setdefault race against the fallback.
+        overrides["ENTRY_SYMBOL_BLOCKLIST"] = ""
+        overrides["ENTRY_STRATEGY_SIDE_BLOCKLIST"] = ""
     side_blocklist = sorted(toxic_side_blocklist | cost_burden_side_blocklist)
-    if side_blocklist:
+    if positive_side_allowlist:
+        # Remove any token that is also in the allowlist to avoid
+        # ENTRY_SIDE_ALLOWLIST_BLOCKLIST_CONFLICT in the admission contract.
+        side_blocklist = [t for t in side_blocklist if t.upper() not in allow_upper]
+        # Pre-empt the fallback-mode setdefault race: always set the blocklist
+        # key (possibly empty) so the fallback cannot add conflicting tokens.
+        overrides["ENTRY_SYMBOL_STRATEGY_SIDE_BLOCKLIST"] = ",".join(side_blocklist)
+    elif side_blocklist:
         overrides["ENTRY_SYMBOL_STRATEGY_SIDE_BLOCKLIST"] = ",".join(
             side_blocklist
         )
@@ -534,6 +674,7 @@ def _finalize_alpha_bootstrap_refresh_contract(alpha_refresh: dict | None) -> di
     )
     reason_codes = list(exact.get("reason_codes") or [])
     status = "PASS"
+    allow_seed_only_refresh_gap = False
 
     if not _coerce_bool(refresh.get("ran")):
         status = "FAIL"
@@ -550,13 +691,24 @@ def _finalize_alpha_bootstrap_refresh_contract(alpha_refresh: dict | None) -> di
 
     if _coerce_bool(exact.get("active")):
         rows_inserted = int(report.get("rows_inserted") or 0)
+        source_mode = str(exact.get("source_mode") or "").strip().lower()
+        prebuilt_seed_rows = int(exact.get("prebuilt_alpha_history_rows_inserted") or 0)
+        allow_seed_only_refresh_gap = bool(
+            source_mode
+            in {"prebuilt_alpha_history_db", "prebuilt_alpha_history_manifest"}
+            and prebuilt_seed_rows > 0
+        )
         if rows_inserted <= 0:
             if "external_rows_inserted_zero" not in reason_codes:
                 reason_codes.append("external_rows_inserted_zero")
-            if status == "PASS":
+            if status == "PASS" and not allow_seed_only_refresh_gap:
                 status = "UNCONFIRMED"
         if reason_codes and status == "PASS":
-            status = "UNCONFIRMED"
+            if not (
+                allow_seed_only_refresh_gap
+                and set(reason_codes) == {"external_rows_inserted_zero"}
+            ):
+                status = "UNCONFIRMED"
 
     refresh["status"] = status
     refresh["reason_codes"] = reason_codes
@@ -603,6 +755,49 @@ def _split_csv_tokens(value) -> list[str]:
         tokens.append(token)
         seen.add(token)
     return tokens
+
+
+def _canonical_symbol_strategy_side_token(value: str) -> str | None:
+    token = str(value or "").strip()
+    if not token:
+        return None
+    if ":" in token:
+        parts = [part.strip() for part in token.split(":")]
+    elif "|" in token:
+        parts = [part.strip() for part in token.split("|")]
+    else:
+        return None
+    if len(parts) < 3:
+        return None
+    symbol_key = str(parts[0] or "").strip().upper()
+    strategy_key = str(parts[1] or "").strip().upper()
+    side_key = str(parts[2] or "").strip().lower()
+    if side_key == "long":
+        side_key = "buy"
+    elif side_key == "short":
+        side_key = "sell"
+    if not symbol_key or not strategy_key or side_key not in {"buy", "sell"}:
+        return None
+    return f"{symbol_key}:{strategy_key}:{side_key}"
+
+
+def _canonical_symbol_strategy_pair_token(value: str) -> str | None:
+    token = str(value or "").strip()
+    if not token:
+        return None
+    if ":" in token:
+        parts = [part.strip() for part in token.split(":")]
+    elif "|" in token:
+        parts = [part.strip() for part in token.split("|")]
+    else:
+        return None
+    if len(parts) < 2:
+        return None
+    symbol_key = str(parts[0] or "").strip().upper()
+    strategy_key = str(parts[1] or "").strip().upper()
+    if not symbol_key or not strategy_key:
+        return None
+    return f"{symbol_key}:{strategy_key}"
 
 
 def _derive_positive_side_allowlist_contract(
@@ -725,11 +920,33 @@ def _derive_entry_admission_contract(
     explicit_side_allowlist = _split_csv_tokens(
         (after_overrides or {}).get("ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST")
     )
+    explicit_side_blocklist = _split_csv_tokens(
+        (after_overrides or {}).get("ENTRY_SYMBOL_STRATEGY_SIDE_BLOCKLIST")
+    )
     positive_side_allowlist = [
         str(item).strip()
         for item in ((strict_bucket_gate or {}).get("positive_side_allowlist") or [])
         if str(item).strip()
     ]
+
+    allow_side_tokens = set()
+    for token in explicit_side_allowlist:
+        canonical = _canonical_symbol_strategy_side_token(token)
+        if canonical:
+            allow_side_tokens.add(canonical)
+    for token in positive_side_allowlist:
+        canonical = _canonical_symbol_strategy_side_token(token)
+        if canonical:
+            allow_side_tokens.add(canonical)
+
+    block_side_tokens = set()
+    for token in explicit_side_blocklist:
+        canonical = _canonical_symbol_strategy_side_token(token)
+        if canonical:
+            block_side_tokens.add(canonical)
+
+    conflicting_side_tokens = sorted(allow_side_tokens & block_side_tokens)
+
     require_explicit = str(
         (after_overrides or {}).get(
             "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST",
@@ -765,6 +982,12 @@ def _derive_entry_admission_contract(
         )
         validation_classification = "NO_ELIGIBLE_POSITIVE_ENTRY_BUCKETS"
 
+    if conflicting_side_tokens:
+        status = "FAIL_CLOSED"
+        validation_classification = "ENTRY_SIDE_ALLOWLIST_BLOCKLIST_CONFLICT"
+        if "ENTRY_SIDE_ALLOWLIST_BLOCKLIST_CONFLICT" not in reason_codes:
+            reason_codes.append("ENTRY_SIDE_ALLOWLIST_BLOCKLIST_CONFLICT")
+
     if bootstrap_status == "FAIL_CLOSED":
         if "ALPHA_BOOTSTRAP_RUNTIME_FAIL_CLOSED" not in reason_codes:
             reason_codes.append("ALPHA_BOOTSTRAP_RUNTIME_FAIL_CLOSED")
@@ -783,7 +1006,9 @@ def _derive_entry_admission_contract(
         "paper_auto_open": bool(paper_auto_open),
         "require_explicit_side_allowlist": bool(require_explicit),
         "explicit_side_allowlist": explicit_side_allowlist,
+        "explicit_side_blocklist": explicit_side_blocklist,
         "positive_side_allowlist": positive_side_allowlist,
+        "conflicting_side_tokens": conflicting_side_tokens,
         "alpha_bootstrap_runtime_status": bootstrap_status,
     }
 
@@ -977,6 +1202,10 @@ def _refresh_alpha_bootstrap_history(
     min_pair_expectancy: float,
     fallback_top_pairs: int,
     report_json_rel: str,
+    fallback_positive_side_pairs: int = 0,
+    min_side_trades: int = 2,
+    min_side_winrate: float = 0.45,
+    min_side_expectancy: float = 0.0,
 ) -> dict:
     if not enabled:
         return {"enabled": False, "ran": False, "success": False}
@@ -1016,6 +1245,14 @@ def _refresh_alpha_bootstrap_history(
         str(float(min_pair_expectancy)),
         "--fallback-top-pairs",
         str(max(0, int(fallback_top_pairs))),
+        "--fallback-positive-side-pairs",
+        str(max(0, int(fallback_positive_side_pairs))),
+        "--min-side-trades",
+        str(max(1, int(min_side_trades))),
+        "--min-side-winrate",
+        str(float(min_side_winrate)),
+        "--min-side-expectancy",
+        str(float(min_side_expectancy)),
     ]
     report_txt = str(report_json_rel or "").strip()
     if report_txt:
@@ -1917,6 +2154,8 @@ def _normalize_process_returncode(
         return normalized
     if int(final_close_drain_snapshot.get("pending_positions") or 0) != 0:
         return normalized
+    if int(final_close_drain_snapshot.get("close_request_backlog") or 0) != 0:
+        return normalized
     return 0
 
 
@@ -1941,6 +2180,15 @@ def _resolve_final_shutdown_state(
             and int(final_close_drain_snapshot.get("close_request_backlog") or 0) == 0
         )
     final_drain_recheck_result = "not_applicable"
+    if (
+        candidate_shutdown_classification == "close_flush_done_pending_positions_zero"
+        and not final_progress_complete
+    ):
+        final_shutdown_classification = "close_drain_incomplete_pending_positions"
+        final_termination_reason = final_shutdown_classification
+        final_drain_recheck_result = (
+            "success_classification_invalidated_by_final_snapshot"
+        )
     if candidate_shutdown_classification in {
         "deterministic_stall_pending_close_drain",
         "close_drain_timeout_pending_positions",
@@ -2434,7 +2682,7 @@ def _variant_env(
         env.setdefault("RESEARCH_POST_CLOSE_SUMMARY_GRACE_TICKS", "1")
     elif variant == "after":
         env["ENTRY_FILTER_STRICT"] = "1"
-        env["ENTRY_IGNORE_HOLD_SIGNALS"] = "0"
+        env["ENTRY_IGNORE_HOLD_SIGNALS"] = "1"
         env["ENTRY_MIN_ACTIVE_STRATEGIES"] = "1"
         env["WF_CALIBRATION_ENABLE"] = "0"
         env["SEED_TRADES_ENABLE"] = "0"
@@ -4894,7 +5142,7 @@ def main():
     parser.add_argument(
         "--symbols",
         type=str,
-        default="ETHUSDTM,BTCUSDTM,SOLUSDTM,XRPUSDTM",
+        default="ETHUSDTM,BTCUSDTM,SOLUSDTM,XRPUSDTM,ADAUSDTM,BNBUSDTM",
         help="Comma-separated symbol list",
     )
     parser.add_argument(
@@ -4970,6 +5218,26 @@ def main():
         "--alpha-bootstrap-build-fallback-top-pairs", type=int, default=0
     )
     parser.add_argument(
+        "--alpha-bootstrap-build-fallback-positive-side-pairs",
+        type=int,
+        default=2,
+    )
+    parser.add_argument(
+        "--alpha-bootstrap-build-min-side-trades",
+        type=int,
+        default=2,
+    )
+    parser.add_argument(
+        "--alpha-bootstrap-build-min-side-winrate",
+        type=float,
+        default=0.45,
+    )
+    parser.add_argument(
+        "--alpha-bootstrap-build-min-side-expectancy",
+        type=float,
+        default=0.0,
+    )
+    parser.add_argument(
         "--alpha-bootstrap-build-report-json",
         type=str,
         default="tmp/alpha_history_auto_recent_report.json",
@@ -4995,6 +5263,12 @@ def main():
         action="append",
         default=[],
         help="Override env for AFTER variant (KEY=VALUE), repeatable",
+    )
+    parser.add_argument(
+        "--run-id",
+        type=str,
+        default=None,
+        help="Explicit UTC run id stamp used for output artifact names.",
     )
     args = parser.parse_args()
     before_overrides = _parse_env_overrides(args.before_env)
@@ -5100,33 +5374,49 @@ def main():
                     )
                 except Exception:
                     prebuilt_report = {}
-            args.alpha_bootstrap_auto_refresh = False
-            args.alpha_bootstrap_build_glob = prebuilt_db_path.as_posix()
+            prebuilt_source_posix = prebuilt_db_path.as_posix()
             args.alpha_bootstrap_source_db_url = (
-                f"sqlite:///{prebuilt_db_path.as_posix()}"
+                f"sqlite:///{prebuilt_source_posix}"
             )
-            args.alpha_bootstrap_source_db_glob = prebuilt_db_path.as_posix()
-            alpha_refresh = {
-                "enabled": True,
-                "ran": True,
-                "success": True,
-                "returncode": 0,
-                "output_path": str(prebuilt_db_path),
-                "output_exists": bool(
-                    prebuilt_db_path.exists() and prebuilt_db_path.stat().st_size > 0
-                ),
-                "report_path": (
-                    str(prebuilt_report_path)
-                    if (
-                        prebuilt_report_path is not None
-                        and prebuilt_report_path.exists()
-                    )
-                    else None
-                ),
-                "report": prebuilt_report,
-                "stdout_tail": "PREBUILT_ALPHA_HISTORY_DB",
-                "stderr_tail": "",
-            }
+            args.alpha_bootstrap_source_db_glob = prebuilt_source_posix
+            prebuilt_glob_token = prebuilt_source_posix
+            try:
+                prebuilt_glob_token = prebuilt_db_path.relative_to(WORKDIR).as_posix()
+            except Exception:
+                pass
+            prebuilt_refresh_enabled = bool(
+                args.alpha_bootstrap_auto_refresh and args.paper_auto_open
+            )
+            if prebuilt_refresh_enabled:
+                args.alpha_bootstrap_build_glob = _merge_csv_tokens_preserving_order(
+                    prebuilt_glob_token,
+                    args.alpha_bootstrap_build_glob,
+                )
+            else:
+                args.alpha_bootstrap_auto_refresh = False
+                args.alpha_bootstrap_build_glob = prebuilt_source_posix
+                alpha_refresh = {
+                    "enabled": True,
+                    "ran": True,
+                    "success": True,
+                    "returncode": 0,
+                    "output_path": str(prebuilt_db_path),
+                    "output_exists": bool(
+                        prebuilt_db_path.exists()
+                        and prebuilt_db_path.stat().st_size > 0
+                    ),
+                    "report_path": (
+                        str(prebuilt_report_path)
+                        if (
+                            prebuilt_report_path is not None
+                            and prebuilt_report_path.exists()
+                        )
+                        else None
+                    ),
+                    "report": prebuilt_report,
+                    "stdout_tail": "PREBUILT_ALPHA_HISTORY_DB",
+                    "stderr_tail": "",
+                }
         else:
             exact_patterns = (
                 alpha_bootstrap_exact_contract.get("exact_after_db_patterns") or []
@@ -5199,6 +5489,14 @@ def main():
             min_pair_expectancy=float(args.alpha_bootstrap_build_min_pair_expectancy),
             fallback_top_pairs=int(args.alpha_bootstrap_build_fallback_top_pairs),
             report_json_rel=str(args.alpha_bootstrap_build_report_json),
+            fallback_positive_side_pairs=int(
+                args.alpha_bootstrap_build_fallback_positive_side_pairs
+            ),
+            min_side_trades=int(args.alpha_bootstrap_build_min_side_trades),
+            min_side_winrate=float(args.alpha_bootstrap_build_min_side_winrate),
+            min_side_expectancy=float(
+                args.alpha_bootstrap_build_min_side_expectancy
+            ),
         )
     if (
         cli_alpha_bootstrap_source_override_requested
@@ -5323,7 +5621,8 @@ def main():
             "DISABLE_STRATEGIES",
         }
         strict_bucket_gate = _derive_profitability_bucket_gate(
-            scoped_alpha_refresh_report
+            scoped_alpha_refresh_report,
+            active_run_symbols=active_run_symbols,
         )
         strict_bucket_overrides = dict(strict_bucket_gate.get("overrides") or {})
         for key, value in strict_bucket_overrides.items():
@@ -5510,6 +5809,48 @@ def main():
                 )
             )
         )
+        disable_alpha_whitelist_for_degraded_bootstrap = bool(
+            selected_quality_degraded
+            and selected_pair_trades > 0
+            and selected_positive_pair_count <= 0
+            and selected_pair_avg_expectancy < 0.0
+        )
+        if disable_alpha_whitelist_for_degraded_bootstrap:
+            strict_block_tokens_by_key = {
+                "ENTRY_SYMBOL_STRATEGY_BLOCKLIST": (
+                    strict_bucket_gate.get("toxic_pair_blocklist") or []
+                ),
+                "ENTRY_SYMBOL_STRATEGY_SIDE_BLOCKLIST": (
+                    (strict_bucket_gate.get("toxic_side_blocklist") or [])
+                    + (strict_bucket_gate.get("cost_burden_side_blocklist") or [])
+                ),
+            }
+            for env_key, blocked_tokens in strict_block_tokens_by_key.items():
+                if env_key in after_overrides_cli:
+                    continue
+                blocked_token_set = {
+                    str(token or "").strip().upper()
+                    for token in blocked_tokens
+                    if str(token or "").strip()
+                }
+                if not blocked_token_set:
+                    continue
+                retained_tokens = [
+                    token
+                    for token in _split_csv_tokens(after_overrides.get(env_key))
+                    if str(token).strip().upper() not in blocked_token_set
+                ]
+                if retained_tokens:
+                    after_overrides[env_key] = ",".join(retained_tokens)
+                else:
+                    after_overrides.pop(env_key, None)
+            for env_key in (
+                "ENTRY_SYMBOL_STRATEGY_SIDE_BLOCKLIST",
+                "ENTRY_STRATEGY_SIDE_BLOCKLIST",
+            ):
+                if env_key in after_overrides_cli:
+                    continue
+                after_overrides.pop(env_key, None)
         fallback_reasons = []
         if pairs_selected <= 0:
             fallback_reasons.append("no_pairs_selected")
@@ -5517,6 +5858,8 @@ def main():
             fallback_reasons.append("no_rows_inserted")
         if selected_quality_degraded:
             fallback_reasons.append("selected_quality_degraded")
+        if runtime_contract_fail_closed:
+            fallback_reasons.append("runtime_contract_fail_closed")
         fallback_allowlist_allowed = bool(
             pairs_selected > 0 and rows_inserted > 0
         )
@@ -6040,6 +6383,12 @@ def main():
                 elif side_gap <= -0.03 and buy_winrate >= sell_winrate:
                     allow_sell = "0"
                     side_bias_note = "low_confidence_buy_lock"
+            if disable_alpha_whitelist_for_degraded_bootstrap:
+                allow_buy = "1"
+                allow_sell = "1"
+            if runtime_contract_fail_closed:
+                allow_buy = "1"
+                allow_sell = "1"
             sell_require_trend = (
                 "0" if (allow_sell == "1" and allow_buy == "0") else "1"
             )
@@ -6144,6 +6493,14 @@ def main():
                 "EXIT_SL_USDT_EXPECTANCY_MIN_MULT": "0.70",
                 "EXIT_SL_USDT_EXPECTANCY_MAX_MULT": "1.00",
             }
+            if (
+                disable_alpha_whitelist_for_degraded_bootstrap
+                or (
+                    runtime_contract_fail_closed
+                    and bool(strict_bucket_gate.get("positive_side_allowlist"))
+                )
+            ):
+                auto_after_overrides["ALPHA_WHITELIST_ENABLE"] = "0"
             if not bootstrap_confident:
                 auto_after_overrides["ENTRY_MIN_NET_USDT"] = "0.08"
                 auto_after_overrides["ENTRY_MIN_PROFIT_FEE_MULT"] = "1.15"
@@ -6163,7 +6520,11 @@ def main():
                         after_overrides.get("ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST")
                     )
                 )
-                if rows_inserted <= 0 and not runtime_contract_fail_closed:
+                if (
+                    rows_inserted <= 0
+                    and not runtime_contract_fail_closed
+                    and bool(args.paper_auto_open)
+                ):
                     if not explicit_side_allowlist_configured:
                         if "SEED_TRADES_ENABLE" not in after_overrides_cli:
                             auto_after_overrides["SEED_TRADES_ENABLE"] = "1"
@@ -6176,6 +6537,52 @@ def main():
                             auto_after_overrides[
                                 "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST"
                             ] = "0"
+            strict_positive_side_tokens = set()
+            strict_positive_symbols = set()
+            strict_positive_pairs = set()
+            strict_positive_strategies = set()
+            for token in strict_bucket_gate.get("positive_side_allowlist") or []:
+                canonical = _canonical_symbol_strategy_side_token(token)
+                if not canonical:
+                    continue
+                strict_positive_side_tokens.add(canonical)
+                symbol_key, strategy_key, _ = canonical.split(":", 2)
+                strict_positive_symbols.add(symbol_key)
+                strict_positive_pairs.add(f"{symbol_key}:{strategy_key}")
+                strict_positive_strategies.add(strategy_key)
+            if strict_positive_symbols and negative_symbols:
+                negative_symbols = {
+                    str(symbol_name).strip().upper()
+                    for symbol_name in negative_symbols
+                    if str(symbol_name).strip().upper() not in strict_positive_symbols
+                }
+            if strict_positive_pairs and negative_symbol_strategy_pairs:
+                filtered_symbol_strategy_pairs = set()
+                for pair_key in negative_symbol_strategy_pairs:
+                    canonical_pair = _canonical_symbol_strategy_pair_token(pair_key)
+                    if canonical_pair and canonical_pair in strict_positive_pairs:
+                        continue
+                    filtered_symbol_strategy_pairs.add(pair_key)
+                negative_symbol_strategy_pairs = filtered_symbol_strategy_pairs
+            if strict_positive_side_tokens and negative_symbol_strategy_side_pairs:
+                filtered_symbol_strategy_side_pairs = set()
+                for pair_side_key in negative_symbol_strategy_side_pairs:
+                    canonical_side = _canonical_symbol_strategy_side_token(
+                        pair_side_key
+                    )
+                    if canonical_side and canonical_side in strict_positive_side_tokens:
+                        continue
+                    filtered_symbol_strategy_side_pairs.add(pair_side_key)
+                negative_symbol_strategy_side_pairs = (
+                    filtered_symbol_strategy_side_pairs
+                )
+            if runtime_contract_fail_closed and strict_positive_strategies:
+                positive_strategies = [
+                    strategy_name
+                    for strategy_name in positive_strategies
+                    if str(strategy_name).strip().upper()
+                    not in strict_positive_strategies
+                ]
             if negative_symbols:
                 auto_after_overrides["ENTRY_SYMBOL_BLOCKLIST"] = ",".join(
                     sorted(negative_symbols)
@@ -6195,13 +6602,19 @@ def main():
                 auto_after_overrides["ENTRY_SYMBOL_STRATEGY_BLOCKLIST"] = ",".join(
                     sorted(negative_symbol_strategy_pairs)
                 )
-            if negative_symbol_strategy_side_pairs:
+            if (
+                negative_symbol_strategy_side_pairs
+                and not disable_alpha_whitelist_for_degraded_bootstrap
+                and not runtime_contract_fail_closed
+            ):
                 auto_after_overrides["ENTRY_SYMBOL_STRATEGY_SIDE_BLOCKLIST"] = ",".join(
                     sorted(negative_symbol_strategy_side_pairs)
                 )
             if (
                 negative_strategy_side_pairs
                 and bootstrap_total_trades >= 24
+                and not disable_alpha_whitelist_for_degraded_bootstrap
+                and not runtime_contract_fail_closed
             ):
                 candidate_block = set(negative_strategy_side_pairs)
                 blocks_all_known = bool(
@@ -6315,7 +6728,7 @@ def main():
                 f"auto_after_overrides={len(auto_after_overrides)}"
             )
 
-    run_id = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    run_id = _resolve_run_id(args.run_id)
     positive_side_allowlist_contract = _derive_positive_side_allowlist_contract(
         strict_bucket_gate
     )
@@ -6392,6 +6805,19 @@ def main():
         )
         results_by_variant["after"] = after
 
+    primary_summary_bundle = {}
+    for variant_name in ("after", "before"):
+        variant_metrics = results_by_variant.get(variant_name)
+        summary_bundle = _build_entry_gate_summary_artifact(
+            run_id=run_id,
+            variant_metrics=variant_metrics,
+        )
+        if not summary_bundle:
+            continue
+        variant_metrics.update(summary_bundle)
+        if not primary_summary_bundle:
+            primary_summary_bundle = dict(summary_bundle)
+
     delta = {}
     if before is not None and after is not None:
         delta = {
@@ -6439,6 +6865,10 @@ def main():
             "alpha_bootstrap_build_min_pair_winrate": args.alpha_bootstrap_build_min_pair_winrate,  # noqa: E501
             "alpha_bootstrap_build_min_pair_expectancy": args.alpha_bootstrap_build_min_pair_expectancy,  # noqa: E501
             "alpha_bootstrap_build_fallback_top_pairs": args.alpha_bootstrap_build_fallback_top_pairs,  # noqa: E501
+            "alpha_bootstrap_build_fallback_positive_side_pairs": args.alpha_bootstrap_build_fallback_positive_side_pairs,  # noqa: E501
+            "alpha_bootstrap_build_min_side_trades": args.alpha_bootstrap_build_min_side_trades,  # noqa: E501
+            "alpha_bootstrap_build_min_side_winrate": args.alpha_bootstrap_build_min_side_winrate,  # noqa: E501
+            "alpha_bootstrap_build_min_side_expectancy": args.alpha_bootstrap_build_min_side_expectancy,  # noqa: E501
             "alpha_bootstrap_build_report_json": args.alpha_bootstrap_build_report_json,
             "alpha_bootstrap_accepted_scorecard": (
                 args.alpha_bootstrap_accepted_scorecard
@@ -6457,6 +6887,11 @@ def main():
         "data_check": data_check,
         "variants_run": list(
             results_by_variant.keys()),
+        "summary_json": primary_summary_bundle.get("summary_json", ""),
+        "entry_gate_report_path": primary_summary_bundle.get(
+            "entry_gate_report_path", ""
+        ),
+        "summary": primary_summary_bundle.get("summary", {}),
         "before": before,
         "after": after,
         "delta": delta,

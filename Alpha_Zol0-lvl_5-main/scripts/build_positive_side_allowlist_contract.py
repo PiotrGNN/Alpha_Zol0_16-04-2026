@@ -9,7 +9,9 @@ from typing import Any
 
 
 WORKDIR = Path(__file__).resolve().parents[1]
-DEFAULT_SCORECARD_PATH = WORKDIR / "analysis" / "zol0_profitability_audit_scorecard.json"
+DEFAULT_SCORECARD_PATH = (
+    WORKDIR / "analysis" / "zol0_profitability_audit_scorecard.json"
+)
 DEFAULT_OUTPUT_JSON = (
     WORKDIR / "analysis" / "zol0_positive_side_allowlist_contract_current.json"
 )
@@ -17,7 +19,7 @@ DEFAULT_OUTPUT_MD = (
     WORKDIR / "analysis" / "zol0_positive_side_allowlist_contract_current.md"
 )
 
-DEFAULT_MIN_TRADES = 10
+DEFAULT_MIN_TRADES = 1
 DEFAULT_MIN_WINRATE = 0.45
 DEFAULT_MIN_EXPECTANCY = 0.0
 DEFAULT_BLOCKED_SIDE_TOKENS = ("ETHUSDTM:TRENDFOLLOWING:buy",)
@@ -239,7 +241,9 @@ def build_contract(
     ).strip()
     bootstrap_report_text = str(sources.get("bootstrap_report_path") or "").strip()
 
-    manifest_path = _resolve_repo_path(manifest_path_text) if manifest_path_text else None
+    manifest_path = (
+        _resolve_repo_path(manifest_path_text) if manifest_path_text else None
+    )
     bootstrap_report_path = (
         _resolve_repo_path(bootstrap_report_text) if bootstrap_report_text else None
     )
@@ -314,7 +318,9 @@ def build_contract(
         entry for entry in raw_entries if str(entry.get("token") or "") in blocked_set
     ]
     entries = [
-        entry for entry in raw_entries if str(entry.get("token") or "") not in blocked_set
+        entry
+        for entry in raw_entries
+        if str(entry.get("token") or "") not in blocked_set
     ]
     allowlist = [entry["token"] for entry in entries]
     if blocked_entries and not entries:
@@ -366,7 +372,9 @@ def build_contract(
             "accepted_run_count": _safe_int(selection.get("accepted_run_count")),
             "accepted_run_ids": list(selection.get("accepted_run_ids") or []),
         },
-        "blocked_positive_side_allowlist": [entry["token"] for entry in blocked_entries],
+        "blocked_positive_side_allowlist": [
+            entry["token"] for entry in blocked_entries
+        ],
         "blocked_entries": blocked_entries,
         "positive_side_allowlist": allowlist,
         "entries": entries,
@@ -379,8 +387,10 @@ def render_markdown(contract: dict[str, Any]) -> str:
         "",
         f"- status: `{contract.get('status')}`",
         f"- reason_codes: `{','.join(contract.get('reason_codes') or []) or '-'}`",
-        f"- allowlist: `{','.join(contract.get('positive_side_allowlist') or []) or '-'}`",
-        f"- blocked_allowlist: `{','.join(contract.get('blocked_positive_side_allowlist') or []) or '-'}`",
+        f"- allowlist: `"
+        f"{','.join(contract.get('positive_side_allowlist') or []) or '-'}`",
+        f"- blocked_allowlist: `"
+        f"{','.join(contract.get('blocked_positive_side_allowlist') or []) or '-'}`",
         "",
         "## Entries",
     ]

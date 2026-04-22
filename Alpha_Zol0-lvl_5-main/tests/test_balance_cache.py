@@ -75,6 +75,7 @@ def test_botcore_balance_cache(monkeypatch):
             return None
 
     import utils.news_social_scheduler as nss
+    import core.db_utils as db_utils
     import core.db_models as db_models
     import core.MarketDataFetcher as mdf
     import core.RiskManager as risk_mgr
@@ -83,6 +84,8 @@ def test_botcore_balance_cache(monkeypatch):
 
     monkeypatch.setattr(nss.NewsSocialScheduler, "start", lambda self: None)
     monkeypatch.setattr(db_models, "SessionLocal", lambda: DummySession())
+    # Keep db_utils bind isolated to this test so SessionLocal cannot leak.
+    monkeypatch.setattr(db_utils, "SessionLocal", lambda: DummySession())
     monkeypatch.setattr(mdf.MarketDataFetcher, "get_ohlcv", fake_get_ohlcv)
     monkeypatch.setattr(risk_mgr.RiskManager, "apply_risk", fake_apply_risk)
     monkeypatch.setattr(dsr.DynamicStrategyRouter, "route", lambda self, state: [])
