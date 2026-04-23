@@ -2,6 +2,8 @@
 import math
 import logging
 
+import pandas as pd
+
 from fl.runner import run_fl_round
 from models.trend_predictor import TrendPredictor
 
@@ -67,3 +69,103 @@ def test_trend_predictor_federated_update_uses_gating(caplog):
     assert first_update == {"model": 10.0}
     assert second_update == first_update
     assert predictor.federated_global_model == first_update
+
+
+def test_predict_trend_uses_federated_hint_for_neutral_prediction(monkeypatch):
+    predictor = TrendPredictor()
+    predictor.is_trained = True
+
+    class _NeutralModel:
+        def predict(self, _arr):
+            return [0]
+
+    predictor.model = _NeutralModel()
+    predictor.use_deep = False
+    predictor.deep_model = None
+    predictor.federated_global_model = {"model": 105.0}
+    monkeypatch.setenv("FL_TREND_OVERRIDE_REL_THRESH", "0.01")
+
+    def _fake_extract(_ohlcv):
+        return pd.DataFrame({"f": [1.0]}, index=[0])
+
+    predictor._extract_features = _fake_extract
+    ohlcv = pd.DataFrame(
+        {
+            "close": [100.0] * 25,
+            "high": [101.0] * 25,
+            "low": [99.0] * 25,
+            "volume": [1.0] * 25,
+        }
+    )
+
+    assert predictor.predict_trend(ohlcv) == "UP"
+
+
+def test_predict_trend_federated_hint_respects_threshold(monkeypatch):
+    predictor = TrendPredictor()
+    predictor.is_trained = True
+
+    class _NeutralModel:
+        def predict(self, _arr):
+            return [0]
+
+    predictor.model = _NeutralModel()
+    predictor.use_deep = False
+    predictor.deep_model = None
+    predictor.federated_global_model = {"model": 100.2}
+    monkeypatch.setenv("FL_TREND_OVERRIDE_REL_THRESH", "0.01")
+
+    def _fake_extract(_ohlcv):
+        return pd.DataFrame({"f": [1.0]}, index=[0])
+
+    predictor._extract_features = _fake_extract
+    ohlcv = pd.DataFrame(
+        {
+            "close": [100.0] * 25,
+            "high": [101.0] * 25,
+            "low": [99.0] * 25,
+            "volume": [1.0] * 25,
+        }
+    )
+
+    assert predictor.predict_trend(ohlcv) == "SIDE"
+
+
+def test_predict_trend_exposes_last_federated_hint_metadata(monkeypatch):
+    predictor = TrendPredictor()
+    predictor.is_trained = True
+
+    class _NeutralModel:
+        def predict(self, _arr):
+            return [0]
+
+    predictor.model = _NeutralModel()
+    predictor.use_deep = False
+    predictor.deep_model = None
+    predictor.federated_global_model = {"model": 95.0}
+    monkeypatch.setenv("FL_TREND_OVERRIDE_REL_THRESH", "0.01")
+
+    def _fake_extract(_ohlcv):
+        return pd.DataFrame({"f": [1.0]}, index=[0])
+
+    predictor._extract_features = _fake_extract
+    ohlcv = pd.DataFrame(
+        {
+            "close": [100.0] * 25,
+            "high": [101.0] * 25,
+            "low": [99.0] * 25,
+            "volume": [1.0] * 25,
+        }
+    )
+
+    trend = predictor.predict_trend(ohlcv)
+    hint = predictor.get_last_federated_hint()
+
+    assert trend == "DOWN"
+    assert hint["available"] is True
+    assert hint["applied"] is True
+    assert hint["direction"] == "DOWN"
+    assert hint["reason"] == "federated_override_down"
+    assert hint["base_pred"] == 0
+    assert hint["final_pred"] == -1
+    assert hint["threshold"] == 0.01

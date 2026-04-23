@@ -1,4 +1,5 @@
 from core.BotCore import (
+    _canonical_bucket_trace_for_summary,
     _classify_entry_gate_bucket,
     _classify_entry_reason,
     _classify_entry_reason_with_gate_fallback,
@@ -7,6 +8,7 @@ from core.BotCore import (
     _build_entry_identity_fields,
     _diagnostic_gate_trace,
     _normalize_local_gate_reason_for_summary,
+    _resolve_entry_policy_pipeline,
     _resolve_entry_gate_reason_context,
     _resolve_local_gate_reason,
     _should_fail_closed_unknown_fallback_admission,
@@ -107,6 +109,21 @@ def test_local_gate_reason_normalization_maps_missing_strategy_field():
     }
 
 
+def test_local_gate_reason_normalization_maps_bucket_identity_missing():
+    normalized = _normalize_local_gate_reason_for_summary(
+        local_gate_reason="risk_or_prefilter_block_fallback",
+        entry_reason=None,
+        main_strategy=None,
+        entry_decision_raw="hold",
+        entry_decision_final="hold",
+        ensemble_signals=None,
+        filtered_ensemble_signals=None,
+        dropped_ensemble_signals=None,
+        bucket_identity_reason="missing_strategy_field",
+    )
+    assert normalized == "missing_strategy_field"
+
+
 def test_local_gate_reason_normalization_does_not_change_final_allow_semantics():
     allow = False
     entry_decision = "hold"
@@ -199,6 +216,58 @@ def test_derive_entry_reason_from_signal_funnel_maps_missing_strategy():
     )
 
     assert reason == "missing_strategy_field"
+
+
+def test_entry_policy_pipeline_requires_supporting_signal_for_decision_side():
+    decision, reason = _resolve_entry_policy_pipeline(
+        symbol="BTC-USDT",
+        decision_value="buy",
+        current_side=None,
+        current_side_disabled=False,
+        reverse_entry=False,
+        now_ts=100.0,
+        signal_score=0.25,
+        ensemble_signals=[{"strategy": "TrendFollowing", "signal": "sell"}],
+        filtered_ensemble_signals=[{"strategy": "TrendFollowing", "_side": "sell"}],
+        dropped_ensemble_signals=[],
+        last_decision_state={},
+        entry_symbol_allowlist=set(),
+        entry_symbol_blocklist=set(),
+        entry_allow_buy=True,
+        entry_allow_sell=True,
+        decision_hysteresis_score=0.1,
+        decision_change_cooldown_sec=30.0,
+    )
+
+    assert decision == "hold"
+    assert reason == "no_supporting_signal"
+
+
+def test_entry_policy_pipeline_updates_last_state_from_supporting_basket():
+    last_state = {}
+    decision, reason = _resolve_entry_policy_pipeline(
+        symbol="BTC-USDT",
+        decision_value="buy",
+        current_side=None,
+        current_side_disabled=False,
+        reverse_entry=False,
+        now_ts=125.0,
+        signal_score=0.4,
+        ensemble_signals=[{"strategy": "Momentum", "signal": "buy"}],
+        filtered_ensemble_signals=[{"strategy": "Momentum", "_side": "buy"}],
+        dropped_ensemble_signals=[],
+        last_decision_state=last_state,
+        entry_symbol_allowlist=set(),
+        entry_symbol_blocklist=set(),
+        entry_allow_buy=True,
+        entry_allow_sell=True,
+        decision_hysteresis_score=0.1,
+        decision_change_cooldown_sec=30.0,
+    )
+
+    assert decision == "buy"
+    assert reason is None
+    assert last_state == {"BTC-USDT": {"decision": "buy", "ts": 125.0}}
 
 
 def test_unknown_fallback_admission_is_blocked_in_kucoin_paper_futures():
@@ -585,6 +654,23 @@ def test_build_entry_identity_fields_carries_canonical_bucket_key():
     assert identity["side"] == "buy"
     assert identity["canonical_bucket_key"] == "BTCUSDTM|TRENDFOLLOWING|buy"
     assert identity["canonical_bucket"]["bucket_identity_status"] == "RESOLVED"
+
+
+def test_canonical_bucket_trace_for_summary_defaults_to_empty_dict():
+    assert _canonical_bucket_trace_for_summary(None) == {}
+    assert _canonical_bucket_trace_for_summary({}) == {}
+    assert _canonical_bucket_trace_for_summary({"canonical_bucket": None}) == {}
+
+
+def test_canonical_bucket_trace_for_summary_returns_bucket_payload():
+    summary = {
+        "canonical_bucket": {
+            "canonical_bucket_key": "BTCUSDTM|TRENDFOLLOWING|buy",
+            "bucket_identity_reason": "explicit_strategy",
+        }
+    }
+
+    assert _canonical_bucket_trace_for_summary(summary) == summary["canonical_bucket"]
 
 
 def test_diagnostic_gate_trace_defaults_blocker_label_from_gate_name():

@@ -64,3 +64,24 @@ def test_append_decision_log_csv_row_without_details_keeps_two_columns():
     )
     rows = list(csv.reader(io.StringIO(buf.getvalue())))
     assert rows == [["2026-04-17T12:00:00+00:00", "hold"]]
+
+
+def test_apply_ai_vote_is_telemetry_only():
+    from core.BotCore import apply_ai_vote
+
+    signal_score, signal_votes, ai_vote = apply_ai_vote(
+        0.75,
+        [],
+        1,
+        0.2,
+    )
+
+    assert signal_score == 0.75
+    assert ai_vote == "buy"
+    assert signal_votes == [
+        {
+            "strategy": "OnlineTrainer",
+            "side": "buy",
+            "allocation": 0.2,
+        }
+    ]

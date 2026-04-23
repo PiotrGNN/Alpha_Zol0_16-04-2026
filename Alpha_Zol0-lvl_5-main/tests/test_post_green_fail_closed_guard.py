@@ -43,3 +43,14 @@ def test_fail_closed_does_not_block_when_no_positive_feasible_alternative():
     )
 
     assert blocked is False
+
+
+def test_fail_closed_does_not_block_when_positive_feasible_alternative_is_too_small():
+    blocked = _should_fail_closed_post_green_red_close(
+        exit_reason="post_green_protective_exit",
+        selected_expected_net_after_fee=-0.0015,
+        post_green_peak_mfe=0.014,
+        pre_hard_close_best_feasible_net=0.0002,
+    )
+
+    assert blocked is False

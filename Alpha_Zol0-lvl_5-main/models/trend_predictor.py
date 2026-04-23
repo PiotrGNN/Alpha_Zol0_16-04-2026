@@ -8,6 +8,7 @@ trend_predictor.py – Production-grade Trend Classification (LEVEL-ML DONE)
 
 import json
 import logging
+import os
 import warnings
 from pathlib import Path
 from typing import Optional
@@ -59,6 +60,11 @@ class TrendPredictor:
         self.deep_loss_fn = None
         self.feature_names = []
         self.federated_global_model = None
+        self.last_federated_hint = {
+            "available": False,
+            "applied": False,
+            "reason": "uninitialized",
+        }
         self._load_model()
         if self.use_deep:
 
@@ -163,17 +169,22 @@ class TrendPredictor:
             self._save_model()
         return None
 
-    def fit(self, ohlcv: pd.DataFrame):
+    def fit(self, ohlcv: pd.DataFrame, neutral_return_deadzone: float = 0.001):
         # Production-grade fit: advanced features, robust ML, logging,
         # error handling
         try:
             features = self._extract_features(ohlcv)
             close = ohlcv.loc[features.index, "close"]
-            # Label: 1=UP, -1=DOWN, 0=SIDE
+            neutral_return_deadzone = float(neutral_return_deadzone)
+            if not np.isfinite(neutral_return_deadzone):
+                neutral_return_deadzone = 0.001
+            neutral_return_deadzone = max(0.0, neutral_return_deadzone)
+            # Label: 1=UP, -1=DOWN, 0=SIDE for economically small forward moves.
+            fwd_ret = (close.shift(-1) - close) / close
             labels = np.where(
-                close.shift(-1) > close,
+                fwd_ret > neutral_return_deadzone,
                 1,
-                np.where(close.shift(-1) < close, -1, 0),
+                np.where(fwd_ret < -neutral_return_deadzone, -1, 0),
             )[:-1]
             features = features.iloc[:-1]
             if self.use_deep and self.deep_model:
@@ -192,6 +203,15 @@ class TrendPredictor:
                 self.model.fit(features.values, labels)
                 self.is_trained = True
                 self._save_model()
+                metadata_path = self._metadata_path()
+                if metadata_path.exists():
+                    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+                    if isinstance(metadata, dict):
+                        metadata["neutral_return_deadzone"] = neutral_return_deadzone
+                        metadata_path.write_text(
+                            json.dumps(metadata, sort_keys=True),
+                            encoding="utf-8",
+                        )
             logging.info(
                 "TrendPredictor: model trained on %d samples, features: %s",
                 len(features),
@@ -239,9 +259,19 @@ class TrendPredictor:
             or (self.model is None and self.deep_model is None)
             or len(ohlcv) < 20
         ):
+            self.last_federated_hint = {
+                "available": False,
+                "applied": False,
+                "reason": "model_not_ready",
+            }
             return "SIDE"
         features = self._extract_features(ohlcv)
         if len(features) == 0:
+            self.last_federated_hint = {
+                "available": False,
+                "applied": False,
+                "reason": "insufficient_features",
+            }
             return "SIDE"
         last_feat = features.iloc[[-1]].values
         if self.use_deep and self.deep_model:
@@ -254,12 +284,79 @@ class TrendPredictor:
                 pred = torch.argmax(output, dim=1).item()
         else:
             pred = self.model.predict(last_feat)[0]
+        pred, hint_info = self._apply_federated_direction_hint(int(pred), ohlcv)
+        self.last_federated_hint = hint_info
         if pred == 1:
             return "UP"
         elif pred == -1:
             return "DOWN"
         else:
             return "SIDE"
+
+    def _apply_federated_direction_hint(self, pred: int, ohlcv: pd.DataFrame):
+        hint = {
+            "available": False,
+            "applied": False,
+            "reason": "not_neutral_base_prediction",
+            "base_pred": int(pred),
+            "final_pred": int(pred),
+            "direction": None,
+            "threshold": None,
+            "relative_diff": None,
+            "last_close": None,
+            "federated_model": None,
+        }
+        if pred != 0:
+            return pred, hint
+        try:
+            from fl.training import normalize_global_model
+
+            global_model = normalize_global_model(self.federated_global_model)
+            if not isinstance(global_model, dict):
+                hint["reason"] = "federated_model_unavailable"
+                return pred, hint
+            global_value = float(global_model.get("model"))
+            hint["available"] = True
+            hint["federated_model"] = global_value
+        except Exception:
+            hint["reason"] = "federated_model_invalid"
+            return pred, hint
+        try:
+            last_close = float(ohlcv["close"].iloc[-1])
+            hint["last_close"] = last_close
+        except Exception:
+            hint["reason"] = "last_close_unavailable"
+            return pred, hint
+        if last_close == 0.0:
+            hint["reason"] = "last_close_zero"
+            return pred, hint
+        try:
+            rel_threshold = float(
+                os.environ.get("FL_TREND_OVERRIDE_REL_THRESH", "0.01")
+            )
+        except Exception:
+            rel_threshold = 0.01
+        rel_threshold = max(0.0, rel_threshold)
+        hint["threshold"] = rel_threshold
+        rel_diff = (global_value - last_close) / abs(last_close)
+        hint["relative_diff"] = rel_diff
+        if rel_diff > rel_threshold:
+            hint["applied"] = True
+            hint["direction"] = "UP"
+            hint["reason"] = "federated_override_up"
+            hint["final_pred"] = 1
+            return 1, hint
+        if rel_diff < -rel_threshold:
+            hint["applied"] = True
+            hint["direction"] = "DOWN"
+            hint["reason"] = "federated_override_down"
+            hint["final_pred"] = -1
+            return -1, hint
+        hint["reason"] = "below_threshold"
+        return pred, hint
+
+    def get_last_federated_hint(self) -> dict:
+        return dict(self.last_federated_hint or {})
 
     def explain(self, ohlcv: pd.DataFrame) -> dict:
         # Explain prediction (feature importances, last values)

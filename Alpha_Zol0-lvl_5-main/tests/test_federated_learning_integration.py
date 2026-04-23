@@ -27,6 +27,7 @@ def test_botcore_triggers_federated_update(monkeypatch):
     monkeypatch.setenv("ZOL0_ALLOW_MOCK", "1")
     monkeypatch.setenv("PAPER_RUN_ONCE", "1")
     monkeypatch.setenv("FL_ROUND_LIMIT", "1")
+    monkeypatch.setenv("FL_RESEARCH_ONLY", "0")
     monkeypatch.setenv("ZOL0_TOKEN", "test-token")
     monkeypatch.setattr(TrendPredictor, "federated_update", fake_federated_update)
     monkeypatch.setattr(InfinityLayerLogger, "log", fake_log)
@@ -47,7 +48,8 @@ def test_botcore_triggers_federated_update(monkeypatch):
     assert "global_model" in fl_events[0]
 
 
-def test_botcore_maybe_run_federated_learning_integration():
+def test_botcore_maybe_run_federated_learning_integration(monkeypatch):
+    monkeypatch.setenv("FL_RESEARCH_ONLY", "0")
     predictor = TrendPredictor()
     infinity_logger = InfinityLayerLogger()
     candles = [{"close": float(i)} for i in range(1, 21)]
@@ -65,7 +67,37 @@ def test_botcore_maybe_run_federated_learning_integration():
     assert executed is True
     assert predictor.federated_global_model is not None
 
-    fl_round_logs = [entry for entry in infinity_logger.logs if entry["event"] == "fl_round"]
+    fl_round_logs = [
+        entry for entry in infinity_logger.logs if entry["event"] == "fl_round"
+    ]
     assert len(fl_round_logs) == 1
     assert fl_round_logs[0]["details"]["symbol"] == "BTC-USDT"
     assert "global_model" in fl_round_logs[0]["details"]
+
+
+def test_botcore_maybe_run_federated_learning_research_only(monkeypatch):
+    monkeypatch.setenv("FL_RESEARCH_ONLY", "1")
+    predictor = TrendPredictor()
+    infinity_logger = InfinityLayerLogger()
+    candles = [{"close": float(i)} for i in range(1, 21)]
+
+    executed = maybe_run_federated_learning(
+        federated_round=1,
+        fl_round_limit=1,
+        symbol="BTC-USDT",
+        candles=candles,
+        trend_predictor=predictor,
+        infinity_logger=infinity_logger,
+        logger=None,
+    )
+
+    assert executed is True
+    assert predictor.federated_global_model is None
+    fl_round_logs = [
+        entry for entry in infinity_logger.logs if entry.get("event") == "fl_round"
+    ]
+    assert fl_round_logs
+    details = fl_round_logs[0]["details"]
+    assert details.get("mode") == "research_only"
+    assert "proposed_global_model" in details
+    assert "global_model" in details

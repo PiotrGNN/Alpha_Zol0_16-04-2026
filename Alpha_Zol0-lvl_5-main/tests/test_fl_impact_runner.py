@@ -8,6 +8,9 @@ import pytest
 from analysis.fl_impact_runner import (
     build_fl_decision_snapshots,
     run_fl_impact_analysis,
+    summarize_fl_telemetry_impact,
+    summarize_fl_telemetry,
+    summarize_fl_telemetry_breakdown,
 )
 
 
@@ -107,6 +110,218 @@ def test_build_fl_decision_snapshots_live_proxy_threshold_fallback():
     assert snapshot.edge_after == pytest.approx(0.0230)
 
 
+def test_summarize_fl_telemetry_counts_override_fields():
+    rows = [
+        (
+            "2026-03-26T12:00:00+00:00",
+            "buy",
+            {
+                "fl_trend_hint": {"applied": True},
+                "fl_trend_override_applied": True,
+                "fl_trend_override_direction": "UP",
+                "fl_trend_override_count_symbol": 2,
+            },
+        ),
+        (
+            "2026-03-26T12:01:00+00:00",
+            "sell",
+            {
+                "fl_trend_hint": {"applied": True},
+                "fl_trend_override_applied": True,
+                "fl_trend_override_direction": "DOWN",
+                "fl_trend_override_count_symbol": 5,
+            },
+        ),
+        (
+            "2026-03-26T12:02:00+00:00",
+            "hold",
+            {
+                "entry_decision": "hold",
+            },
+        ),
+    ]
+
+    telemetry = summarize_fl_telemetry(rows)
+
+    assert telemetry["rows_with_fl_trend_hint"] == 2
+    assert telemetry["override_applied_count"] == 2
+    assert telemetry["override_up_count"] == 1
+    assert telemetry["override_down_count"] == 1
+    assert telemetry["max_override_count_symbol"] == 5
+
+
+def test_summarize_fl_telemetry_breakdown_counts_by_direction_and_symbol():
+    rows = [
+        (
+            "2026-03-26T12:00:00+00:00",
+            "buy",
+            {
+                "symbol": "BTC-USDT",
+                "fl_trend_override_applied": True,
+                "fl_trend_override_direction": "UP",
+            },
+        ),
+        (
+            "2026-03-26T12:01:00+00:00",
+            "sell",
+            {
+                "symbol": "ETH-USDT",
+                "fl_trend_override_applied": True,
+                "fl_trend_override_direction": "DOWN",
+            },
+        ),
+        (
+            "2026-03-26T12:02:00+00:00",
+            "buy",
+            {
+                "symbol": "BTC-USDT",
+                "fl_trend_override_applied": True,
+                "fl_trend_override_direction": "UP",
+            },
+        ),
+        (
+            "2026-03-26T12:03:00+00:00",
+            "hold",
+            {
+                "symbol": "ETH-USDT",
+                "fl_trend_override_applied": False,
+                "fl_trend_override_direction": "DOWN",
+            },
+        ),
+    ]
+
+    breakdown = summarize_fl_telemetry_breakdown(rows)
+
+    assert breakdown["override_counts_by_direction"] == {"DOWN": 1, "UP": 2}
+    assert breakdown["override_counts_by_symbol"] == {"BTC-USDT": 2, "ETH-USDT": 1}
+    assert breakdown["override_share_by_symbol"]["BTC-USDT"] == pytest.approx(
+        2.0 / 3.0
+    )
+    assert breakdown["override_share_by_symbol"]["ETH-USDT"] == pytest.approx(
+        1.0 / 3.0
+    )
+
+
+def test_summarize_fl_telemetry_breakdown_normalizes_unknown_direction_and_symbol():
+    rows = [
+        (
+            "2026-03-26T12:00:00+00:00",
+            "buy",
+            {
+                "fl_trend_override_applied": True,
+                "fl_trend_override_direction": "SIDEWAYS",
+            },
+        ),
+        (
+            "2026-03-26T12:01:00+00:00",
+            "sell",
+            {
+                "symbol": "btc-usdt",
+                "fl_trend_override_applied": True,
+                "fl_trend_override_direction": None,
+            },
+        ),
+        (
+            "2026-03-26T12:02:00+00:00",
+            "buy",
+            {
+                "symbol": "btc-usdt",
+                "fl_trend_override_applied": True,
+                "fl_trend_override_direction": "up",
+            },
+        ),
+    ]
+
+    breakdown = summarize_fl_telemetry_breakdown(rows)
+
+    assert breakdown["override_counts_by_direction"] == {"UNKNOWN": 2, "UP": 1}
+    assert breakdown["override_counts_by_symbol"] == {"BTC-USDT": 2, "UNKNOWN": 1}
+    assert breakdown["override_share_by_symbol"]["BTC-USDT"] == pytest.approx(
+        2.0 / 3.0
+    )
+    assert breakdown["override_share_by_symbol"]["UNKNOWN"] == pytest.approx(
+        1.0 / 3.0
+    )
+
+
+def test_summarize_fl_telemetry_impact_relates_override_presence_to_decision_changes():
+    rows = [
+        (
+            "2026-03-26T12:00:00+00:00",
+            "buy",
+            {
+                "symbol": "BTC-USDT",
+                "fl_trend_override_applied": True,
+                "fl_trend_override_direction": "UP",
+                "entry_decision_raw": "buy",
+                "entry_decision_final": "sell",
+                "entry_edge_over_fee": {
+                    "mean_edge_over_fee": 0.5,
+                    "shadow_edge_after_execution_cost": 0.8,
+                },
+            },
+        ),
+        (
+            "2026-03-26T12:01:00+00:00",
+            "sell",
+            {
+                "symbol": "ETH-USDT",
+                "fl_trend_override_applied": True,
+                "fl_trend_override_direction": "DOWN",
+                "entry_decision_raw": "sell",
+                "entry_decision_final": "sell",
+                "entry_edge_over_fee": {
+                    "mean_edge_over_fee": 0.4,
+                    "shadow_edge_after_execution_cost": 0.2,
+                },
+            },
+        ),
+        (
+            "2026-03-26T12:02:00+00:00",
+            "hold",
+            {
+                "symbol": "SOL-USDT",
+                "fl_trend_override_applied": False,
+                "entry_decision_raw": "hold",
+                "entry_decision_final": "buy",
+                "entry_edge_over_fee": {
+                    "mean_edge_over_fee": 0.1,
+                    "shadow_edge_after_execution_cost": 0.3,
+                },
+            },
+        ),
+        (
+            "2026-03-26T12:03:00+00:00",
+            "hold",
+            {
+                "symbol": "XRP-USDT",
+                "fl_trend_override_applied": False,
+                "entry_decision_raw": "hold",
+                "entry_decision_final": "hold",
+                "entry_edge_over_fee": {
+                    "mean_edge_over_fee": 0.2,
+                    "shadow_edge_after_execution_cost": 0.2,
+                },
+            },
+        ),
+    ]
+
+    summary = summarize_fl_telemetry_impact(rows)
+
+    assert summary["total_rows_analyzed"] == 4
+    assert summary["override_applied_share_all_rows"] == pytest.approx(0.5)
+    assert summary["dominant_override_direction"] == "TIED"
+    assert summary["top_override_symbols"] == [
+        {"symbol": "BTC-USDT", "count": 1, "share": 0.5},
+        {"symbol": "ETH-USDT", "count": 1, "share": 0.5},
+    ]
+    assert summary["changed_decisions_total"] == 2
+    assert summary["override_rows_with_decision_change"] == 1
+    assert summary["override_rows_with_decision_change_share"] == pytest.approx(0.5)
+    assert summary["changed_decisions_with_override_share"] == pytest.approx(0.5)
+    assert summary["avg_edge_delta_override_rows"] == pytest.approx(0.05)
+
+
 def test_run_fl_impact_analysis_writes_reports(tmp_path: Path):
     source_csv = tmp_path / "decision_log.csv"
     write_tmp_decision_csv(source_csv)
@@ -131,6 +346,7 @@ def test_run_fl_impact_analysis_writes_reports(tmp_path: Path):
     assert "negative_impact_count" in metrics
     assert "neutral_impact_count" in metrics
     assert "go_no_go" in metrics
+    assert "fl_telemetry" in result
 
     summary_text = md_path.read_text(encoding="utf-8")
     assert (
@@ -149,6 +365,91 @@ def test_run_fl_impact_analysis_writes_reports(tmp_path: Path):
     assert "audit_evidence" in json_data
     assert "top_positive_impacts" in json_data["audit_evidence"]
     assert "top_negative_impacts" in json_data["audit_evidence"]
+    assert "fl_telemetry" in json_data
+    assert json_data["fl_telemetry"] == result["fl_telemetry"]
+    assert "fl_telemetry_breakdown" in json_data
+    assert json_data["fl_telemetry_breakdown"] == result["fl_telemetry_breakdown"]
+    assert "fl_telemetry_summary" in json_data
+    assert json_data["fl_telemetry_summary"] == {
+        "override_applied_share": 0.0,
+        "override_up_share": 0.0,
+        "override_down_share": 0.0,
+        "max_override_count_symbol": 0,
+    }
+    assert "fl_telemetry_impact_summary" in json_data
+    assert (
+        json_data["fl_telemetry_impact_summary"]
+        == result["fl_telemetry_impact_summary"]
+    )
+    assert json_data["fl_telemetry_impact_summary"] == {
+        "avg_edge_delta_override_rows": 0.0,
+        "changed_decisions_total": 1,
+        "changed_decisions_with_override_share": 0.0,
+        "dominant_override_direction": "NONE",
+        "override_applied_share_all_rows": 0.0,
+        "override_rows_with_decision_change": 0,
+        "override_rows_with_decision_change_share": 0.0,
+        "top_override_symbols": [],
+        "total_rows_analyzed": 3,
+    }
+
+
+def test_run_fl_impact_analysis_fl_telemetry_summary_nonzero(tmp_path: Path):
+    source_csv = tmp_path / "decision_log.csv"
+
+    rows = [
+        (
+            "2026-03-26T12:00:00+00:00",
+            "buy",
+            {
+                "entry_decision": "buy",
+                "shadow_action": "buy",
+                "entry_edge_over_fee": {
+                    "mean_edge_over_fee": 1.0,
+                    "shadow_edge_after_execution_cost": 1.2,
+                },
+                "fl_trend_hint": {"applied": True},
+                "fl_trend_override_applied": True,
+                "fl_trend_override_direction": "UP",
+                "fl_trend_override_count_symbol": 2,
+            },
+        ),
+        (
+            "2026-03-26T12:01:00+00:00",
+            "sell",
+            {
+                "entry_decision": "sell",
+                "shadow_action": "sell",
+                "entry_edge_over_fee": {
+                    "mean_edge_over_fee": 0.4,
+                    "shadow_edge_after_execution_cost": 0.1,
+                },
+                "fl_trend_hint": {"applied": False},
+                "fl_trend_override_applied": False,
+                "fl_trend_override_direction": None,
+                "fl_trend_override_count_symbol": 2,
+            },
+        ),
+    ]
+
+    with source_csv.open("w", encoding="utf-8", newline="") as f:
+        writer = csv.writer(f)
+        for ts, decision, payload in rows:
+            writer.writerow([ts, decision, json.dumps(payload)])
+
+    result = run_fl_impact_analysis(
+        source_path=source_csv,
+        run_id="test-run-telemetry-summary",
+    )
+
+    json_text = Path(result["result_json_path"]).read_text(encoding="utf-8")
+    json_data = json.loads(json_text)
+    summary = json_data.get("fl_telemetry_summary") or {}
+
+    assert summary["override_applied_share"] == pytest.approx(0.5)
+    assert summary["override_up_share"] == pytest.approx(1.0)
+    assert summary["override_down_share"] == pytest.approx(0.0)
+    assert summary["max_override_count_symbol"] == 2
 
 
 def test_run_fl_impact_analysis_skips_invalid_json(tmp_path: Path):

@@ -88,13 +88,73 @@ def evaluate_fl_impact(snapshots: List[FLDecisionSnapshot]) -> Dict:
     }
 
 
-def create_report_json(snapshots: List[FLDecisionSnapshot]) -> str:
+def derive_fl_telemetry_summary(fl_telemetry: Dict) -> Dict:
+    try:
+        rows_with_hint = int(fl_telemetry.get("rows_with_fl_trend_hint") or 0)
+    except Exception:
+        rows_with_hint = 0
+    try:
+        override_applied = int(fl_telemetry.get("override_applied_count") or 0)
+    except Exception:
+        override_applied = 0
+    try:
+        override_up = int(fl_telemetry.get("override_up_count") or 0)
+    except Exception:
+        override_up = 0
+    try:
+        override_down = int(fl_telemetry.get("override_down_count") or 0)
+    except Exception:
+        override_down = 0
+    try:
+        max_override_count_symbol = int(
+            fl_telemetry.get("max_override_count_symbol") or 0
+        )
+    except Exception:
+        max_override_count_symbol = 0
+
+    override_applied_share = (
+        float(override_applied) / float(rows_with_hint)
+        if rows_with_hint > 0
+        else 0.0
+    )
+    override_up_share = (
+        float(override_up) / float(override_applied)
+        if override_applied > 0
+        else 0.0
+    )
+    override_down_share = (
+        float(override_down) / float(override_applied)
+        if override_applied > 0
+        else 0.0
+    )
+
+    return {
+        "override_applied_share": override_applied_share,
+        "override_up_share": override_up_share,
+        "override_down_share": override_down_share,
+        "max_override_count_symbol": max_override_count_symbol,
+    }
+
+
+def create_report_json(
+    snapshots: List[FLDecisionSnapshot],
+    fl_telemetry: Dict | None = None,
+    fl_telemetry_breakdown: Dict | None = None,
+    fl_telemetry_impact_summary: Dict | None = None,
+) -> str:
     metrics = evaluate_fl_impact(snapshots)
     report = {
         "snapshots": [asdict(s) for s in sorted(snapshots, key=lambda x: x.id)],
         "metrics": metrics,
         "audit_evidence": metrics.get("evidence", {}),
     }
+    if isinstance(fl_telemetry, dict):
+        report["fl_telemetry"] = fl_telemetry
+        report["fl_telemetry_summary"] = derive_fl_telemetry_summary(fl_telemetry)
+    if isinstance(fl_telemetry_breakdown, dict):
+        report["fl_telemetry_breakdown"] = fl_telemetry_breakdown
+    if isinstance(fl_telemetry_impact_summary, dict):
+        report["fl_telemetry_impact_summary"] = fl_telemetry_impact_summary
     return json.dumps(report, indent=2, sort_keys=True)
 
 

@@ -60,6 +60,82 @@ def test_trend_predictor_writes_metadata_and_compatible_model_loads(tmp_path):
     assert type(loaded.model).__name__ == "RandomForestClassifier"
 
 
+def test_trend_predictor_fit_labels_small_forward_returns_as_neutral(
+    monkeypatch,
+    tmp_path,
+):
+    import numpy as np
+    import pandas as pd
+    import models.trend_predictor as trend_predictor_module
+
+    captured = {}
+
+    class CaptureClassifier:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def fit(self, _x, y):
+            captured["labels"] = list(y)
+            self.classes_ = np.array(sorted(set(y)))
+            return self
+
+    monkeypatch.setattr(
+        trend_predictor_module,
+        "RandomForestClassifier",
+        CaptureClassifier,
+    )
+
+    predictor = TrendPredictor(model_path=str(tmp_path / "trend_model.pkl"))
+    predictor._extract_features = lambda _ohlcv: pd.DataFrame(
+        {"feature": [1.0, 2.0, 3.0, 4.0]},
+        index=[0, 1, 2, 3],
+    )
+    predictor._save_model = lambda: None
+    ohlcv = pd.DataFrame(
+        {
+            "close": [100.0, 100.05, 100.40, 99.80],
+            "high": [101.0] * 4,
+            "low": [99.0] * 4,
+            "volume": [1.0] * 4,
+        }
+    )
+
+    predictor.fit(ohlcv, neutral_return_deadzone=0.001)
+
+    assert captured["labels"] == [0, 1, -1]
+
+
+def test_trend_predictor_fit_trains_three_class_model_with_deadzone(
+    tmp_path,
+):
+    import json
+    import pandas as pd
+
+    model_path = tmp_path / "trend_model.pkl"
+    predictor = TrendPredictor(model_path=str(model_path))
+    predictor._extract_features = lambda _ohlcv: pd.DataFrame(
+        {"feature": [1.0, 2.0, 3.0, 4.0]},
+        index=[0, 1, 2, 3],
+    )
+    ohlcv = pd.DataFrame(
+        {
+            "close": [100.0, 100.05, 100.40, 99.80],
+            "high": [101.0] * 4,
+            "low": [99.0] * 4,
+            "volume": [1.0] * 4,
+        }
+    )
+
+    predictor.fit(ohlcv, neutral_return_deadzone=0.001)
+
+    assert list(predictor.model.classes_) == [-1, 0, 1]
+    assert predictor.model.n_classes_ == 3
+    metadata = json.loads(
+        (tmp_path / "trend_model.pkl.meta.json").read_text(encoding="utf-8")
+    )
+    assert metadata["neutral_return_deadzone"] == 0.001
+
+
 def test_trend_predictor_rejects_incompatible_metadata_before_pickle_load(
     monkeypatch,
     tmp_path,

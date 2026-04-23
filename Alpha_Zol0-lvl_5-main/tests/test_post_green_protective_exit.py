@@ -537,6 +537,40 @@ def test_post_green_protective_exit_blocks_late_weak_candidate():
     assert metrics["post_green_skip_reason"] == "quality_filter_blocked"
 
 
+def test_post_green_protective_exit_blocks_non_hard_window_weak_late_candidate():
+    now_dt = datetime(2026, 4, 3, 12, 0, 0, tzinfo=timezone.utc)
+    position = {
+        "symbol": "ETHUSDTM",
+        "mfe": 0.00036,
+        "peak_mfe_ts": (now_dt - timedelta(seconds=12)).isoformat(),
+        "open_snapshot": {"source": "kucoin_futures_ticker"},
+    }
+
+    should_trigger, skip_reason, metrics = _paper_post_green_protective_exit_decision(
+        simulate=True,
+        symbol="ETHUSDTM",
+        position=position,
+        current_net_after_fee=-0.00067,
+        pos_age_sec=120.0,
+        paper_auto_close_sec=10.0,
+        paper_auto_close_hard_sec=180.0,
+        now_dt=now_dt,
+    )
+
+    assert should_trigger is False
+    assert skip_reason == "quality_filter_blocked"
+    assert metrics["post_green_quality_filter_candidate"] is True
+    assert metrics["post_green_quality_filter_passed"] is False
+    assert metrics["post_green_quality_filter_blocked"] is True
+    assert metrics["post_green_quality_filter_hard_window_override"] is False
+    assert metrics["post_green_peak_to_burden_ratio"] == pytest.approx(0.12, abs=1e-12)
+    assert (
+        metrics["post_green_quality_filter_reason"]
+        == "late_after_peak_and_excessive_giveback_weak_peak_to_burden"
+    )
+    assert metrics["post_green_skip_reason"] == "quality_filter_blocked"
+
+
 def test_post_green_protective_exit_keeps_executor_bypass_armed():
     now_dt = datetime(2026, 4, 3, 12, 0, 0, tzinfo=timezone.utc)
     position = {
@@ -639,6 +673,35 @@ def test_post_green_protective_exit_triggers_earlier_bnr_time_forced_exit():
     assert metrics["post_green_exit_reason"] == "post_green_protective_exit"
 
 
+def test_post_green_protective_exit_sub_micro_peak_does_not_arm_bnr_time_forced_exit():
+    now_dt = datetime(2026, 4, 3, 12, 0, 0, tzinfo=timezone.utc)
+    position = {
+        "symbol": "ETHUSDTM",
+        "mfe": 0.00079,
+        "peak_mfe_ts": (now_dt - timedelta(seconds=10.0)).isoformat(),
+        "open_snapshot": {"source": "kucoin_futures_ticker"},
+    }
+
+    should_trigger, skip_reason, metrics = _paper_post_green_protective_exit_decision(
+        simulate=True,
+        symbol="ETHUSDTM",
+        position=position,
+        current_net_after_fee=-0.0048,
+        pos_age_sec=170.0,
+        paper_auto_close_sec=10.0,
+        paper_auto_close_hard_sec=180.0,
+        now_dt=now_dt,
+    )
+
+    assert should_trigger is False
+    assert skip_reason == "blocked_negative_residual"
+    assert metrics["post_green_peak_to_burden_ratio"] is not None
+    assert metrics["post_green_peak_to_burden_ratio"] < 1.0
+    assert metrics.get("post_green_bnr_time_forced_exit") is not True
+    assert metrics["post_green_trigger_mode"] is None
+    assert metrics["post_green_trigger_reason_detail"] is None
+
+
 def test_post_green_protective_exit_bnr_time_boundary_giveback_floor():
     now_dt = datetime(2026, 4, 3, 12, 0, 0, tzinfo=timezone.utc)
     position = {
@@ -711,7 +774,7 @@ def test_post_green_protective_exit_bnr_loss_cap_triggers_before_deep_giveback_f
     now_dt = datetime(2026, 4, 3, 12, 0, 0, tzinfo=timezone.utc)
     position = {
         "symbol": "ETHUSDTM",
-        "mfe": 0.0010,
+        "mfe": 0.0015,
         "peak_mfe_ts": (now_dt - timedelta(seconds=6.0)).isoformat(),
         "open_snapshot": {"source": "kucoin_futures_ticker"},
     }
@@ -734,7 +797,35 @@ def test_post_green_protective_exit_bnr_loss_cap_triggers_before_deep_giveback_f
     assert metrics["post_green_bnr_loss_cap_abs"] == pytest.approx(0.0022, abs=1e-12)
     assert metrics["post_green_giveback_ratio"] < 5.51
     assert metrics["post_green_peak_to_burden_ratio"] is not None
+    assert metrics["post_green_peak_to_burden_ratio"] == pytest.approx(0.5, abs=1e-12)
     assert metrics["post_green_peak_to_burden_ratio"] < 1.0
+
+
+def test_post_green_protective_exit_bnr_loss_cap_blocks_weak_rescue_ratio_cluster():
+    now_dt = datetime(2026, 4, 3, 12, 0, 0, tzinfo=timezone.utc)
+    position = {
+        "symbol": "BTCUSDTM",
+        "mfe": 0.00111,
+        "peak_mfe_ts": (now_dt - timedelta(seconds=8.0)).isoformat(),
+        "open_snapshot": {"source": "kucoin_futures_ticker"},
+    }
+
+    should_trigger, skip_reason, metrics = _paper_post_green_protective_exit_decision(
+        simulate=True,
+        symbol="BTCUSDTM",
+        position=position,
+        current_net_after_fee=-0.0030,
+        pos_age_sec=170.0,
+        paper_auto_close_sec=10.0,
+        paper_auto_close_hard_sec=180.0,
+        now_dt=now_dt,
+    )
+
+    assert should_trigger is False
+    assert skip_reason == "blocked_negative_residual"
+    assert metrics["post_green_trigger_mode"] is None
+    assert metrics["post_green_trigger_reason_detail"] is None
+    assert metrics["post_green_peak_to_burden_ratio"] == pytest.approx(0.37, abs=1e-12)
 
 
 def test_post_green_protective_exit_bnr_time_no_trigger_before_floor():
@@ -1550,6 +1641,37 @@ def test_paper_weak_peak_decay_hard_window_override_for_feefloor_peak():
     assert abs(metrics["weak_peak_decay_giveback_ratio"] - 1.3199999999999998) < 1e-12
 
 
+def test_paper_weak_peak_decay_hard_window_blocks_sub_floor_fee_ratio_cluster():
+    now_dt = datetime(2026, 4, 3, 12, 0, 0, tzinfo=timezone.utc)
+    position = {
+        "symbol": "BTCUSDTM",
+        "mfe": 0.00068,
+        "peak_mfe_ts": (now_dt - timedelta(seconds=12)).isoformat(),
+        "open_snapshot": {"source": "kucoin_futures_ticker"},
+    }
+
+    should_trigger, skip_reason, metrics = _paper_weak_peak_decay_decision(
+        simulate=True,
+        symbol="BTCUSDTM",
+        position=position,
+        current_net_after_fee=-0.0009,
+        fee_floor=0.0020,
+        pos_age_sec=175.0,
+        paper_auto_close_sec=10.0,
+        paper_auto_close_hard_sec=180.0,
+        now_dt=now_dt,
+    )
+
+    assert should_trigger is False
+    assert skip_reason == "peak_too_weak_for_decay"
+    assert metrics["weak_peak_decay_candidate"] is False
+    assert metrics["weak_peak_decay_triggered"] is False
+    assert metrics["weak_peak_decay_hard_close_imminent"] is True
+    assert metrics["weak_peak_decay_peak_fee_ratio"] == 0.34
+    assert metrics["weak_peak_decay_min_peak_fee_ratio"] == 0.40
+    assert metrics["weak_peak_decay_reason"] == "peak_too_weak_for_decay"
+
+
 def test_paper_weak_peak_decay_skips_when_peak_is_too_weak_for_decay():
     now_dt = datetime(2026, 4, 3, 12, 0, 0, tzinfo=timezone.utc)
     position = {
@@ -1576,7 +1698,7 @@ def test_paper_weak_peak_decay_skips_when_peak_is_too_weak_for_decay():
     assert metrics["weak_peak_decay_candidate"] is False
     assert metrics["weak_peak_decay_triggered"] is False
     assert metrics["weak_peak_decay_peak_fee_ratio"] == 0.15
-    assert metrics["weak_peak_decay_min_peak_fee_ratio"] == 0.20
+    assert metrics["weak_peak_decay_min_peak_fee_ratio"] == 0.40
     assert metrics["weak_peak_decay_reason"] == "peak_too_weak_for_decay"
 
 

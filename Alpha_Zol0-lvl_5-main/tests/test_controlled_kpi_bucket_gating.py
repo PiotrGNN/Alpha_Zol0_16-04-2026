@@ -133,6 +133,62 @@ def test_strict_bucket_gate_coerces_selected_string_flags():
     )
 
 
+def test_strict_bucket_gate_does_not_promote_positive_side_fallback_to_hard_allowlist():
+    module = _load_module()
+    report = {
+        "positive_side_fallback_used": True,
+        "pair_stats_top": [
+            {
+                "symbol": "BTCUSDTM",
+                "strategy": "Momentum",
+                "trade_count": 8,
+                "winrate": 0.50,
+                "expectancy": 0.002,
+                "selected": True,
+            },
+            {
+                "symbol": "XRPUSDTM",
+                "strategy": "Momentum",
+                "trade_count": 3,
+                "winrate": 0.67,
+                "expectancy": 0.001,
+                "selected": True,
+            },
+        ],
+        "pair_side_stats_top": [
+            {
+                "symbol": "BTCUSDTM",
+                "strategy": "Momentum",
+                "side": "sell",
+                "trade_count": 8,
+                "winrate": 0.50,
+                "expectancy": 0.002,
+                "net_pnl": 0.016,
+                "gross_pnl": 0.024,
+                "fee_total": 0.008,
+            },
+            {
+                "symbol": "XRPUSDTM",
+                "strategy": "Momentum",
+                "side": "buy",
+                "trade_count": 3,
+                "winrate": 0.67,
+                "expectancy": 0.001,
+                "net_pnl": 0.003,
+                "gross_pnl": 0.005,
+                "fee_total": 0.002,
+            },
+        ],
+    }
+
+    derived = module._derive_profitability_bucket_gate(
+        report, _disable_contract_fallback=True
+    )
+
+    assert derived["positive_side_allowlist"] == []
+    assert "ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST" not in derived["overrides"]
+
+
 def test_strict_bucket_gate_skips_missing_or_weak_reports():
     module = _load_module()
 
@@ -378,9 +434,7 @@ def test_strict_bucket_gate_blocks_cost_burden_side_without_allowlist():
     assert derived["cost_burden_side_blocklist"] == [
         "ETHUSDTM:TRENDFOLLOWING:buy"
     ]
-    assert overrides == {
-        "ENTRY_SYMBOL_STRATEGY_SIDE_BLOCKLIST": "ETHUSDTM:TRENDFOLLOWING:buy"
-    }
+    assert "ENTRY_SYMBOL_STRATEGY_SIDE_BLOCKLIST" not in overrides
 
 
 def test_strict_bucket_gate_avoids_allowlist_blocklist_conflict_on_universal_sell_expansion():

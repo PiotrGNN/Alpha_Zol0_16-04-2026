@@ -190,6 +190,9 @@ def _derive_profitability_bucket_gate(
         for symbol in (active_run_symbols or set())
         if str(symbol).strip()
     }
+    positive_side_fallback_used = _coerce_bool(
+        alpha_refresh_report.get("positive_side_fallback_used")
+    )
 
     for row in alpha_refresh_report.get("pair_stats_top") or []:
         if not isinstance(row, dict):
@@ -242,6 +245,8 @@ def _derive_profitability_bucket_gate(
         valid_side_rows_seen += 1
         pair_key = f"{symbol_name}:{strategy_name}"
         if (
+            not positive_side_fallback_used
+            and
             pair_key in selected_pairs
             and
             trade_count >= STRICT_ALPHA_SIDE_MIN_TRADES
@@ -342,10 +347,9 @@ def _derive_profitability_bucket_gate(
         # Pre-empt the fallback-mode setdefault race: always set the blocklist
         # key (possibly empty) so the fallback cannot add conflicting tokens.
         overrides["ENTRY_SYMBOL_STRATEGY_SIDE_BLOCKLIST"] = ",".join(side_blocklist)
-    elif side_blocklist:
-        overrides["ENTRY_SYMBOL_STRATEGY_SIDE_BLOCKLIST"] = ",".join(
-            side_blocklist
-        )
+    # When no strict positive-side allowlist exists, avoid injecting
+    # symbol-strategy-side hard blocks from bootstrap side stats alone.
+    # This keeps the admission path open for natural candidate discovery.
     return {
         "overrides": overrides,
         "positive_side_allowlist": sorted(positive_side_allowlist),
@@ -2157,6 +2161,33 @@ def _normalize_process_returncode(
     if int(final_close_drain_snapshot.get("close_request_backlog") or 0) != 0:
         return normalized
     return 0
+
+
+def _canonicalize_process_returncode_raw(
+    *,
+    shutdown_classification: str | None,
+    raw_returncode: int | None,
+    final_close_drain_snapshot: dict | None,
+    process_stop_mode: str | None,
+) -> int:
+    canonical = int(raw_returncode if raw_returncode is not None else -1)
+    if canonical == 0:
+        return 0
+    if str(process_stop_mode or "").strip() not in {
+        "wrapper_terminate_after_success",
+        "wrapper_kill_after_success",
+    }:
+        return canonical
+    if (
+        _normalize_process_returncode(
+            shutdown_classification=shutdown_classification,
+            raw_returncode=canonical,
+            final_close_drain_snapshot=final_close_drain_snapshot,
+        )
+        == 0
+    ):
+        return 0
+    return canonical
 
 
 def _resolve_final_shutdown_state(
@@ -4966,8 +4997,13 @@ def _run_variant(
             ):
                 shutdown_classification = "real_post_promotion_read_observed"
                 termination_reason = shutdown_classification
-            process_returncode_raw = int(
-                proc.returncode if proc.returncode is not None else -1
+            process_returncode_raw = _canonicalize_process_returncode_raw(
+                shutdown_classification=shutdown_classification or termination_reason,
+                raw_returncode=(
+                    int(proc.returncode) if proc.returncode is not None else -1
+                ),
+                final_close_drain_snapshot=final_close_drain_snapshot,
+                process_stop_mode=process_stop_mode,
             )
 
     end_dt = datetime.now(timezone.utc)
@@ -5596,6 +5632,9 @@ def main():
     )
     if isinstance(alpha_refresh_report, dict):
         scoped_alpha_refresh_report = dict(alpha_refresh_report)
+        positive_side_fallback_used = _coerce_bool(
+            alpha_refresh_report.get("positive_side_fallback_used")
+        )
         if active_run_symbols:
             scoped_alpha_refresh_report["pair_stats_top"] = [
                 row
@@ -5659,6 +5698,19 @@ def main():
             f"overrides={len(strict_bucket_overrides)} "
             f"thresholds={thresholds_txt}"
         )
+        if (
+            positive_side_fallback_used
+            and not runtime_contract_fail_closed
+            and not strict_bucket_gate.get("positive_side_allowlist")
+            and "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST"
+            not in after_overrides_cli
+            and not _split_csv_tokens(
+                after_overrides.get("ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST")
+            )
+        ):
+            after_overrides["PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST"] = "0"
+            if "ENTRY_EDGE_COLDSTART_MODE" not in after_overrides_cli:
+                after_overrides["ENTRY_EDGE_COLDSTART_MODE"] = "fail_open"
         robust_side_blocks = set()
         robust_negative_strategies = set()
         strategy_rollup = {}
@@ -6492,6 +6544,8 @@ def main():
                 "EXIT_SL_USDT_EXPECTANCY_REF": "0.025",
                 "EXIT_SL_USDT_EXPECTANCY_MIN_MULT": "0.70",
                 "EXIT_SL_USDT_EXPECTANCY_MAX_MULT": "1.00",
+                "MOMENTUM_MIXED_EDGE_SAFETY_MARGIN_USDT": "0.0006",
+                "MOMENTUM_MIXED_NEVER_GREEN_HARD_FLOOR_USDT": "0.0008",
             }
             if (
                 disable_alpha_whitelist_for_degraded_bootstrap
@@ -6511,6 +6565,13 @@ def main():
                 auto_after_overrides["ENTRY_SIDE_EXPECTANCY_MIN"] = (
                     f"{side_expectancy_floor:.3f}"
                 )
+            # Keep the validated AFTER cold-start bypass unless the operator
+            # explicitly overrides it at the CLI. Bootstrap heuristics were
+            # reintroducing a 0.03/2 trade gate and collapsing natural entries.
+            if "ENTRY_SIDE_EXPECTANCY_MIN" not in after_overrides_cli:
+                auto_after_overrides["ENTRY_SIDE_EXPECTANCY_MIN"] = "-1.0"
+            if "ENTRY_SIDE_EXPECTANCY_MIN_TRADES" not in after_overrides_cli:
+                auto_after_overrides["ENTRY_SIDE_EXPECTANCY_MIN_TRADES"] = "5"
             if not fallback_allowlist_allowed:
                 # Missing/empty strict bootstrap evidence may only add fail-closed
                 # blockers below. It must not relax entry gates or seed allowlists.
@@ -6537,6 +6598,16 @@ def main():
                             auto_after_overrides[
                                 "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST"
                             ] = "0"
+                        if "ENTRY_EDGE_COLDSTART_MODE" not in after_overrides_cli:
+                            auto_after_overrides["ENTRY_EDGE_COLDSTART_MODE"] = (
+                                "fail_open"
+                            )
+                        if "DIAGNOSTIC_MODE" not in after_overrides_cli:
+                            auto_after_overrides["DIAGNOSTIC_MODE"] = "1"
+                        if "DIAG_ALLOW_REENTRY_WHILE_IN_POSITION" not in after_overrides_cli:
+                            auto_after_overrides[
+                                "DIAG_ALLOW_REENTRY_WHILE_IN_POSITION"
+                            ] = "1"
             strict_positive_side_tokens = set()
             strict_positive_symbols = set()
             strict_positive_pairs = set()

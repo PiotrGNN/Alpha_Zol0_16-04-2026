@@ -700,7 +700,9 @@ def _should_fail_closed_post_green_red_close(
         and feasible_net is not None
         and feasible_net > 0.0
     ):
-        return True
+        min_green_capture_fraction = 0.20
+        min_required_feasible_net = peak_mfe * min_green_capture_fraction
+        return feasible_net >= min_required_feasible_net
     return False
 
 
@@ -3926,6 +3928,7 @@ def _paper_post_green_protective_exit_decision(
     micro_mfe_peak_to_burden_ratio_ceiling = 0.20
     bnr_time_forced_exit_sec = 1.0
     bnr_loss_cap_abs = 0.0022
+    bnr_loss_cap_min_peak_to_burden_ratio = 0.40
     metrics = {
         "post_green_attempt_seq": None,
         "post_green_branch_seq": None,
@@ -4115,17 +4118,23 @@ def _paper_post_green_protective_exit_decision(
     # does not steal micro-MFE or soft-residual paths on unstable early peaks.
     bnr_time_forced_exit_giveback_floor = 5.51
     bnr_time_forced_exit_ready = bool(
-        current_net_val <= 0.0
+        peak_mfe is not None
+        and float(peak_mfe) >= float(micro_mfe_exit_threshold)
+        and current_net_val <= 0.0
         and time_since_peak_sec >= float(bnr_time_forced_exit_sec)
         and (peak_to_burden_ratio is None or peak_to_burden_ratio < 1.0)
         and giveback_ratio >= float(bnr_time_forced_exit_giveback_floor)
     )
     bnr_loss_cap_exit_ready = bool(
         not bnr_time_forced_exit_ready
+        and peak_mfe is not None
+        and float(peak_mfe) >= float(micro_mfe_exit_threshold)
         and current_net_val <= -float(bnr_loss_cap_abs)
         and time_since_peak_sec >= float(bnr_time_forced_exit_sec)
         and time_since_peak_sec <= 45.0
-        and (peak_to_burden_ratio is None or peak_to_burden_ratio < 1.0)
+        and peak_to_burden_ratio is not None
+        and peak_to_burden_ratio >= float(bnr_loss_cap_min_peak_to_burden_ratio)
+        and peak_to_burden_ratio < 1.0
     )
     if bnr_time_forced_exit_ready or bnr_loss_cap_exit_ready:
         metrics["post_green_bnr_time_forced_exit"] = True
@@ -4273,6 +4282,9 @@ def _paper_post_green_protective_exit_decision(
     metrics["post_green_quality_filter_candidate"] = quality_filter_candidate
     if quality_filter_candidate:
         quality_filter_reasons = []
+        quality_filter_weak_peak = bool(
+            peak_to_burden_ratio is not None and peak_to_burden_ratio < 0.5
+        )
         quality_filter_requires_strong_peak = bool(
             peak_to_burden_ratio is not None
             and peak_to_burden_ratio >= float(rescue_refine_ratio_floor)
@@ -4299,6 +4311,17 @@ def _paper_post_green_protective_exit_decision(
             metrics["post_green_quality_filter_blocked"] = True
             metrics["post_green_quality_filter_reason"] = (
                 "hard_window_override_blocked_weak_peak_to_burden"
+            )
+            return _skip("quality_filter_blocked")
+        if (
+            quality_filter_weak_peak
+            and quality_filter_is_late
+            and quality_filter_has_excessive_giveback
+            and not quality_filter_hard_window_override
+        ):
+            metrics["post_green_quality_filter_blocked"] = True
+            metrics["post_green_quality_filter_reason"] = (
+                "late_after_peak_and_excessive_giveback_weak_peak_to_burden"
             )
             return _skip("quality_filter_blocked")
         if (
@@ -4429,6 +4452,7 @@ def _paper_weak_peak_decay_decision(
     stale_after_peak_sec = 35.0
     max_peak_fee_ratio = 1.20
     min_peak_fee_ratio = 0.20
+    hard_window_min_peak_fee_ratio = 0.40
     min_giveback_ratio = 1.05
     hard_window_sec = 30.0
     hard_window_min_giveback_ratio = 1.20
@@ -4522,7 +4546,11 @@ def _paper_weak_peak_decay_decision(
     metrics["weak_peak_decay_hard_close_imminent"] = bool(hard_close_imminent)
     peak_fee_ratio = float(peak_mfe) / float(fee_floor_val)
     metrics["weak_peak_decay_peak_fee_ratio"] = peak_fee_ratio
-    if peak_fee_ratio < float(min_peak_fee_ratio):
+    effective_min_peak_fee_ratio = float(
+        hard_window_min_peak_fee_ratio if hard_close_imminent else min_peak_fee_ratio
+    )
+    metrics["weak_peak_decay_min_peak_fee_ratio"] = effective_min_peak_fee_ratio
+    if peak_fee_ratio < effective_min_peak_fee_ratio:
         metrics["weak_peak_decay_reason"] = "peak_too_weak_for_decay"
         return False, "peak_too_weak_for_decay", metrics
     if peak_fee_ratio >= float(max_peak_fee_ratio) and not (
@@ -4814,6 +4842,108 @@ def _derive_entry_reason_from_signal_funnel(
     return None
 
 
+def _resolve_entry_policy_pipeline(
+    *,
+    symbol,
+    decision_value,
+    current_side,
+    current_side_disabled,
+    reverse_entry,
+    now_ts,
+    signal_score,
+    ensemble_signals,
+    filtered_ensemble_signals,
+    dropped_ensemble_signals,
+    last_decision_state,
+    entry_symbol_allowlist,
+    entry_symbol_blocklist,
+    entry_allow_buy,
+    entry_allow_sell,
+    decision_hysteresis_score,
+    decision_change_cooldown_sec,
+):
+    entry_decision = decision_value
+    entry_reason = _derive_entry_reason_from_signal_funnel(
+        entry_decision_raw=decision_value,
+        entry_decision_final=decision_value,
+        ensemble_signals=ensemble_signals,
+        filtered_ensemble_signals=filtered_ensemble_signals,
+        dropped_ensemble_signals=dropped_ensemble_signals,
+    )
+
+    if current_side and not current_side_disabled:
+        return "hold", entry_reason or "current_side"
+
+    if reverse_entry:
+        return entry_decision, "reversal"
+
+    if entry_decision in ("buy", "sell"):
+        symbol_guard_key = str(symbol or "").strip().upper()
+        if entry_symbol_allowlist and symbol_guard_key not in entry_symbol_allowlist:
+            return "hold", "symbol_allowlist"
+        if symbol_guard_key in entry_symbol_blocklist:
+            return "hold", "symbol_blocklist"
+
+        supporting_signal_found = False
+        for signal_payload in filtered_ensemble_signals or []:
+            if not isinstance(signal_payload, dict):
+                continue
+            side_value = str(
+                signal_payload.get("_side") or signal_payload.get("side") or ""
+            ).strip().lower()
+            if side_value == entry_decision:
+                supporting_signal_found = True
+                break
+        if not supporting_signal_found:
+            return "hold", entry_reason or "no_supporting_signal"
+
+        last_state = last_decision_state.get(symbol)
+        if (
+            last_state
+            and decision_value != last_state.get("decision")
+            and (
+                abs(float(signal_score)) < decision_hysteresis_score
+                or (now_ts - last_state.get("ts", 0.0))
+                < decision_change_cooldown_sec
+            )
+        ):
+            return "hold", "hysteresis"
+
+        last_decision_state[symbol] = {
+            "decision": decision_value,
+            "ts": now_ts,
+        }
+
+    if entry_decision == "buy" and not entry_allow_buy:
+        return "hold", "buy_disabled"
+    if entry_decision == "sell" and not entry_allow_sell:
+        return "hold", "sell_disabled"
+
+    return entry_decision, entry_reason
+
+
+def _apply_side_profit_edge_gate_pipeline(
+    *,
+    entry_decision,
+    entry_reason,
+    gate_blocked,
+    gate_reason,
+):
+    if entry_decision not in ("buy", "sell") or not bool(gate_blocked):
+        return entry_decision, entry_reason
+    normalized_reason = _normalize_entry_reason(gate_reason)
+    if normalized_reason is None:
+        normalized_reason = str(gate_reason or "").strip() or None
+    return "hold", (entry_reason or normalized_reason)
+
+
+def _set_entry_reason_if_unset(entry_reason, candidate_reason):
+    normalized_reason = _normalize_entry_reason(candidate_reason)
+    if normalized_reason is None:
+        normalized_reason = str(candidate_reason or "").strip() or None
+    return entry_reason or normalized_reason
+
+
 def _normalize_local_gate_reason_for_summary(
     *,
     local_gate_reason,
@@ -4824,6 +4954,7 @@ def _normalize_local_gate_reason_for_summary(
     ensemble_signals=None,
     filtered_ensemble_signals=None,
     dropped_ensemble_signals=None,
+    bucket_identity_reason=None,
 ):
     try:
         reason = str(local_gate_reason or "").strip()
@@ -4833,6 +4964,7 @@ def _normalize_local_gate_reason_for_summary(
         return reason or local_gate_reason
 
     entry_reason_norm = str(entry_reason or "").strip().lower()
+    bucket_identity_reason_norm = str(bucket_identity_reason or "").strip().lower()
     main_strategy_missing = main_strategy is None
     if not main_strategy_missing:
         try:
@@ -4850,6 +4982,16 @@ def _normalize_local_gate_reason_for_summary(
         )
         if derived_reason is not None:
             return derived_reason
+        if (
+            bucket_identity_reason_norm == "missing_strategy_field"
+            and main_strategy_missing
+            and str(entry_decision_raw or "").strip().lower() == "hold"
+            and str(entry_decision_final or "").strip().lower() == "hold"
+            and not bool(ensemble_signals)
+            and not bool(filtered_ensemble_signals)
+            and not bool(dropped_ensemble_signals)
+        ):
+            return "missing_strategy_field"
         strategy_alias_present = False
         if isinstance(ensemble_signals, (list, tuple)):
             for candidate_payload in ensemble_signals:
@@ -4876,6 +5018,15 @@ def _normalize_entry_reason(reason):
     if reason_norm in ("", "null", "None", "none"):
         return None
     return reason_norm
+
+
+def _canonical_bucket_trace_for_summary(entry_gate_decision_summary):
+    if not isinstance(entry_gate_decision_summary, dict):
+        return {}
+    canonical_bucket_trace = entry_gate_decision_summary.get("canonical_bucket")
+    if isinstance(canonical_bucket_trace, dict):
+        return canonical_bucket_trace
+    return {}
 
 
 def _should_fail_closed_unknown_fallback_admission(
@@ -5036,10 +5187,6 @@ def apply_ai_vote(signal_score, signal_votes, ai_pred, weight):
     except Exception:
         return signal_score, signal_votes, None
     side = "buy" if pred_int == 1 else "sell"
-    if side == "buy":
-        signal_score += weight
-    else:
-        signal_score -= weight
     signal_votes.append(
         {
             "strategy": "OnlineTrainer",
@@ -5067,6 +5214,31 @@ def apply_meta_vote(signal_score, signal_votes, strategy_name, side, weight):
         }
     )
     return signal_score, signal_votes, side
+
+
+def _attach_fl_trend_payload_fields(
+    decision_payload,
+    *,
+    fl_trend_hint,
+    fl_trend_override_counts,
+    symbol,
+):
+    if not isinstance(decision_payload, dict):
+        return decision_payload
+    decision_payload["fl_trend_hint"] = fl_trend_hint
+    decision_payload["fl_base_pred"] = (
+        fl_trend_hint.get("base_pred") if isinstance(fl_trend_hint, dict) else None
+    )
+    decision_payload["fl_trend_override_applied"] = bool(
+        isinstance(fl_trend_hint, dict) and fl_trend_hint.get("applied")
+    )
+    decision_payload["fl_trend_override_direction"] = (
+        fl_trend_hint.get("direction") if isinstance(fl_trend_hint, dict) else None
+    )
+    decision_payload["fl_trend_override_count_symbol"] = int(
+        (fl_trend_override_counts or {}).get(symbol) or 0
+    )
+    return decision_payload
 
 
 def _extract_federated_close_values(candles):
@@ -5141,20 +5313,34 @@ def maybe_run_federated_learning(
             return False
 
         prev_global = getattr(trend_predictor, "federated_global_model", None)
+        fl_research_only = True
+        try:
+            fl_research_only = _env_flag("FL_RESEARCH_ONLY", "1")
+        except Exception:
+            fl_research_only = True
         proposed_global = run_fl_round(
             clients,
             prev_global,
             holdout=holdout,
         )
-        applied_global = trend_predictor.federated_update(
-            proposed_global,
-            holdout=holdout,
-        )
+        if fl_research_only:
+            applied_global = prev_global
+            logger.info(
+                "BotCore: FL round ran in research-only mode for %s.",
+                symbol,
+            )
+        else:
+            applied_global = trend_predictor.federated_update(
+                proposed_global,
+                holdout=holdout,
+            )
         payload = {
             "step": federated_round,
             "symbol": symbol,
             "clients": len(clients),
             "holdout_size": len(holdout),
+            "mode": "research_only" if fl_research_only else "execution",
+            "proposed_global_model": proposed_global,
             "global_model": applied_global,
         }
         try:
@@ -9092,7 +9278,7 @@ def run_bot(simulate=False):
                 blocked = not coldstart_allow
                 reason = "insufficient_history"
 
-            if blocked and entry_profit_gate_exploration_enable:
+            if blocked and (not _env_flag("LIVE")) and entry_profit_gate_exploration_enable:
                 key = f"{str(symbol_name).upper()}:{str(strategy_name).upper()}:{side_name}"
                 try:
                     last_probe = float(entry_profit_gate_last_explore_ts.get(key) or 0.0)
@@ -9192,7 +9378,7 @@ def run_bot(simulate=False):
                 blocked = not coldstart_allow
                 reason = "insufficient_history"
 
-            if blocked and entry_side_alpha_filter_exploration_enable:
+            if blocked and (not _env_flag("LIVE")) and entry_side_alpha_filter_exploration_enable:
                 key = f"{str(symbol_name).upper()}:{str(strategy_name).upper()}:{side_name}"
                 try:
                     last_probe = float(
@@ -12356,6 +12542,7 @@ def run_bot(simulate=False):
         symbols_count=len(symbols),
     )
     federated_round = 0
+    fl_trend_override_counts = {}
     try:
         _paper_runtime_trace(
             "paper_runtime_boot_step",
@@ -13227,20 +13414,20 @@ def run_bot(simulate=False):
     trend_mixed_edge_safety_margin = max(0.0, float(trend_mixed_edge_safety_margin))
     try:
         momentum_mixed_edge_safety_margin = float(
-            os.environ.get("MOMENTUM_MIXED_EDGE_SAFETY_MARGIN_USDT", "0.0002")
+            os.environ.get("MOMENTUM_MIXED_EDGE_SAFETY_MARGIN_USDT", "0.0006")
         )
     except Exception:
-        momentum_mixed_edge_safety_margin = 0.0002
+        momentum_mixed_edge_safety_margin = 0.0006
     momentum_mixed_edge_safety_margin = max(
         0.0,
         float(momentum_mixed_edge_safety_margin),
     )
     try:
         momentum_mixed_never_green_hard_floor_usdt = float(
-            os.environ.get("MOMENTUM_MIXED_NEVER_GREEN_HARD_FLOOR_USDT", "0.0006")
+            os.environ.get("MOMENTUM_MIXED_NEVER_GREEN_HARD_FLOOR_USDT", "0.0008")
         )
     except Exception:
-        momentum_mixed_never_green_hard_floor_usdt = 0.0006
+        momentum_mixed_never_green_hard_floor_usdt = 0.0008
     momentum_mixed_never_green_hard_floor_usdt = max(
         0.0,
         float(momentum_mixed_never_green_hard_floor_usdt),
@@ -19832,6 +20019,14 @@ def run_bot(simulate=False):
                         trend_params = {}
                     indicators = _compute_indicators(klines_df, trend_params)
                     trend = trend_predictor.predict_trend(klines_df)
+                    try:
+                        fl_trend_hint = trend_predictor.get_last_federated_hint()
+                    except Exception:
+                        fl_trend_hint = {}
+                    if isinstance(fl_trend_hint, dict) and fl_trend_hint.get("applied"):
+                        fl_trend_override_counts[symbol] = (
+                            int(fl_trend_override_counts.get(symbol) or 0) + 1
+                        )
                     sl, tp = tp_sl_optimizer.optimize(candles)
                     vol_model = vol_forecaster.forecast_volatility(klines_df)
                     atr_pct, std_pct = _compute_realized_volatility(klines_df, indicators)
@@ -21447,6 +21642,12 @@ def run_bot(simulate=False):
                             "mr_shadow_rule_variant"
                         ),
                     }
+                    _attach_fl_trend_payload_fields(
+                        decision_payload,
+                        fl_trend_hint=fl_trend_hint,
+                        fl_trend_override_counts=fl_trend_override_counts,
+                        symbol=symbol,
+                    )
                     now_ts = time.time()
                     _sync_futures_position(symbol)
                     current_pos = position_manager.get_position(symbol)
@@ -24073,16 +24274,8 @@ def run_bot(simulate=False):
                             except Exception:
                                 pass
                             current_side = _pos_side(current_pos)
-                    entry_decision = decision_value
-                    entry_reason = _derive_entry_reason_from_signal_funnel(
-                        entry_decision_raw=decision_value,
-                        entry_decision_final=decision_value,
-                        ensemble_signals=ensemble_signals,
-                        filtered_ensemble_signals=filtered_ensemble_signals,
-                        dropped_ensemble_signals=dropped_ensemble_signals,
-                    )
-                    entry_decision_raw = entry_decision
-                    entry_decision_final = entry_decision
+                    current_side_disabled = False
+                    entry_decision_raw = decision_value
                     applied_invert = False
                     side_override_applied = None
                     entry_edge_over_fee_status = None
@@ -24112,13 +24305,20 @@ def run_bot(simulate=False):
                     tf_router_lead_percentile_local = None
                     tf_soft_quality_rank_local = None
                     tf_soft_quality_bucket_v2 = None
+                    initial_entry_reason = _derive_entry_reason_from_signal_funnel(
+                        entry_decision_raw=decision_value,
+                        entry_decision_final=decision_value,
+                        ensemble_signals=ensemble_signals,
+                        filtered_ensemble_signals=filtered_ensemble_signals,
+                        dropped_ensemble_signals=dropped_ensemble_signals,
+                    )
                     if current_side:
                         hold_debug_payload = _research_only_hold_transition_debug(
                             branch_name="current_side",
                             symbol=symbol,
-                            entry_decision_before=entry_decision,
+                            entry_decision_before=decision_value,
                             entry_decision_after="hold",
-                            entry_reason=entry_reason,
+                            entry_reason=initial_entry_reason,
                             branch_fields={
                                 "current_side": current_side,
                             },
@@ -24146,140 +24346,40 @@ def run_bot(simulate=False):
                                     ),
                                     position_state="in_position",
                                     current_side=bool(current_side),
-                                    entry_decision_before=entry_decision,
+                                    entry_decision_before=decision_value,
                                     entry_decision_after=(
-                                        "hold" if not current_side_disabled else entry_decision
+                                        "hold" if not current_side_disabled else decision_value
                                     ),
-                                    entry_reason_raw=entry_reason,
+                                    entry_reason_raw=initial_entry_reason,
                                     local_gate_reason_final=(
-                                        "current_side" if entry_reason is None else entry_reason
+                                        "current_side"
                                     ),
-                                    is_fallback_reason=entry_reason is None,
+                                    is_fallback_reason=False,
                                     entry_state_classification="position_hold",
                                 ),
                             )
                         except Exception:
                             pass
-                        if not current_side_disabled:
-                            if entry_reason is None:
-                                entry_reason = "current_side"
-                            entry_decision = "hold"
-                    elif reverse_entry:
-                        entry_decision = decision_value
-                        entry_reason = "reversal"
-                    else:
-                        if decision_value in ("buy", "sell"):
-                            symbol_guard_key = str(symbol or "").strip().upper()
-                            strategy_guard_key = None
-                            strategy_only_guard_key = None
-                            strategy_side_guard_key = None
-                            strategy_side_global_guard_key = None
-                            try:
-                                if main_strategy:
-                                    strategy_only_guard_key = str(main_strategy).strip().upper()
-                                    strategy_guard_key = (
-                                        f"{symbol_guard_key}:{strategy_only_guard_key}"
-                                    )
-                                    strategy_side_guard_key = (
-                                        f"{strategy_guard_key}:{str(decision_value).strip().lower()}"
-                                    )
-                                    strategy_side_global_guard_key = (
-                                        f"{strategy_only_guard_key}:{str(decision_value).strip().lower()}"
-                                    )
-                            except Exception:
-                                strategy_guard_key = None
-                                strategy_only_guard_key = None
-                                strategy_side_guard_key = None
-                                strategy_side_global_guard_key = None
-                            if entry_symbol_allowlist and (
-                                symbol_guard_key not in entry_symbol_allowlist
-                            ):
-                                entry_decision = "hold"
-                                entry_reason = "symbol_allowlist"
-                            elif symbol_guard_key in entry_symbol_blocklist:
-                                entry_decision = "hold"
-                                entry_reason = "symbol_blocklist"
-                            elif entry_strategy_allowlist and (
-                                not strategy_only_guard_key
-                                or strategy_only_guard_key not in entry_strategy_allowlist
-                            ):
-                                entry_decision = "hold"
-                                entry_reason = "strategy_allowlist"
-                            elif (
-                                strategy_only_guard_key
-                                and strategy_only_guard_key in entry_strategy_blocklist
-                            ):
-                                entry_decision = "hold"
-                                entry_reason = "strategy_blocklist"
-                            elif entry_strategy_side_allowlist and (
-                                not strategy_side_global_guard_key
-                                or strategy_side_global_guard_key
-                                not in entry_strategy_side_allowlist
-                            ):
-                                entry_decision = "hold"
-                                entry_reason = "strategy_side_allowlist"
-                            elif (
-                                strategy_side_global_guard_key
-                                and strategy_side_global_guard_key
-                                in entry_strategy_side_blocklist
-                            ):
-                                entry_decision = "hold"
-                                entry_reason = "strategy_side_blocklist"
-                            elif entry_symbol_strategy_allowlist and (
-                                not strategy_guard_key
-                                or strategy_guard_key not in entry_symbol_strategy_allowlist
-                            ):
-                                entry_decision = "hold"
-                                entry_reason = "symbol_strategy_allowlist"
-                            elif (
-                                strategy_guard_key
-                                and strategy_guard_key in entry_symbol_strategy_blocklist
-                            ):
-                                entry_decision = "hold"
-                                entry_reason = "symbol_strategy_blocklist"
-                            elif entry_symbol_strategy_side_allowlist and (
-                                not strategy_side_guard_key
-                                or strategy_side_guard_key
-                                not in entry_symbol_strategy_side_allowlist
-                            ):
-                                entry_decision = "hold"
-                                entry_reason = "symbol_strategy_side_allowlist"
-                            elif (
-                                strategy_side_guard_key
-                                and strategy_side_guard_key
-                                in entry_symbol_strategy_side_blocklist
-                            ):
-                                entry_decision = "hold"
-                                entry_reason = "symbol_strategy_side_blocklist"
-                            last_state = last_decision_state.get(symbol)
-                            if (
-                                entry_decision in ("buy", "sell")
-                                and last_state
-                                and decision_value != last_state.get("decision")
-                            ):
-                                if (
-                                    abs(float(signal_score)) < decision_hysteresis_score
-                                    or (now_ts - last_state.get("ts", 0.0))
-                                    < decision_change_cooldown_sec
-                                ):
-                                    entry_decision = "hold"
-                                    entry_reason = "hysteresis"
-                                else:
-                                    last_decision_state[symbol] = {
-                                        "decision": decision_value,
-                                        "ts": now_ts,
-                                    }
-                            elif entry_decision in ("buy", "sell"):
-                                last_decision_state[symbol] = {
-                                    "decision": decision_value,
-                                    "ts": now_ts,
-                                }
-                    if entry_decision == "buy" and not entry_allow_buy:
-                        entry_decision = "hold"
-                        entry_reason = "buy_disabled"
-                    elif entry_decision == "sell" and not entry_allow_sell:
-                        entry_decision = "hold"
-                        entry_reason = "sell_disabled"
+                    entry_decision, entry_reason = _resolve_entry_policy_pipeline(
+                        symbol=symbol,
+                        decision_value=decision_value,
+                        current_side=current_side,
+                        current_side_disabled=current_side_disabled,
+                        reverse_entry=reverse_entry,
+                        now_ts=now_ts,
+                        signal_score=signal_score,
+                        ensemble_signals=ensemble_signals,
+                        filtered_ensemble_signals=filtered_ensemble_signals,
+                        dropped_ensemble_signals=dropped_ensemble_signals,
+                        last_decision_state=last_decision_state,
+                        entry_symbol_allowlist=entry_symbol_allowlist,
+                        entry_symbol_blocklist=entry_symbol_blocklist,
+                        entry_allow_buy=entry_allow_buy,
+                        entry_allow_sell=entry_allow_sell,
+                        decision_hysteresis_score=decision_hysteresis_score,
+                        decision_change_cooldown_sec=decision_change_cooldown_sec,
+                    )
+                    entry_decision_final = entry_decision
                     side_guard_status = None
                     entry_profit_gate_status = None
                     adaptive_entry_relax = {
@@ -24713,8 +24813,12 @@ def run_bot(simulate=False):
                             and side_guard_status.get("blocked")
                         ):
                             if not side_guard_disabled:
-                                entry_decision = "hold"
-                                entry_reason = "side_guard"
+                                entry_decision, entry_reason = _apply_side_profit_edge_gate_pipeline(
+                                    entry_decision=entry_decision,
+                                    entry_reason=entry_reason,
+                                    gate_blocked=True,
+                                    gate_reason="side_guard",
+                                )
                             try:
                                 logger.info(
                                     "Side guard blocked entry for %s side=%s trades=%s "
@@ -24792,8 +24896,12 @@ def run_bot(simulate=False):
                             ):
                                 blocked_side = str(side_guard_status.get("side") or entry_decision)
                                 if not side_expectancy_disabled:
-                                    entry_decision = "hold"
-                                    entry_reason = "side_expectancy"
+                                    entry_decision, entry_reason = _apply_side_profit_edge_gate_pipeline(
+                                        entry_decision=entry_decision,
+                                        entry_reason=entry_reason,
+                                        gate_blocked=True,
+                                        gate_reason="side_expectancy",
+                                    )
                                 try:
                                     logger.info(
                                         "Side expectancy blocked entry for %s side=%s "
@@ -24854,8 +24962,12 @@ def run_bot(simulate=False):
                             isinstance(entry_profit_gate_status, dict)
                             and entry_profit_gate_status.get("blocked")
                         ):
-                            entry_decision = "hold"
-                            entry_reason = "profit_gate"
+                            entry_decision, entry_reason = _apply_side_profit_edge_gate_pipeline(
+                                entry_decision=entry_decision,
+                                entry_reason=entry_reason,
+                                gate_blocked=True,
+                                gate_reason="profit_gate",
+                            )
                             try:
                                 logger.info(
                                     "Entry profit gate blocked %s strategy=%s side=%s scope=%s trades=%s "
@@ -24889,7 +25001,10 @@ def run_bot(simulate=False):
                             and entry_profit_gate_status.get("exploration")
                             and not entry_reason
                         ):
-                            entry_reason = "profit_gate_exploration"
+                            entry_reason = _set_entry_reason_if_unset(
+                                entry_reason,
+                                "profit_gate_exploration",
+                            )
                     if entry_decision in ("buy", "sell"):
                         try:
                             edge_strategy = str(main_strategy or "Universal")
@@ -25361,11 +25476,18 @@ def run_bot(simulate=False):
                             edge_blocked = True
                             if research_edge_gate_active and edge_over_fee_value >= edge_threshold:
                                 edge_blocked = False
-                                entry_reason = "research_edge_gate_override"
+                                entry_reason = _set_entry_reason_if_unset(
+                                    entry_reason,
+                                    "research_edge_gate_override",
+                                )
                                 edge_reason = "research_edge_gate_override"
                             else:
-                                entry_decision = "hold"
-                                entry_reason = "edge_over_fee_gate"
+                                entry_decision, entry_reason = _apply_side_profit_edge_gate_pipeline(
+                                    entry_decision=entry_decision,
+                                    entry_reason=entry_reason,
+                                    gate_blocked=True,
+                                    gate_reason="edge_over_fee_gate",
+                                )
                             try:
                                 infinity_logger.log(
                                     "entry_edge_over_fee_block",
@@ -25750,8 +25872,12 @@ def run_bot(simulate=False):
                             < float(entry_min_expected_edge_after_fee)
                         ):
                             edge_blocked = True
-                            entry_decision = "hold"
-                            entry_reason = "entry_edge_filtered"
+                            entry_decision, entry_reason = _apply_side_profit_edge_gate_pipeline(
+                                entry_decision=entry_decision,
+                                entry_reason=entry_reason,
+                                gate_blocked=True,
+                                gate_reason="entry_edge_filtered",
+                            )
                             edge_filter_pass = False
                             edge_filter_reason = "entry_expected_edge_after_fee_below_min"
                             try:
@@ -27992,6 +28118,7 @@ def run_bot(simulate=False):
                         global_block_reason = str(
                             (gate_state or {}).get("reason") or "paper_gate_active"
                         )
+                    canonical_bucket_trace = {}
                     local_gate_reason = None
                     if not final_allow and global_block_reason is None:
                         local_gate_reason = _resolve_local_gate_reason(entry_reason)
@@ -28004,6 +28131,9 @@ def run_bot(simulate=False):
                             ensemble_signals=ensemble_signals,
                             filtered_ensemble_signals=filtered_ensemble_signals,
                             dropped_ensemble_signals=dropped_ensemble_signals,
+                            bucket_identity_reason=canonical_bucket_trace.get(
+                                "bucket_identity_reason"
+                            ),
                         )
                     entry_gate_reason_context = _resolve_entry_gate_reason_context(
                         global_block_reason=global_block_reason,
@@ -28266,8 +28396,8 @@ def run_bot(simulate=False):
                         }
                     except Exception:
                         pass
-                    canonical_bucket_trace = (
-                        entry_gate_decision_summary.get("canonical_bucket") or {}
+                    canonical_bucket_trace = _canonical_bucket_trace_for_summary(
+                        entry_gate_decision_summary
                     )
                     entry_gate_decision_summary["natural_path_trace"] = {
                         "ts": datetime.now(timezone.utc).isoformat(),
@@ -30099,6 +30229,46 @@ def run_bot(simulate=False):
                                             "depth_and_liquidity_context": depth_flag_sim
                                         },
                                     )
+                                skip_open = False
+                                missing = []
+                                alloc_usdt_sim = _safe_float(order.get("allocation_usdt"))
+                                amount_sim = _safe_float(order.get("amount"))
+                                if alloc_usdt_sim is None or alloc_usdt_sim <= 0:
+                                    missing.append("allocation_usdt_nonpositive")
+                                if amount_sim is None or amount_sim <= 0:
+                                    missing.append("amount_nonpositive")
+                                if missing:
+                                    skip_open = True
+                                    logger.warning(
+                                        "Position open skipped for %s (missing: %s)",
+                                        symbol,
+                                        ",".join(missing),
+                                    )
+                                    try:
+                                        infinity_logger.log(
+                                            "position_open_skipped",
+                                            {
+                                                "symbol": symbol,
+                                                "missing": missing,
+                                                "order": order,
+                                            },
+                                        )
+                                    except Exception:
+                                        pass
+                                    if (
+                                        ab_forced_on_anchor
+                                        and isinstance(ab_anchor_ctx, dict)
+                                    ):
+                                        _ab_mark_anchor_missing(
+                                            ab_anchor_ctx,
+                                            "position_open_skipped",
+                                            {
+                                                "symbol": symbol,
+                                                "missing": list(missing),
+                                            },
+                                        )
+                                if skip_open:
+                                    continue
                                 last_exec_ts[symbol] = now_ts
                                 infinity_logger.log("order_simulated", order)
                                 # Aktualizacja pozycji w trybie symulacji

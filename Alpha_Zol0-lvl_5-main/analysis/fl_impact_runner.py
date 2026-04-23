@@ -249,6 +249,172 @@ def build_fl_decision_snapshots(
     return snapshots
 
 
+def summarize_fl_telemetry(
+    decision_rows: List[Tuple[str, str, Dict]]
+) -> Dict[str, Any]:
+    rows_with_hint = 0
+    override_applied_count = 0
+    override_up_count = 0
+    override_down_count = 0
+    max_override_count_symbol = 0
+
+    for _ts, _decision, payload in decision_rows:
+        if not isinstance(payload, dict):
+            continue
+        hint = payload.get("fl_trend_hint")
+        if isinstance(hint, dict):
+            rows_with_hint += 1
+        applied = bool(payload.get("fl_trend_override_applied"))
+        if applied:
+            override_applied_count += 1
+            direction = str(payload.get("fl_trend_override_direction") or "").upper()
+            if direction == "UP":
+                override_up_count += 1
+            elif direction == "DOWN":
+                override_down_count += 1
+        try:
+            symbol_count = int(payload.get("fl_trend_override_count_symbol") or 0)
+        except Exception:
+            symbol_count = 0
+        if symbol_count > max_override_count_symbol:
+            max_override_count_symbol = symbol_count
+
+    return {
+        "rows_with_fl_trend_hint": int(rows_with_hint),
+        "override_applied_count": int(override_applied_count),
+        "override_up_count": int(override_up_count),
+        "override_down_count": int(override_down_count),
+        "max_override_count_symbol": int(max_override_count_symbol),
+    }
+
+
+def summarize_fl_telemetry_breakdown(
+    decision_rows: List[Tuple[str, str, Dict]]
+) -> Dict[str, Any]:
+    direction_counts: Counter = Counter()
+    symbol_counts: Counter = Counter()
+
+    for _ts, _decision, payload in decision_rows:
+        if not isinstance(payload, dict):
+            continue
+        if not bool(payload.get("fl_trend_override_applied")):
+            continue
+
+        direction = str(payload.get("fl_trend_override_direction") or "UNKNOWN").upper()
+        if direction not in {"UP", "DOWN"}:
+            direction = "UNKNOWN"
+        direction_counts[direction] += 1
+
+        symbol = str(payload.get("symbol") or "UNKNOWN").upper()
+        symbol_counts[symbol] += 1
+
+    total_overrides = int(sum(symbol_counts.values()))
+    symbol_share = {}
+    if total_overrides > 0:
+        symbol_share = {
+            symbol: (float(count) / float(total_overrides))
+            for symbol, count in sorted(symbol_counts.items())
+        }
+
+    return {
+        "override_counts_by_direction": dict(sorted(direction_counts.items())),
+        "override_counts_by_symbol": dict(sorted(symbol_counts.items())),
+        "override_share_by_symbol": symbol_share,
+    }
+
+
+def summarize_fl_telemetry_impact(
+    decision_rows: List[Tuple[str, str, Dict]]
+) -> Dict[str, Any]:
+    total_rows = 0
+    changed_decisions_total = 0
+    override_rows_with_decision_change = 0
+    override_edge_deltas: List[float] = []
+
+    breakdown = summarize_fl_telemetry_breakdown(decision_rows)
+    direction_counts = breakdown.get("override_counts_by_direction") or {}
+    symbol_counts = breakdown.get("override_counts_by_symbol") or {}
+    symbol_share = breakdown.get("override_share_by_symbol") or {}
+
+    override_count = int(sum(int(v) for v in symbol_counts.values()))
+    if override_count == 0:
+        dominant_override_direction = "NONE"
+    else:
+        top_direction_count = max(int(v) for v in direction_counts.values())
+        top_directions = sorted(
+            key for key, value in direction_counts.items() if int(value) == top_direction_count
+        )
+        dominant_override_direction = (
+            top_directions[0] if len(top_directions) == 1 else "TIED"
+        )
+
+    top_override_symbols = [
+        {
+            "symbol": symbol,
+            "count": int(count),
+            "share": float(symbol_share.get(symbol) or 0.0),
+        }
+        for symbol, count in sorted(
+            symbol_counts.items(),
+            key=lambda item: (-int(item[1]), str(item[0])),
+        )[:5]
+    ]
+
+    for _ts, raw_decision, payload in decision_rows:
+        if not isinstance(payload, dict):
+            continue
+
+        total_rows += 1
+        decision_before, decision_after = _extract_decision_pair(raw_decision, payload)
+        decision_changed = str(decision_before) != str(decision_after)
+        if decision_changed:
+            changed_decisions_total += 1
+
+        if not bool(payload.get("fl_trend_override_applied")):
+            continue
+
+        if decision_changed:
+            override_rows_with_decision_change += 1
+
+        edge_before, edge_after = _extract_edge_pair(payload)
+        override_edge_deltas.append(float(edge_after) - float(edge_before))
+
+    override_applied_share_all_rows = (
+        float(override_count) / float(total_rows) if total_rows > 0 else 0.0
+    )
+    override_rows_with_decision_change_share = (
+        float(override_rows_with_decision_change) / float(override_count)
+        if override_count > 0
+        else 0.0
+    )
+    changed_decisions_with_override_share = (
+        float(override_rows_with_decision_change) / float(changed_decisions_total)
+        if changed_decisions_total > 0
+        else 0.0
+    )
+    avg_edge_delta_override_rows = (
+        float(sum(override_edge_deltas)) / float(len(override_edge_deltas))
+        if override_edge_deltas
+        else 0.0
+    )
+
+    return {
+        "total_rows_analyzed": int(total_rows),
+        "override_applied_share_all_rows": override_applied_share_all_rows,
+        "dominant_override_direction": dominant_override_direction,
+        "top_override_symbols": top_override_symbols,
+        "changed_decisions_total": int(changed_decisions_total),
+        "override_rows_with_decision_change": int(override_rows_with_decision_change),
+        "override_rows_with_decision_change_share": (
+            override_rows_with_decision_change_share
+        ),
+        "changed_decisions_with_override_share": (
+            changed_decisions_with_override_share
+        ),
+        "avg_edge_delta_override_rows": avg_edge_delta_override_rows,
+    }
+
+
 def run_fl_impact_analysis(
     source_path: Optional[Path] = None,
     run_id: Optional[str] = None,
@@ -287,6 +453,9 @@ def run_fl_impact_analysis(
 
     snapshots = build_fl_decision_snapshots(decision_rows)
     t2 = time.perf_counter()
+    fl_telemetry = summarize_fl_telemetry(decision_rows)
+    fl_telemetry_breakdown = summarize_fl_telemetry_breakdown(decision_rows)
+    fl_telemetry_impact_summary = summarize_fl_telemetry_impact(decision_rows)
 
     if not snapshots:
         raise ValueError("No FL decision snapshots could be built from source data")
@@ -317,7 +486,12 @@ def run_fl_impact_analysis(
             "Use a different run_id, report_dir, or set fail_if_exists=False"
         )
 
-    json_content = create_report_json(snapshots)
+    json_content = create_report_json(
+        snapshots,
+        fl_telemetry=fl_telemetry,
+        fl_telemetry_breakdown=fl_telemetry_breakdown,
+        fl_telemetry_impact_summary=fl_telemetry_impact_summary,
+    )
     md_content = create_report_markdown(snapshots)
 
     t4 = time.perf_counter()
@@ -344,6 +518,9 @@ def run_fl_impact_analysis(
         "skipped_rows": parse_meta.get("skipped_rows", 0),
         "skipped_details": parse_meta.get("skipped_details", {}),
         "bad_rows": parse_meta.get("bad_rows", []),
+        "fl_telemetry": fl_telemetry,
+        "fl_telemetry_breakdown": fl_telemetry_breakdown,
+        "fl_telemetry_impact_summary": fl_telemetry_impact_summary,
         "fail_if_exists": fail_if_exists,
         "total_time_seconds": total_time,
         "write_time_seconds": t5 - t4,

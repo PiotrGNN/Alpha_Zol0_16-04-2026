@@ -2210,6 +2210,9 @@ def test_main_zero_row_bootstrap_enables_seed_trades_cold_start_mode(
     assert variant_overrides["SEED_TRADES_ENABLE"] == "1"
     assert variant_overrides["SEED_TRADES_LIMIT"] == "1"
     assert variant_overrides["PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST"] == "0"
+    assert variant_overrides["ENTRY_EDGE_COLDSTART_MODE"] == "fail_open"
+    assert variant_overrides["DIAGNOSTIC_MODE"] == "1"
+    assert variant_overrides["DIAG_ALLOW_REENTRY_WHILE_IN_POSITION"] == "1"
 
     json_reports = sorted(results_dir.glob("controlled_kpi_*.json"))
     assert len(json_reports) == 1
@@ -2221,6 +2224,17 @@ def test_main_zero_row_bootstrap_enables_seed_trades_cold_start_mode(
             "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST"
         ]
         == "0"
+    )
+    assert (
+        report["params"]["after_env_overrides"]["ENTRY_EDGE_COLDSTART_MODE"]
+        == "fail_open"
+    )
+    assert report["params"]["after_env_overrides"]["DIAGNOSTIC_MODE"] == "1"
+    assert (
+        report["params"]["after_env_overrides"][
+            "DIAG_ALLOW_REENTRY_WHILE_IN_POSITION"
+        ]
+        == "1"
     )
 
 
@@ -2360,6 +2374,583 @@ def test_main_zero_row_bootstrap_does_not_enable_seed_trades_when_auto_open_disa
     assert (
         "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST"
         not in report["params"]["after_env_overrides"]
+    )
+
+
+def test_main_degraded_positive_side_fallback_disables_explicit_side_allowlist_requirement(
+    monkeypatch,
+    tmp_path,
+):
+    module = _load_module()
+    results_dir, _, _ = _patch_workspace(monkeypatch, module, tmp_path)
+
+    run_calls = []
+
+    def fake_block_mock_ohlcv_kucoin_paper_startup(**kwargs):
+        assert kwargs["use_mock"] is False
+
+    def fake_run_data_integrity_checks(**kwargs):
+        return {
+            "skipped": False,
+            "market_type": kwargs["market_type"],
+            "timeframe": kwargs["timeframe"],
+            "symbols": list(kwargs["symbols"]),
+            "results": {
+                "BTCUSDTM": {
+                    "ok": True,
+                    "count": 60,
+                    "monotonic_ts": True,
+                    "stale_sec": 0.0,
+                },
+                "XRPUSDTM": {
+                    "ok": True,
+                    "count": 60,
+                    "monotonic_ts": True,
+                    "stale_sec": 0.0,
+                },
+            },
+        }
+
+    def fake_resolve_alpha_bootstrap_exact_source_contract(_accepted_scorecard_path):
+        return {
+            "active": False,
+            "source_mode": "",
+            "accepted_run_ids": [],
+            "existing_run_ids": [],
+            "nonzero_run_ids": [],
+            "missing_run_ids": [],
+            "reason_codes": [],
+        }
+
+    def fake_refresh_alpha_bootstrap_history(**kwargs):
+        return {
+            "enabled": kwargs["enabled"],
+            "ran": True,
+            "success": True,
+            "returncode": 0,
+            "output_path": str(tmp_path / "tmp" / "alpha_history_fallback.db"),
+            "output_exists": True,
+            "report_path": str(
+                tmp_path / "tmp" / "alpha_history_fallback_report.json"
+            ),
+            "report": {
+                "rows_inserted": 11,
+                "pairs_selected": 2,
+                "positive_side_fallback_used": True,
+                "pair_stats_top": [
+                    {
+                        "symbol": "BTCUSDTM",
+                        "strategy": "Momentum",
+                        "trade_count": 8,
+                        "winrate": 0.50,
+                        "expectancy": 0.002,
+                        "selected": True,
+                    },
+                    {
+                        "symbol": "XRPUSDTM",
+                        "strategy": "Momentum",
+                        "trade_count": 3,
+                        "winrate": 0.67,
+                        "expectancy": 0.001,
+                        "selected": True,
+                    },
+                ],
+                "pair_side_stats_top": [
+                    {
+                        "symbol": "BTCUSDTM",
+                        "strategy": "Momentum",
+                        "side": "sell",
+                        "trade_count": 8,
+                        "winrate": 0.50,
+                        "expectancy": 0.002,
+                        "net_pnl": 0.016,
+                        "gross_pnl": 0.024,
+                        "fee_total": 0.008,
+                    },
+                    {
+                        "symbol": "XRPUSDTM",
+                        "strategy": "Momentum",
+                        "side": "buy",
+                        "trade_count": 3,
+                        "winrate": 0.67,
+                        "expectancy": 0.001,
+                        "net_pnl": 0.003,
+                        "gross_pnl": 0.005,
+                        "fee_total": 0.002,
+                    },
+                    {
+                        "symbol": "ETHUSDTM",
+                        "strategy": "TrendFollowing",
+                        "side": "buy",
+                        "trade_count": 64,
+                        "winrate": 0.23,
+                        "expectancy": -0.0021,
+                        "net_pnl": -0.1344,
+                        "gross_pnl": 0.04,
+                        "fee_total": 0.1744,
+                    },
+                    {
+                        "symbol": "SOLUSDTM",
+                        "strategy": "TrendFollowing",
+                        "side": "sell",
+                        "trade_count": 26,
+                        "winrate": 0.31,
+                        "expectancy": -0.0022,
+                        "net_pnl": -0.0572,
+                        "gross_pnl": 0.01,
+                        "fee_total": 0.0672,
+                    },
+                ],
+            },
+            "stdout_tail": "",
+            "stderr_tail": "",
+        }
+
+    def fake_run_variant(variant, duration_sec, run_id, **kwargs):
+        run_calls.append(
+            {
+                "variant": variant,
+                "duration_sec": duration_sec,
+                "run_id": run_id,
+                "kwargs": kwargs,
+            }
+        )
+        return _variant_metrics(variant, process_returncode=0, diagnostic_mode=False)
+
+    monkeypatch.setattr(
+        module,
+        "_block_mock_ohlcv_kucoin_paper_startup",
+        fake_block_mock_ohlcv_kucoin_paper_startup,
+    )
+    monkeypatch.setattr(
+        module,
+        "_run_data_integrity_checks",
+        fake_run_data_integrity_checks,
+    )
+    monkeypatch.setattr(
+        module,
+        "_resolve_alpha_bootstrap_exact_source_contract",
+        fake_resolve_alpha_bootstrap_exact_source_contract,
+    )
+    monkeypatch.setattr(
+        module,
+        "_refresh_alpha_bootstrap_history",
+        fake_refresh_alpha_bootstrap_history,
+    )
+    monkeypatch.setattr(module, "_run_variant", fake_run_variant)
+    monkeypatch.setattr(
+        module,
+        "_build_diagnostic_runtime_summary",
+        lambda **kwargs: pytest.fail("diagnostic summary should not be built"),
+    )
+    monkeypatch.setattr(
+        module,
+        "_write_diagnostic_runtime_summary",
+        lambda summary, run_id: pytest.fail("diagnostic summary should not be written"),
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "controlled_kpi_run.py",
+            "--variant-only",
+            "after",
+            "--symbols",
+            "BTCUSDTM,XRPUSDTM",
+            "--paper-auto-open",
+            "--quality-profile",
+        ],
+    )
+
+    module.main()
+
+    assert len(run_calls) == 1
+    variant_overrides = run_calls[0]["kwargs"]["variant_overrides"]
+    assert variant_overrides["PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST"] == "0"
+    assert variant_overrides["ENTRY_EDGE_COLDSTART_MODE"] == "fail_open"
+    assert "ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST" not in variant_overrides
+
+    json_reports = sorted(results_dir.glob("controlled_kpi_*.json"))
+    assert len(json_reports) == 1
+    report = json.loads(json_reports[0].read_text(encoding="utf-8"))
+    assert (
+        report["params"]["after_env_overrides"][
+            "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST"
+        ]
+        == "0"
+    )
+    assert report["params"]["after_env_overrides"]["ENTRY_EDGE_COLDSTART_MODE"] == (
+        "fail_open"
+    )
+    assert (
+        "ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST"
+        not in report["params"]["after_env_overrides"]
+    )
+
+
+def test_main_after_bootstrap_does_not_override_validated_side_expectancy_bypass(
+    monkeypatch,
+    tmp_path,
+):
+    module = _load_module()
+    results_dir, _, _ = _patch_workspace(monkeypatch, module, tmp_path)
+
+    run_calls = []
+
+    def fake_block_mock_ohlcv_kucoin_paper_startup(**kwargs):
+        assert kwargs["use_mock"] is False
+
+    def fake_run_data_integrity_checks(**kwargs):
+        return {
+            "skipped": False,
+            "market_type": kwargs["market_type"],
+            "timeframe": kwargs["timeframe"],
+            "symbols": list(kwargs["symbols"]),
+            "results": {
+                "BTCUSDTM": {
+                    "ok": True,
+                    "count": 60,
+                    "monotonic_ts": True,
+                    "stale_sec": 0.0,
+                },
+                "XRPUSDTM": {
+                    "ok": True,
+                    "count": 60,
+                    "monotonic_ts": True,
+                    "stale_sec": 0.0,
+                },
+            },
+        }
+
+    def fake_resolve_alpha_bootstrap_exact_source_contract(_accepted_scorecard_path):
+        return {
+            "active": False,
+            "source_mode": "",
+            "accepted_run_ids": [],
+            "existing_run_ids": [],
+            "nonzero_run_ids": [],
+            "missing_run_ids": [],
+            "reason_codes": [],
+        }
+
+    def fake_refresh_alpha_bootstrap_history(**kwargs):
+        return {
+            "enabled": kwargs["enabled"],
+            "ran": True,
+            "success": True,
+            "returncode": 0,
+            "output_path": str(tmp_path / "tmp" / "alpha_history_side_expectancy.db"),
+            "output_exists": True,
+            "report_path": str(
+                tmp_path / "tmp" / "alpha_history_side_expectancy_report.json"
+            ),
+            "report": {
+                "rows_inserted": 12,
+                "pairs_selected": 3,
+                "pair_stats_top": [
+                    {
+                        "symbol": "BTCUSDTM",
+                        "strategy": "TrendFollowing",
+                        "trade_count": 12,
+                        "winrate": 0.33,
+                        "expectancy": -0.041,
+                        "selected": True,
+                    },
+                    {
+                        "symbol": "XRPUSDTM",
+                        "strategy": "Momentum",
+                        "trade_count": 8,
+                        "winrate": 0.38,
+                        "expectancy": -0.032,
+                        "selected": True,
+                    },
+                ],
+                "pair_side_stats_top": [
+                    {
+                        "symbol": "BTCUSDTM",
+                        "strategy": "TrendFollowing",
+                        "side": "buy",
+                        "trade_count": 10,
+                        "winrate": 0.30,
+                        "expectancy": -0.041,
+                        "net_pnl": -0.41,
+                        "gross_pnl": -0.21,
+                        "fee_total": 0.20,
+                    },
+                    {
+                        "symbol": "BTCUSDTM",
+                        "strategy": "TrendFollowing",
+                        "side": "sell",
+                        "trade_count": 10,
+                        "winrate": 0.32,
+                        "expectancy": -0.038,
+                        "net_pnl": -0.38,
+                        "gross_pnl": -0.18,
+                        "fee_total": 0.20,
+                    },
+                    {
+                        "symbol": "XRPUSDTM",
+                        "strategy": "Momentum",
+                        "side": "buy",
+                        "trade_count": 2,
+                        "winrate": 0.50,
+                        "expectancy": 0.005,
+                        "net_pnl": 0.01,
+                        "gross_pnl": 0.02,
+                        "fee_total": 0.01,
+                    },
+                ],
+            },
+            "stdout_tail": "",
+            "stderr_tail": "",
+        }
+
+    def fake_run_variant(variant, duration_sec, run_id, **kwargs):
+        run_calls.append(
+            {
+                "variant": variant,
+                "duration_sec": duration_sec,
+                "run_id": run_id,
+                "kwargs": kwargs,
+            }
+        )
+        return _variant_metrics(variant, process_returncode=0, diagnostic_mode=False)
+
+    monkeypatch.setattr(
+        module,
+        "_block_mock_ohlcv_kucoin_paper_startup",
+        fake_block_mock_ohlcv_kucoin_paper_startup,
+    )
+    monkeypatch.setattr(module, "_run_data_integrity_checks", fake_run_data_integrity_checks)
+    monkeypatch.setattr(
+        module,
+        "_resolve_alpha_bootstrap_exact_source_contract",
+        fake_resolve_alpha_bootstrap_exact_source_contract,
+    )
+    monkeypatch.setattr(
+        module,
+        "_refresh_alpha_bootstrap_history",
+        fake_refresh_alpha_bootstrap_history,
+    )
+    monkeypatch.setattr(module, "_run_variant", fake_run_variant)
+    monkeypatch.setattr(
+        module,
+        "_build_diagnostic_runtime_summary",
+        lambda **kwargs: pytest.fail("diagnostic summary should not be built"),
+    )
+    monkeypatch.setattr(
+        module,
+        "_write_diagnostic_runtime_summary",
+        lambda summary, run_id: pytest.fail("diagnostic summary should not be written"),
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "controlled_kpi_run.py",
+            "--variant-only",
+            "after",
+            "--symbols",
+            "BTCUSDTM,XRPUSDTM",
+            "--paper-auto-open",
+            "--quality-profile",
+        ],
+    )
+
+    module.main()
+
+    assert len(run_calls) == 1
+    variant_overrides = run_calls[0]["kwargs"]["variant_overrides"]
+    assert variant_overrides["ENTRY_SIDE_EXPECTANCY_MIN"] == "-1.0"
+    assert variant_overrides["ENTRY_SIDE_EXPECTANCY_MIN_TRADES"] == "5"
+
+    json_reports = sorted(results_dir.glob("controlled_kpi_*.json"))
+    assert len(json_reports) == 1
+    report = json.loads(json_reports[0].read_text(encoding="utf-8"))
+    assert report["params"]["after_env_overrides"]["ENTRY_SIDE_EXPECTANCY_MIN"] == "-1.0"
+    assert (
+        report["params"]["after_env_overrides"]["ENTRY_SIDE_EXPECTANCY_MIN_TRADES"]
+        == "5"
+    )
+
+
+def test_main_after_bootstrap_sets_stricter_paper_momentum_mixed_thresholds(
+    monkeypatch,
+    tmp_path,
+):
+    module = _load_module()
+    results_dir, _, _ = _patch_workspace(monkeypatch, module, tmp_path)
+
+    run_calls = []
+
+    def fake_block_mock_ohlcv_kucoin_paper_startup(**kwargs):
+        assert kwargs["use_mock"] is False
+
+    def fake_run_data_integrity_checks(**kwargs):
+        return {
+            "skipped": False,
+            "market_type": kwargs["market_type"],
+            "timeframe": kwargs["timeframe"],
+            "symbols": list(kwargs["symbols"]),
+            "results": {
+                "BTCUSDTM": {
+                    "ok": True,
+                    "count": 60,
+                    "monotonic_ts": True,
+                    "stale_sec": 0.0,
+                },
+                "SOLUSDTM": {
+                    "ok": True,
+                    "count": 60,
+                    "monotonic_ts": True,
+                    "stale_sec": 0.0,
+                },
+            },
+        }
+
+    def fake_resolve_alpha_bootstrap_exact_source_contract(_accepted_scorecard_path):
+        return {
+            "active": False,
+            "source_mode": "",
+            "accepted_run_ids": [],
+            "existing_run_ids": [],
+            "nonzero_run_ids": [],
+            "missing_run_ids": [],
+            "reason_codes": [],
+        }
+
+    def fake_refresh_alpha_bootstrap_history(**kwargs):
+        return {
+            "enabled": kwargs["enabled"],
+            "ran": True,
+            "success": True,
+            "returncode": 0,
+            "output_path": str(tmp_path / "tmp" / "alpha_history_momentum.db"),
+            "output_exists": True,
+            "report_path": str(
+                tmp_path / "tmp" / "alpha_history_momentum_report.json"
+            ),
+            "report": {
+                "rows_inserted": 12,
+                "pairs_selected": 2,
+                "pair_stats_top": [
+                    {
+                        "symbol": "BTCUSDTM",
+                        "strategy": "Momentum",
+                        "trade_count": 6,
+                        "winrate": 0.50,
+                        "expectancy": 0.0020,
+                        "selected": True,
+                    },
+                    {
+                        "symbol": "SOLUSDTM",
+                        "strategy": "Momentum",
+                        "trade_count": 5,
+                        "winrate": 0.20,
+                        "expectancy": -0.0045,
+                        "selected": True,
+                    },
+                ],
+                "pair_side_stats_top": [
+                    {
+                        "symbol": "BTCUSDTM",
+                        "strategy": "Momentum",
+                        "side": "buy",
+                        "trade_count": 6,
+                        "winrate": 0.50,
+                        "expectancy": 0.0020,
+                        "net_pnl": 0.0120,
+                        "gross_pnl": 0.0240,
+                        "fee_total": 0.0120,
+                    },
+                    {
+                        "symbol": "SOLUSDTM",
+                        "strategy": "Momentum",
+                        "side": "buy",
+                        "trade_count": 5,
+                        "winrate": 0.20,
+                        "expectancy": -0.0045,
+                        "net_pnl": -0.0225,
+                        "gross_pnl": -0.0105,
+                        "fee_total": 0.0120,
+                    },
+                ],
+            },
+            "stdout_tail": "",
+            "stderr_tail": "",
+        }
+
+    def fake_run_variant(variant, duration_sec, run_id, **kwargs):
+        run_calls.append(
+            {
+                "variant": variant,
+                "duration_sec": duration_sec,
+                "run_id": run_id,
+                "kwargs": kwargs,
+            }
+        )
+        return _variant_metrics(variant, process_returncode=0, diagnostic_mode=False)
+
+    monkeypatch.setattr(
+        module,
+        "_block_mock_ohlcv_kucoin_paper_startup",
+        fake_block_mock_ohlcv_kucoin_paper_startup,
+    )
+    monkeypatch.setattr(module, "_run_data_integrity_checks", fake_run_data_integrity_checks)
+    monkeypatch.setattr(
+        module,
+        "_resolve_alpha_bootstrap_exact_source_contract",
+        fake_resolve_alpha_bootstrap_exact_source_contract,
+    )
+    monkeypatch.setattr(
+        module,
+        "_refresh_alpha_bootstrap_history",
+        fake_refresh_alpha_bootstrap_history,
+    )
+    monkeypatch.setattr(module, "_run_variant", fake_run_variant)
+    monkeypatch.setattr(
+        module,
+        "_build_diagnostic_runtime_summary",
+        lambda **kwargs: pytest.fail("diagnostic summary should not be built"),
+    )
+    monkeypatch.setattr(
+        module,
+        "_write_diagnostic_runtime_summary",
+        lambda summary, run_id: pytest.fail("diagnostic summary should not be written"),
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "controlled_kpi_run.py",
+            "--variant-only",
+            "after",
+            "--symbols",
+            "BTCUSDTM,SOLUSDTM",
+            "--paper-auto-open",
+            "--quality-profile",
+        ],
+    )
+
+    module.main()
+
+    assert len(run_calls) == 1
+    variant_overrides = run_calls[0]["kwargs"]["variant_overrides"]
+    assert variant_overrides["MOMENTUM_MIXED_EDGE_SAFETY_MARGIN_USDT"] == "0.0006"
+    assert variant_overrides["MOMENTUM_MIXED_NEVER_GREEN_HARD_FLOOR_USDT"] == "0.0008"
+
+    json_reports = sorted(results_dir.glob("controlled_kpi_*.json"))
+    assert len(json_reports) == 1
+    report = json.loads(json_reports[0].read_text(encoding="utf-8"))
+    assert (
+        report["params"]["after_env_overrides"]["MOMENTUM_MIXED_EDGE_SAFETY_MARGIN_USDT"]
+        == "0.0006"
+    )
+    assert (
+        report["params"]["after_env_overrides"][
+            "MOMENTUM_MIXED_NEVER_GREEN_HARD_FLOOR_USDT"
+        ]
+        == "0.0008"
     )
 
 
