@@ -35,6 +35,7 @@ class DynamicStrategyRouter:
         self.last_regime = None
         self.last_allocations = {s.name: 1.0 / len(strategies) for s in strategies}
         self.last_guarded_strategies = {}
+        self.last_policy_exhaustion_info: Dict[str, object] = {}
 
     def detect_regime(self, market_state: Dict[str, Any]) -> str:
         # Example: rule-based regime detection
@@ -214,6 +215,13 @@ class DynamicStrategyRouter:
             if sum(alloc.values()) <= 0:
                 self.last_guarded_strategies = guarded
                 self.last_allocations = alloc
+                self.last_policy_exhaustion_info = {
+                    "fallback_policy_exhausted": True,
+                    "fallback_policy_viable_assignments_count": 0,
+                    "fallback_policy_blocked_strategies": sorted(guarded.keys()),
+                    "fallback_policy_blocked_sides": ["buy", "sell"],
+                    "fallback_policy_exhaustion_reason": "DISABLE_STRATEGIES",
+                }
                 return alloc
         # Optional performance overlay (reward/penalty) to refine allocations
         try:
@@ -267,6 +275,18 @@ class DynamicStrategyRouter:
         alloc = {k: v / total for k, v in alloc.items()}
         self.last_guarded_strategies = guarded
         self.last_allocations = alloc
+        _viable_count = sum(1 for v in alloc.values() if v > 0)
+        self.last_policy_exhaustion_info = {
+            "fallback_policy_exhausted": _viable_count == 0,
+            "fallback_policy_viable_assignments_count": _viable_count,
+            "fallback_policy_blocked_strategies": sorted(guarded.keys()),
+            "fallback_policy_blocked_sides": (
+                ["buy", "sell"] if _viable_count == 0 and guarded else []
+            ),
+            "fallback_policy_exhaustion_reason": (
+                "all_strategies_guarded_or_disabled" if _viable_count == 0 else None
+            ),
+        }
         return alloc
 
     @staticmethod

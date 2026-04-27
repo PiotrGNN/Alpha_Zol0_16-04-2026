@@ -20241,6 +20241,34 @@ def run_bot(simulate=False):
                         "ensemble_signals",
                         {"symbol": symbol, "signals": ensemble_signals},
                     )
+                    # Fallback policy exhaustion detection and emission (PAPER-only, no LIVE impact)
+                    def _extract_fallback_policy_exhaustion(router):
+                        pol = getattr(router, "last_policy_exhaustion_info", {}) or {}
+                        return pol if pol.get("fallback_policy_exhausted") else None
+
+                    fallback_exhaustion_info = None
+                    if not _env_flag("LIVE"):
+                        fallback_exhaustion_info = _extract_fallback_policy_exhaustion(router)
+                        if fallback_exhaustion_info:
+                            infinity_logger.log(
+                                "fallback_policy_viable_assignments_exhausted",
+                                {
+                                    "ts": datetime.now(timezone.utc).isoformat(),
+                                    "symbol": symbol,
+                                    "fallback_policy_viable_assignments_count": int(
+                                        fallback_exhaustion_info.get("fallback_policy_viable_assignments_count", 0)
+                                    ),
+                                    "fallback_policy_exhausted": True,
+                                    "fallback_policy_exhausted_symbol": symbol,
+                                    "fallback_policy_blocked_strategies": list(
+                                        fallback_exhaustion_info.get("fallback_policy_blocked_strategies", [])
+                                    ),
+                                    "fallback_policy_blocked_sides": list(
+                                        fallback_exhaustion_info.get("fallback_policy_blocked_sides", [])
+                                    ),
+                                    "fallback_policy_exhaustion_reason": fallback_exhaustion_info.get("fallback_policy_exhaustion_reason"),
+                                },
+                            )
                     strategy_errors = set()
                     for rs in raw_signals or []:
                         if isinstance(rs, dict) and rs.get("error"):
@@ -26854,6 +26882,23 @@ def run_bot(simulate=False):
                                     mean_fee_total=snapshot_mean_fee,
                                 )
                             )
+                        raw_strategy_signal_count = None
+                        surviving_router_allocation_count = None
+                        if fallback_exhaustion_info:
+                            try:
+                                raw_strategy_signal_count = len(raw_signals or [])
+                            except Exception:
+                                raw_strategy_signal_count = None
+                            try:
+                                surviving_router_allocation_count = 0
+                                for alloc_value in (allocations or {}).values():
+                                    try:
+                                        if float(alloc_value) > 0:
+                                            surviving_router_allocation_count += 1
+                                    except Exception:
+                                        continue
+                            except Exception:
+                                surviving_router_allocation_count = None
                     decision_payload.update(
                         {
                             "entry_decision": entry_decision,
@@ -26862,6 +26907,50 @@ def run_bot(simulate=False):
                             "applied_invert": bool(applied_invert),
                             "side_override": side_override_applied,
                             "entry_reason": entry_reason,
+                            "strategy_assignment_reason": (
+                                "fallback_policy_exhausted_strategy_side"
+                                if fallback_exhaustion_info
+                                else None
+                            ),
+                            "fallback_policy_exhausted": bool(fallback_exhaustion_info),
+                            "fallback_policy_exhaustion_reason": (
+                                fallback_exhaustion_info.get(
+                                    "fallback_policy_exhaustion_reason"
+                                )
+                                if fallback_exhaustion_info
+                                else None
+                            ),
+                            "fallback_policy_blocked_strategies": (
+                                list(
+                                    fallback_exhaustion_info.get(
+                                        "fallback_policy_blocked_strategies", []
+                                    )
+                                )
+                                if fallback_exhaustion_info
+                                else None
+                            ),
+                            "fallback_policy_blocked_sides": (
+                                list(
+                                    fallback_exhaustion_info.get(
+                                        "fallback_policy_blocked_sides", []
+                                    )
+                                )
+                                if fallback_exhaustion_info
+                                else None
+                            ),
+                            "fallback_policy_viable_assignments_count": (
+                                int(
+                                    fallback_exhaustion_info.get(
+                                        "fallback_policy_viable_assignments_count", 0
+                                    )
+                                )
+                                if fallback_exhaustion_info
+                                else None
+                            ),
+                            "raw_strategy_signal_count": raw_strategy_signal_count,
+                            "surviving_router_allocation_count": (
+                                surviving_router_allocation_count
+                            ),
                             "entry_invert_signal": bool(entry_invert_signal),
                             "entry_side_override_env": entry_side_override,
                             "strategy_allowlist": entry_strategy_allowlist_snapshot,
