@@ -1,0 +1,439 @@
+{
+  "timestamp": "20260501_191056",
+  "evidence_contract_version": "paper_readiness_v2",
+  "evidence_scope": {
+    "exchange": "kucoin",
+    "mode": "paper",
+    "variant": "after",
+    "market_data": "real"
+  },
+  "artifact_contract": {
+    "unique_paths_ok": true,
+    "forbidden_shared_names_detected": false,
+    "all_after_dbs_nonzero": true,
+    "all_reports_after_only": true,
+    "all_forced_cycle_trigger_contracts_valid": true,
+    "reason_codes": [],
+    "duplicate_path_hits": [],
+    "forbidden_name_hits": [],
+    "strategy_evidence_issue_runs": [],
+    "forced_cycle_trigger_contract_invalid_runs": []
+  },
+  "profile_contract": {
+    "status": "PASS",
+    "path": "D:\\Alpha_Zol0-fallback-commit\\Alpha_Zol0-lvl_5-main\\tmp\\paper_go_selected_profile_current.json",
+    "sha256": "992B615B122FD15D033FCAD8A87BAD759C615DAA3A50E085000544FECB193162",
+    "overrides_count": 66,
+    "selected_passed": true,
+    "reason_codes": []
+  },
+  "positive_lock_contract": {
+    "status": "PASS",
+    "path": "D:\\Alpha_Zol0-fallback-commit\\Alpha_Zol0-lvl_5-main\\tmp\\paper_go_positive_lock_current.json",
+    "sha256": "7964E7459B9E8965257D98AACFB4D9D46C027BEAF8FF7EC1422B0488D50734FA",
+    "profile_sha256": "992b615b122fd15d033fcad8a87bad759c615daa3a50e085000544fecb193162",
+    "reason_codes": []
+  },
+  "corpus_contract": {
+    "status": "PASS",
+    "reason_codes": [],
+    "scorecard_path": "D:\\Alpha_Zol0-fallback-commit\\Alpha_Zol0-lvl_5-main\\analysis\\zol0_profitability_audit_scorecard.json",
+    "strict_corpus_status_path": "D:\\Alpha_Zol0-fallback-commit\\Alpha_Zol0-lvl_5-main\\analysis\\zol0_strict_bucket_gate_fresh_corpus_status_current.json",
+    "accepted_artifacts_present": true,
+    "accepted_artifacts_nonzero": true,
+    "accepted_artifact_source": "accepted_manifest",
+    "accepted_manifest_path": "D:\\Alpha_Zol0-fallback-commit\\Alpha_Zol0-lvl_5-main\\artifacts\\accepted_corpus\\zol0_profitability_audit_20260420_143232_934370\\zol0_profitability_audit_accepted_corpus_manifest.json",
+    "accepted_corpus_bundle_dir": "D:\\Alpha_Zol0-fallback-commit\\Alpha_Zol0-lvl_5-main\\artifacts\\accepted_corpus\\zol0_profitability_audit_20260420_143232_934370",
+    "accepted_manifest_source_scorecard_path": "D:\\Alpha_Zol0-fallback-commit\\Alpha_Zol0-lvl_5-main\\analysis\\zol0_profitability_audit_scorecard.json",
+    "accepted_manifest_hash_mismatch_count": 0,
+    "accepted_run_ids": [
+      "20260410_232659",
+      "20260410_232542",
+      "20260410_232429",
+      "20260410_232242",
+      "20260410_231900",
+      "20260410_231303",
+      "20260410_231152",
+      "20260410_231036",
+      "20260410_230845",
+      "20260410_230416",
+      "20260410_225649",
+      "20260410_225536",
+      "20260410_225421",
+      "20260410_224948",
+      "20260410_224834",
+      "20260410_224720",
+      "20260410_224512",
+      "20260410_224358",
+      "20260410_224243",
+      "20260410_222319",
+      "20260410_222207",
+      "20260410_222022",
+      "20260410_220939",
+      "20260410_220037",
+      "20260410_215026",
+      "20260410_214612",
+      "20260410_213454",
+      "20260410_210410",
+      "20260410_205101",
+      "20260410_203231",
+      "20260410_192939",
+      "20260410_185724",
+      "20260410_183617",
+      "20260410_181612",
+      "20260410_175510",
+      "20260410_173519",
+      "20260410_162046",
+      "20260410_160237",
+      "20260410_154613",
+      "20260410_152944",
+      "20260410_151006",
+      "20260410_143345",
+      "20260410_141547",
+      "20260410_104651",
+      "20260410_101117",
+      "20260410_095322",
+      "20260410_093335",
+      "20260410_093201",
+      "20260410_074046",
+      "20260410_072235",
+      "20260410_070454",
+      "20260410_064827",
+      "20260410_054244",
+      "20260410_052621",
+      "20260410_051059",
+      "20260410_045435",
+      "20260410_042645",
+      "20260410_041224",
+      "20260410_035858",
+      "20260410_034454"
+    ],
+    "accepted_run_count": 60,
+    "candidate_run_count": 60,
+    "selection_accepted_run_count": 60,
+    "accepted_corpus_total_trade_count": 76,
+    "required_accepted_runs": 60,
+    "strict_accepted_run_count": 60,
+    "strict_classification": "ACCEPTED_MANIFEST_REPLAY",
+    "missing_artifact_count": 0,
+    "zero_artifact_count": 0,
+    "missing_artifact_samples": [],
+    "zero_artifact_samples": []
+  },
+  "bootstrap_contract": {
+    "status": "UNCONFIRMED",
+    "reason_codes": [
+      "BOOTSTRAP_REPORT_OUTPUT_MISMATCH"
+    ],
+    "manifest_path": "",
+    "bundle_dir": "D:\\Alpha_Zol0-fallback-commit\\Alpha_Zol0-lvl_5-main\\artifacts\\diagnostics\\alpha_bootstrap_bundle_20260416_source_repair",
+    "source_scorecard_path": "D:\\Alpha_Zol0-fallback-commit\\Alpha_Zol0-lvl_5-main\\analysis\\zol0_profitability_audit_scorecard.json",
+    "db_path": "D:\\Alpha_Zol0-fallback-commit\\Alpha_Zol0-lvl_5-main\\artifacts\\diagnostics\\alpha_bootstrap_bundle_20260416_source_repair\\alpha_history_live_candidate.db",
+    "report_path": "D:\\Alpha_Zol0-fallback-commit\\Alpha_Zol0-lvl_5-main\\artifacts\\diagnostics\\alpha_bootstrap_bundle_20260416_source_repair\\alpha_history_live_candidate_report.json",
+    "rows_inserted": 85,
+    "pairs_selected": 14,
+    "selected_pairs": [
+      "BNBUSDTM:TRENDFOLLOWING",
+      "LTCUSDTM:TRENDFOLLOWING",
+      "XRPUSDTM:MOMENTUM",
+      "ETHUSDTM:MOMENTUM",
+      "ADAUSDTM:TRENDFOLLOWING",
+      "BNBUSDTM:MOMENTUM",
+      "BTCUSDTM:MOMENTUM",
+      "DOGEUSDTM:MOMENTUM",
+      "ETHUSDTM:TRENDFOLLOWING",
+      "LTCUSDTM:MOMENTUM",
+      "BTCUSDTM:TRENDFOLLOWING",
+      "XRPUSDTM:TRENDFOLLOWING",
+      "SOLUSDTM:TRENDFOLLOWING",
+      "SOLUSDTM:MOMENTUM"
+    ],
+    "positive_side_allowlist": [],
+    "accepted_run_count": 60,
+    "contract_source": "scorecard_sources"
+  },
+  "operational_gate_status": "PASS",
+  "paper_operational_confidence": "PARTIAL-CONFIDENCE",
+  "paper_ready": true,
+  "operational_channel": {
+    "status": "PASS",
+    "confidence": "PARTIAL-CONFIDENCE",
+    "reason_codes": [
+      "OPERATIONAL_GATE_PASS"
+    ]
+  },
+  "economic_channel": {
+    "status": "PASS",
+    "go_no_go": "GO",
+    "reason_codes": [
+      "ECONOMICS_GO",
+      "EXACT_CORPUS_EVIDENCE_AVAILABLE",
+      "POSITIVE_PAPER_LOCK_CONFIRMED"
+    ]
+  },
+  "runs": [
+    {
+      "run_id": "paper_gate_profile_candidate",
+      "symbols": "LUNCUSDTM,WIFUSDTM,RAVEUSDTM,ZECUSDTM,BIOUSDTM",
+      "db_path": "D:\\Alpha_Zol0-fallback-commit\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260501_191059.db",
+      "stdout_log": "D:\\Alpha_Zol0-fallback-commit\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260501_191059.out.log",
+      "stderr_log": "D:\\Alpha_Zol0-fallback-commit\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260501_191059.err.log",
+      "controlled_kpi_json": "D:\\Alpha_Zol0-fallback-commit\\Alpha_Zol0-lvl_5-main\\results\\controlled_kpi_20260501_191059.json",
+      "controlled_kpi_csv": "D:\\Alpha_Zol0-fallback-commit\\Alpha_Zol0-lvl_5-main\\results\\controlled_kpi_20260501_191059.csv",
+      "summary_json": "D:\\Alpha_Zol0-fallback-commit\\Alpha_Zol0-lvl_5-main\\reports\\paper_readiness\\paper_gate_profile_candidate_summary.json",
+      "alpha_bootstrap_runtime_contract_status": "PASS",
+      "alpha_bootstrap_runtime_contract_source": "explicit_alpha_bootstrap_runtime_contract"
+    }
+  ],
+  "artifacts": {
+    "controlled_kpi_run_script": "D:\\Alpha_Zol0-fallback-commit\\Alpha_Zol0-lvl_5-main\\scripts\\controlled_kpi_run.py",
+    "summary_script": "D:\\Alpha_Zol0-fallback-commit\\Alpha_Zol0-lvl_5-main\\scripts\\report_entry_gate_decision_summary.py",
+    "live_readiness_snapshot_json": "D:\\Alpha_Zol0-fallback-commit\\Alpha_Zol0-lvl_5-main\\reports\\paper_readiness\\live_readiness_snapshot.json",
+    "runtime_live_readiness_snapshot_json": "D:\\Alpha_Zol0-fallback-commit\\Alpha_Zol0-lvl_5-main\\tmp\\live_readiness_snapshot.json"
+  },
+  "per_run_checks": [
+    {
+      "run_id": "paper_gate_profile_candidate",
+      "ok": true,
+      "errors": [],
+      "checks": {
+        "rows": 17,
+        "count_matches": true,
+        "all_pairs_in_order": true,
+        "all_complete": true,
+        "after_db_nonzero": true,
+        "report_after_only": true,
+        "process_returncode_ok": true,
+        "process_returncode": 0,
+        "shutdown_classification": "close_flush_done_pending_positions_zero",
+        "pending_positions": 0,
+        "close_request_backlog": 0,
+        "log_errors_zero": true,
+        "use_mock_false": true,
+        "paper_auto_open_true": true,
+        "paper_validation_classification": "NATURAL_PAPER_VALIDATION_CANDIDATE",
+        "diagnostic_no_open_run": false,
+        "no_natural_entry_candidate": false,
+        "assisted_seed_evidence_only": false,
+        "usable_strategy_economics": true,
+        "strategy_evidence_classification": "USABLE_STRATEGY_EVIDENCE",
+        "strategy_evidence_valid": true,
+        "evidence_reason_codes": [],
+        "natural_entry_candidate_contract": {
+          "classification": "NATURAL_ENTRY_CANDIDATE_PRESENT",
+          "usable_strategy_economics": true,
+          "strategy_evidence_classification": "USABLE_STRATEGY_EVIDENCE",
+          "assisted_seed_evidence_only": false,
+          "router_candidate_rows": 17,
+          "rejected_candidate_count": 5,
+          "empty_assignment_rows": 5,
+          "final_surviving_candidate_count": 12,
+          "natural_admitted_count": 3,
+          "assisted_seed_admitted_count": 0,
+          "assisted_seed_open_count": 0,
+          "fallback_open_count": 0,
+          "router_candidate_sides": [
+            {
+              "symbol": "BIOUSDTM",
+              "strategy": "KuCoinMicroBreakout",
+              "side": "hold",
+              "count": 1
+            },
+            {
+              "symbol": "LUNCUSDTM",
+              "strategy": "KuCoinMicroBreakout",
+              "side": "hold",
+              "count": 2
+            },
+            {
+              "symbol": "WIFUSDTM",
+              "strategy": "KuCoinMicroBreakout",
+              "side": "hold",
+              "count": 2
+            }
+          ],
+          "allowed_sides": [
+            {
+              "symbol": "BIOUSDTM",
+              "strategy": "KuCoinMicroBreakout",
+              "side": "buy",
+              "count": 1
+            },
+            {
+              "symbol": "LUNCUSDTM",
+              "strategy": "KuCoinMicroBreakout",
+              "side": "sell",
+              "count": 2
+            },
+            {
+              "symbol": "RAVEUSDTM",
+              "strategy": "KuCoinMicroBreakout",
+              "side": "sell",
+              "count": 4
+            },
+            {
+              "symbol": "WIFUSDTM",
+              "strategy": "KuCoinMicroBreakout",
+              "side": "buy",
+              "count": 2
+            },
+            {
+              "symbol": "ZECUSDTM",
+              "strategy": "KuCoinMicroBreakout",
+              "side": "sell",
+              "count": 3
+            }
+          ],
+          "assisted_seed_allowed_sides": [],
+          "blocked_sides": [],
+          "guard_rejected_sides": [],
+          "invalid_side_candidates": [],
+          "raw_side_value_counts_top20": [
+            {
+              "raw_side": "flat",
+              "count": 10
+            },
+            {
+              "raw_side": "hold",
+              "count": 10
+            },
+            {
+              "raw_side": "signals:empty",
+              "count": 5
+            }
+          ],
+          "rejection_reason_counts": [
+            [
+              "hold_ignored",
+              5
+            ]
+          ],
+          "reason_codes": [
+            "ROUTER_CANDIDATES_EXIST",
+            "FILTER_TO_NONE_BEFORE_ASSIGNMENT"
+          ]
+        },
+        "unique_paths_ok": true,
+        "forbidden_shared_names_detected": false,
+        "alpha_bootstrap_runtime_contract_status": "PASS",
+        "alpha_bootstrap_runtime_contract_source": "explicit_alpha_bootstrap_runtime_contract",
+        "alpha_bootstrap_runtime_contract_reason_codes": [],
+        "alpha_bootstrap_runtime_contract_valid": true,
+        "post_promotion_forced_cycle_trigger_contract_status": "INACTIVE",
+        "post_promotion_forced_cycle_trigger_contract_source": "explicit_post_promotion_forced_cycle_trigger_contract",
+        "post_promotion_forced_cycle_trigger_contract_reason_codes": [],
+        "post_promotion_forced_cycle_trigger_contract_valid": true
+      }
+    }
+  ],
+  "aggregate_checks": {
+    "runs_passed": 1,
+    "runs_total": 1,
+    "all_runs_passed": true,
+    "paper_operational_confidence": "PARTIAL-CONFIDENCE",
+    "economics_status": "PASS",
+    "economics_go_no_go": "GO",
+    "bootstrap_status": "UNCONFIRMED"
+  },
+  "economics_context": {
+    "status": "AVAILABLE",
+    "go_no_go": "GO",
+    "reason_codes": [
+      "EXACT_CORPUS_EVIDENCE_AVAILABLE",
+      "POSITIVE_PAPER_LOCK_CONFIRMED"
+    ],
+    "scorecard_path": "",
+    "avg_profit_factor": 4.597812459512504,
+    "avg_net_pnl": 0.15049327650515287,
+    "expectancy": 0.013681206955013897,
+    "winrate": 0.8181818181818182,
+    "green_to_red_share": null,
+    "usable_strategy_economics": true,
+    "strategy_evidence_classification": "LOCKED_POSITIVE_PAPER_PROFILE",
+    "natural_entry_trade_count": 11,
+    "metric_source": "positive_paper_lock"
+  },
+  "global_verdict": "PROMOTE_CANDIDATE",
+  "global_reason_codes": [
+    "OPERATIONAL_PASS",
+    "ECONOMIC_PASS"
+  ],
+  "next_allowed_step": "proceed to guarded promotion rollout",
+  "live_ready": false,
+  "live_block_reason": [
+    "green_to_red_share_missing_for_strict_mode"
+  ],
+  "live_readiness": {
+    "checked_at_utc": "2026-05-01T19:14:30.049815+00:00",
+    "live_ready": false,
+    "live_block_reason": [
+      "green_to_red_share_missing_for_strict_mode"
+    ],
+    "strict_mode": true,
+    "checks": {
+      "process_returncode": 0,
+      "shutdown_classification": "close_flush_done_pending_positions_zero",
+      "pending_positions": 0,
+      "close_request_backlog": 0,
+      "accepted_corpus_exists": true,
+      "no_rejected_runs_in_active_dataset": true,
+      "rejected_run_count": 0,
+      "corpus_size_trades": 76,
+      "min_corpus_size_trades": 60,
+      "usable_strategy_economics": true,
+      "strategy_evidence_classification": "LOCKED_POSITIVE_PAPER_PROFILE",
+      "economic_go_no_go": "GO",
+      "expectancy": 0.013681206955013897,
+      "winrate": 0.8181818181818182,
+      "profit_factor": 4.597812459512504,
+      "green_to_red_share": null,
+      "critical_blockers": {
+        "CLOSE_FINALIZATION_BROKEN": false,
+        "LINKAGE_LAYER_NO_EFFECT": false,
+        "TERMINAL_TIMING_CUTOFF_CONFIRMED": false
+      },
+      "strict_mode": true
+    },
+    "runtime_state": {
+      "source": "run_paper_readiness_gate",
+      "source_timestamp": "20260501_191056",
+      "last_run": {
+        "run_id": "paper_gate_profile_candidate",
+        "process_returncode": 0,
+        "shutdown_classification": "close_flush_done_pending_positions_zero",
+        "pending_positions": 0,
+        "close_request_backlog": 0
+      },
+      "data_validity": {
+        "accepted_corpus_exists": true,
+        "no_rejected_runs_in_active_dataset": true,
+        "rejected_run_count": 0,
+        "corpus_size_trades": 76,
+        "accepted_manifest_path": "D:\\Alpha_Zol0-fallback-commit\\Alpha_Zol0-lvl_5-main\\artifacts\\accepted_corpus\\zol0_profitability_audit_20260420_143232_934370\\zol0_profitability_audit_accepted_corpus_manifest.json",
+        "accepted_corpus_bundle_dir": "D:\\Alpha_Zol0-fallback-commit\\Alpha_Zol0-lvl_5-main\\artifacts\\accepted_corpus\\zol0_profitability_audit_20260420_143232_934370"
+      },
+      "strategy_validation": {
+        "usable_strategy_economics": true,
+        "strategy_evidence_classification": "LOCKED_POSITIVE_PAPER_PROFILE",
+        "natural_entry_trade_count": 11,
+        "economic_go_no_go": "GO",
+        "economic_status": "AVAILABLE",
+        "reason_codes": [
+          "EXACT_CORPUS_EVIDENCE_AVAILABLE",
+          "POSITIVE_PAPER_LOCK_CONFIRMED"
+        ],
+        "profitability_metrics": {
+          "expectancy": 0.013681206955013897,
+          "winrate": 0.8181818181818182,
+          "profit_factor": 4.597812459512504,
+          "green_to_red_share": null
+        }
+      },
+      "critical_blockers": {
+        "CLOSE_FINALIZATION_BROKEN": false,
+        "LINKAGE_LAYER_NO_EFFECT": false,
+        "TERMINAL_TIMING_CUTOFF_CONFIRMED": false
+      }
+    }
+  }
+}

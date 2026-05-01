@@ -1,0 +1,49 @@
+{
+  "report_type": "kucoin_paper_positive_profile_lock",
+  "status": "LOCKED_POSITIVE_PAPER_PROFILE",
+  "reason": "positive_target_confirmed",
+  "locked_at_utc": "2026-05-01T18:17:04.546756+00:00",
+  "constraints": {
+    "kucoin_only": true,
+    "paper_only": true,
+    "live_untouched": true,
+    "no_mock": true,
+    "no_seed_trades": true,
+    "no_fallback_open": true,
+    "strategy_only": "KuCoinMicroBreakout"
+  },
+  "selected_after_env": {
+    "path": "tmp/kucoin_micro_breakout_selected_forward_latest.json",
+    "exists": true,
+    "sha256": "992b615b122fd15d033fcad8a87bad759c615daa3a50e085000544fecb193162"
+  },
+  "source_collection_report": {
+    "path": "tmp/kucoin_paper_natural_trade_collection_report_forward_latest.json",
+    "exists": true,
+    "sha256": "12d2d934a440d577b6b504ebb9db415f1a767993a68e19d71f091c7fc8c2a6bc"
+  },
+  "evidence_summary": {
+    "status": "NATURAL_TRADE_CORPUS_TARGET_REACHED",
+    "natural_completed_trades": 11,
+    "cumulative_net_pnl": 0.15049327650515287,
+    "winrate": 0.8181818181818182,
+    "profit_factor": 4.597812459512504,
+    "expectancy": 0.013681206955013897,
+    "per_symbol_pnl": {
+      "BIOUSDTM": 0.01080546159972686,
+      "LUNCUSDTM": -0.020480563711785478,
+      "RAVEUSDTM": 0.09468252383261164,
+      "WIFUSDTM": -0.0031325502372721212,
+      "ZECUSDTM": 0.06861840502187197
+    },
+    "per_side_pnl": {
+      "buy": 0.1652687428686972,
+      "sell": -0.014775466363544348
+    },
+    "exit_reason_distribution": {
+      "auto_close_profit": 9,
+      "manual_close_request": 1,
+      "sl_usdt": 1
+    }
+  }
+}
