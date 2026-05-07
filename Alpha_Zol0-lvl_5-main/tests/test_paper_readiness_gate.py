@@ -434,6 +434,7 @@ def test_paper_env_is_fail_closed_contract():
     assert env["LIVE"] == "0"
     assert env["BOT_MODE"] == "paper"
     assert env["PAPER_RUN_ONCE"] == "1"
+    assert env["PAPER_FORCE_CLOSE_ON_EXIT"] == "1"
     assert env["USE_MOCK"] == "0"
     assert env["ZOL0_ALLOW_MOCK"] == "0"
     assert str(env.get("ZOL0_TOKEN") or "").strip()
@@ -453,7 +454,13 @@ def test_run_controlled_kpi_uses_natural_paper_validation_by_default(
     monkeypatch,
     tmp_path,
 ):
+    diagnostics_dir = tmp_path / "artifacts" / "diagnostics"
+    bundle_dir = diagnostics_dir / "alpha_bootstrap_bundle_fake_default"
+    bundle_db = bundle_dir / "alpha_history_live_candidate.db"
+    bundle_dir.mkdir(parents=True)
+    bundle_db.write_bytes(b"fake")
     monkeypatch.setattr(gate, "WORKDIR", tmp_path)
+    monkeypatch.setattr(gate, "DIAGNOSTICS_DIR", diagnostics_dir)
     monkeypatch.setattr(gate, "PAPER_REPORT_DIR", tmp_path / "paper_reports")
 
     report_json = tmp_path / "results" / "controlled_kpi_gate_probe.json"
@@ -521,7 +528,7 @@ def test_run_controlled_kpi_uses_natural_paper_validation_by_default(
 
     command = commands[0]
     after_idx = command.index("--after-min")
-    assert command[after_idx + 1] == "2"
+    assert command[after_idx + 1] == "10"
     assert "--paper-auto-open" in command
     close_idx = command.index("--paper-auto-close-sec")
     assert command[close_idx + 1] == "20"
@@ -537,7 +544,10 @@ def test_run_controlled_kpi_uses_natural_paper_validation_by_default(
     assert "SYMBOL_STRATEGY_GUARD_ENABLE=0" in after_env_values
     assert "SIDE_GUARD_ENABLE=0" in after_env_values
     assert "ENTRY_EDGE_COLDSTART_MODE=fail_open" in after_env_values
+    assert "ENTRY_EDGE_KNOWN_COST_GATE_ENABLE=0" in after_env_values
     assert "ENTRY_CUTOFF_BEFORE_END_SEC=30" in after_env_values
+    assert "ALPHA_WHITELIST_ENABLE=0" in after_env_values
+    assert "ALPHA_WHITELIST_FALLBACK_ENABLE=0" in after_env_values
     assert bundle["summary"]["rows"] == 2
     assert Path(bundle["summary_json"]).exists()
 
@@ -546,19 +556,22 @@ def test_resolve_run_after_env_overrides_builds_eth_momentum_buy_preset(
     monkeypatch,
     tmp_path,
 ):
+    diagnostics_dir = tmp_path / "artifacts" / "diagnostics"
+    # Create a fake bundle dir so _resolve_latest_bootstrap_bundle_db() finds it
+    bundle_dir = diagnostics_dir / "alpha_bootstrap_bundle_fake_20260506"
+    bundle_db = bundle_dir / "alpha_history_live_candidate.db"
+    bundle_dir.mkdir(parents=True)
+    bundle_db.write_bytes(b"fake")
     monkeypatch.setattr(gate, "WORKDIR", tmp_path)
+    monkeypatch.setattr(gate, "DIAGNOSTICS_DIR", diagnostics_dir)
 
     resolved = gate._resolve_run_after_env_overrides(
         {"after_env_preset": gate.ETH_MOMENTUM_BUY_AFTER_ENV_PRESET}
     )
 
-    missing_source_posix = (
-        tmp_path / "tmp" / "alpha_bootstrap_missing_eth_momentum_buy_gate.db"
-    ).resolve().as_posix()
-    assert resolved["ALPHA_BOOTSTRAP_SOURCE_DB_URL"] == (
-        f"sqlite:///{missing_source_posix}"
-    )
-    assert resolved["ALPHA_BOOTSTRAP_SOURCE_DB_GLOB"] == missing_source_posix
+    expected_db = bundle_db.resolve().as_posix()
+    assert resolved["ALPHA_BOOTSTRAP_SOURCE_DB_URL"] == f"sqlite:///{expected_db}"
+    assert resolved["ALPHA_BOOTSTRAP_SOURCE_DB_GLOB"] == expected_db
     assert resolved["ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST"] == (
         "ETHUSDTM:MOMENTUM:buy"
     )
@@ -572,7 +585,14 @@ def test_run_controlled_kpi_applies_eth_momentum_buy_after_env_overrides(
     monkeypatch,
     tmp_path,
 ):
+    diagnostics_dir = tmp_path / "artifacts" / "diagnostics"
+    # Create a fake bundle dir so _resolve_latest_bootstrap_bundle_db() finds it
+    bundle_dir = diagnostics_dir / "alpha_bootstrap_bundle_fake_20260506"
+    bundle_db = bundle_dir / "alpha_history_live_candidate.db"
+    bundle_dir.mkdir(parents=True)
+    bundle_db.write_bytes(b"fake")
     monkeypatch.setattr(gate, "WORKDIR", tmp_path)
+    monkeypatch.setattr(gate, "DIAGNOSTICS_DIR", diagnostics_dir)
     monkeypatch.setattr(gate, "PAPER_REPORT_DIR", tmp_path / "paper_reports")
 
     report_json = tmp_path / "results" / "controlled_kpi_gate_probe_preset.json"
@@ -651,9 +671,7 @@ def test_run_controlled_kpi_applies_eth_momentum_buy_after_env_overrides(
         for idx, token in enumerate(command)
         if token == "--after-env" and idx + 1 < len(command)
     ]
-    missing_source_posix = (
-        tmp_path / "tmp" / "alpha_bootstrap_missing_eth_momentum_buy_gate.db"
-    ).resolve().as_posix()
+    expected_db = bundle_db.resolve().as_posix()
     assert "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST=0" not in after_env_values
     assert "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST=1" in after_env_values
     assert (
@@ -665,10 +683,11 @@ def test_run_controlled_kpi_applies_eth_momentum_buy_after_env_overrides(
         in after_env_values
     )
     assert (
-        f"ALPHA_BOOTSTRAP_SOURCE_DB_URL=sqlite:///{missing_source_posix}"
+        f"ALPHA_BOOTSTRAP_SOURCE_DB_URL=sqlite:///{expected_db}"
         in after_env_values
     )
     assert "ENTRY_EDGE_COLDSTART_MODE=fail_open" in after_env_values
+    assert "ENTRY_EDGE_KNOWN_COST_GATE_ENABLE=0" in after_env_values
     assert "ENTRY_CUTOFF_BEFORE_END_SEC=30" in after_env_values
     assert bundle["summary"]["rows"] == 2
     assert Path(bundle["summary_json"]).exists()
@@ -1454,6 +1473,146 @@ def test_run_matrix_includes_targeted_xrp_corridor():
         run.get("run_id") == "paper_gate_run_d_xrp" and run.get("symbols") == "XRPUSDTM"
         for run in gate.RUN_MATRIX
     )
+
+
+def test_default_gate_after_env_overrides_has_entry_edge_known_cost_disabled():
+    overrides = gate.DEFAULT_GATE_AFTER_ENV_OVERRIDES
+    assert overrides.get("ENTRY_EDGE_KNOWN_COST_GATE_ENABLE") == "0"
+
+
+def test_default_gate_after_env_overrides_has_entry_edge_coldstart_fail_open():
+    overrides = gate.DEFAULT_GATE_AFTER_ENV_OVERRIDES
+    assert overrides.get("ENTRY_EDGE_COLDSTART_MODE") == "fail_open"
+
+
+def test_default_gate_after_env_overrides_has_alpha_whitelist_disabled():
+    overrides = gate.DEFAULT_GATE_AFTER_ENV_OVERRIDES
+    assert overrides.get("ALPHA_WHITELIST_ENABLE") == "0"
+    assert overrides.get("ALPHA_WHITELIST_FALLBACK_ENABLE") == "0"
+
+
+def test_default_gate_after_env_overrides_has_relaxed_edge_thresholds():
+    overrides = gate.DEFAULT_GATE_AFTER_ENV_OVERRIDES
+    assert float(overrides.get("ENTRY_MIN_EDGE_OVER_FEE_USDT", "0")) < 0
+    assert float(overrides.get("ENTRY_MIN_EXPECTED_EDGE_AFTER_FEE", "0")) < 0
+
+
+def test_default_gate_after_env_overrides_has_profitability_fee_gate_disabled():
+    overrides = gate.DEFAULT_GATE_AFTER_ENV_OVERRIDES
+    assert overrides.get("ENTRY_PROFITABILITY_FEE_GATE_ENABLE") == "0"
+
+
+def test_default_gate_after_env_overrides_has_profit_or_hard_exit_policy():
+    overrides = gate.DEFAULT_GATE_AFTER_ENV_OVERRIDES
+    assert overrides.get("PAPER_AUTO_CLOSE_POLICY") == "profit_or_hard", (
+        "profit_or_hard is required to fire auto_close_profit immediately when PnL "
+        "turns positive; 'timebox' (default) suppresses that path causing 93%% "
+        "green-to-red leakage in the May-06 accumulation corpus"
+    )
+
+
+def test_default_gate_after_env_overrides_has_auto_close_min_profit():
+    overrides = gate.DEFAULT_GATE_AFTER_ENV_OVERRIDES
+    min_profit = overrides.get("PAPER_AUTO_CLOSE_MIN_PROFIT")
+    assert min_profit is not None, "PAPER_AUTO_CLOSE_MIN_PROFIT must be set"
+    assert float(min_profit) > 0.0, "min_profit must be > 0 to prevent noise exits"
+    assert float(min_profit) <= 0.01, (
+        "min_profit must be <= 0.01 to allow realistic exits"
+    )
+
+
+def test_default_gate_after_env_overrides_has_momentum_paper_buy_filter():
+    overrides = gate.DEFAULT_GATE_AFTER_ENV_OVERRIDES
+    assert overrides.get("MOMENTUM_PAPER_BUY_FILTER_ENABLE") == "1"
+    assert float(overrides.get("MOMENTUM_PAPER_BUY_MIN_SIGNAL_SCORE", "0")) >= 0.55
+    assert float(overrides.get("MOMENTUM_PAPER_BUY_MIN_VOL_RATIO", "0")) >= 1.0
+    assert float(overrides.get("MOMENTUM_PAPER_BUY_MIN_Z_MOMENTUM", "0")) >= 0.9
+
+
+def test_default_gate_after_env_overrides_uses_outer_monitor_for_realtime_exit():
+    """EXIT_LAYERED_SELECTION_ENABLE=0 routes exit decisions through the outer
+    monitor which evaluates at MTM frequency using real-time mark prices, so
+    intrabar price peaks are catchable.  The inner layered selection only uses
+    candle close prices and structurally misses those peaks."""
+    overrides = gate.DEFAULT_GATE_AFTER_ENV_OVERRIDES
+    assert overrides.get("EXIT_LAYERED_SELECTION_ENABLE") == "0", (
+        "EXIT_LAYERED_SELECTION_ENABLE must be '0' to use outer monitor (real-time "
+        "mark prices at MTM frequency); inner layered selection uses candle close "
+        "prices and cannot catch intrabar peaks — root cause of 0% winrate despite "
+        "9/16 positions having positive MFE in the May-07 corpus"
+    )
+    mtm_sec = overrides.get("POSITION_MTM_SEC")
+    assert mtm_sec is not None, "POSITION_MTM_SEC must be set for outer monitor"
+    assert int(mtm_sec) <= 10, "POSITION_MTM_SEC must be <= 10 for responsive exit"
+    hard_sec = overrides.get("PAPER_AUTO_CLOSE_HARD_SEC")
+    assert hard_sec is not None, "PAPER_AUTO_CLOSE_HARD_SEC must be set"
+    assert int(hard_sec) <= 120, "PAPER_AUTO_CLOSE_HARD_SEC must be <= 120"
+
+
+def test_resolve_run_after_env_overrides_non_preset_injects_bootstrap_db(
+    monkeypatch, tmp_path
+):
+    diagnostics_dir = tmp_path / "artifacts" / "diagnostics"
+    bundle_dir = diagnostics_dir / "alpha_bootstrap_bundle_fake_btc_20260506"
+    bundle_db = bundle_dir / "alpha_history_live_candidate.db"
+    bundle_dir.mkdir(parents=True)
+    bundle_db.write_bytes(b"fake")
+    monkeypatch.setattr(gate, "DIAGNOSTICS_DIR", diagnostics_dir)
+
+    resolved = gate._resolve_run_after_env_overrides(
+        {
+            "run_id": "paper_gate_run_b_btc_sol",
+            "after_env_overrides": {"ALLOW_ONE_SIDED_VALIDATION": "1"},
+        }
+    )
+
+    expected_db = bundle_db.resolve().as_posix()
+    assert resolved["ALPHA_BOOTSTRAP_SOURCE_DB_URL"] == f"sqlite:///{expected_db}"
+    assert resolved["ALPHA_BOOTSTRAP_SOURCE_DB_GLOB"] == expected_db
+    # explicit override preserved
+    assert resolved["ALLOW_ONE_SIDED_VALIDATION"] == "1"
+
+
+def test_run_matrix_btc_sol_has_allow_one_sided_validation():
+    btc_sol_run = next(
+        (r for r in gate.RUN_MATRIX if r.get("run_id") == "paper_gate_run_b_btc_sol"),
+        None,
+    )
+    assert btc_sol_run is not None
+    overrides = btc_sol_run.get("after_env_overrides") or {}
+    assert overrides.get("ALLOW_ONE_SIDED_VALIDATION") == "1"
+
+
+def test_run_matrix_btc_has_allow_one_sided_validation():
+    btc_run = next(
+        (r for r in gate.RUN_MATRIX if r.get("run_id") == "paper_gate_run_c_btc"),
+        None,
+    )
+    assert btc_run is not None
+    overrides = btc_run.get("after_env_overrides") or {}
+    assert overrides.get("ALLOW_ONE_SIDED_VALIDATION") == "1"
+
+
+def test_run_matrix_eth_preset_does_not_reference_missing_bootstrap_db():
+    eth_run = next(
+        (r for r in gate.RUN_MATRIX if r.get("run_id") == "paper_gate_run_a_eth"),
+        None,
+    )
+    assert eth_run is not None
+    assert eth_run.get("after_env_preset") == gate.ETH_MOMENTUM_BUY_AFTER_ENV_PRESET
+    overrides = gate._eth_momentum_buy_after_env_overrides()
+    db_url = overrides.get("ALPHA_BOOTSTRAP_SOURCE_DB_URL", "")
+    assert "alpha_bootstrap_missing_eth_momentum_buy_gate" not in db_url
+
+
+def test_build_gate_after_env_args_includes_entry_edge_known_cost_disabled():
+    args = gate._build_gate_after_env_args()
+    after_env_values = [
+        args[idx + 1]
+        for idx, token in enumerate(args)
+        if token == "--after-env" and idx + 1 < len(args)
+    ]
+    assert "ENTRY_EDGE_KNOWN_COST_GATE_ENABLE=0" in after_env_values
 
 
 def test_report_keeps_legacy_top_level_fields(monkeypatch, tmp_path):
