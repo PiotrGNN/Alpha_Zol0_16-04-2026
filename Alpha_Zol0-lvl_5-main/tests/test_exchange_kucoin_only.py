@@ -7,6 +7,7 @@ from core.MultiChainExecutor import MultiChainExecutor
 from platforms.MetaPlatformManager import MetaPlatformManager
 
 RUNTIME_DIRS = ("core", "platforms", "utils", "config")
+DOC_FILES = ("DEVELOPMENT.md", "README.md", "README_RUN.md", "RUNBOOK.md")
 FORBIDDEN_HOST_TOKENS = ("bybit", "binance", "okx")
 FORBIDDEN_ENV_TOKENS = ("BYBIT", "BINANCE", "OKX")
 
@@ -44,6 +45,22 @@ def test_no_bybit_env_keys_used():
         if any(token in content for token in FORBIDDEN_ENV_TOKENS):
             offenders.append(str(path))
     assert not offenders, f"Non-KuCoin env keys found: {offenders}"
+
+
+def test_source_docs_do_not_advertise_deprecated_non_kucoin_integrations():
+    base = Path(__file__).resolve().parents[1]
+    offenders = []
+    for name in DOC_FILES:
+        path = base / name
+        if not path.exists():
+            continue
+        content = _read_text(path).lower()
+        if "bybit" in content or "pybit" in content:
+            offenders.append(str(path))
+    assert not offenders, (
+        "Deprecated non-KuCoin integration claims found in source docs: "
+        f"{offenders}"
+    )
 
 
 def test_runtime_blocks_non_kucoin_platform():
