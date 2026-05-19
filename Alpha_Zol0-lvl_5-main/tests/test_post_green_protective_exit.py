@@ -48,7 +48,7 @@ def test_post_green_protective_exit_triggers_for_kucoin_paper_trade():
     assert metrics["post_green_exit_reason"] == "post_green_protective_exit"
     assert metrics["post_green_trigger_mode"] == "peak_giveback_positive_residual"
     assert metrics["post_green_trigger_reason_detail"] == "positive_residual_giveback"
-    assert metrics["post_green_trigger_giveback_threshold"] == 0.06
+    assert metrics["post_green_trigger_giveback_threshold"] == 0.12
     assert (
         metrics["post_green_trigger_residual_floor_mode"]
         == "absolute_negative_epsilon"
@@ -209,7 +209,7 @@ def test_post_green_protective_exit_triggers_earlier_on_positive_residual_giveba
     assert metrics["post_green_giveback_ratio"] == 0.375
     assert metrics["post_green_trigger_mode"] == "peak_giveback_positive_residual"
     assert metrics["post_green_trigger_reason_detail"] == "positive_residual_giveback"
-    assert metrics["post_green_trigger_giveback_threshold"] == 0.06
+    assert metrics["post_green_trigger_giveback_threshold"] == 0.12
     assert metrics["post_green_trigger_residual_edge"] == 0.0050
 
 
@@ -295,7 +295,7 @@ def test_post_green_protective_exit_triggers_positive_residual_tight_quality():
         simulate=True,
         symbol="BTCUSDTM",
         position=position,
-        current_net_after_fee=0.0089,
+        current_net_after_fee=0.0087,
         pos_age_sec=80.0,
         paper_auto_close_sec=10.0,
         now_dt=now_dt,
@@ -303,8 +303,8 @@ def test_post_green_protective_exit_triggers_positive_residual_tight_quality():
 
     assert should_trigger is True
     assert skip_reason == "triggered"
-    assert abs(metrics["post_green_giveback_ratio"] - 0.11) < 1e-12
-    assert metrics["post_green_trigger_giveback_threshold"] == 0.06
+    assert abs(metrics["post_green_giveback_ratio"] - 0.13) < 1e-12
+    assert metrics["post_green_trigger_giveback_threshold"] == 0.12
     assert metrics["post_green_trigger_mode"] == "peak_giveback_positive_residual"
 
 
