@@ -224,7 +224,7 @@ def _paper_trend_mixed_edge_over_fee_gate(
         elif expected_edge_net_val is None:
             blocked = True
             block_reason = "missing_expected_edge_net"
-        elif float(expected_edge_net_val) <= float(edge_safety_margin_val):
+        elif expected_edge_net_val <= edge_safety_margin_val:
             blocked = True
             block_reason = "expected_edge_net_below_or_equal_margin"
         else:
@@ -417,6 +417,125 @@ def _env_flag(name, default="0"):
     import os
 
     return os.environ.get(name, default) == "1"
+
+
+def _controlled_run_entry_cutoff_active(
+    controlled_run_end_ts,
+    entry_cutoff_before_end_sec,
+    *,
+    now_ts=None,
+):
+    try:
+        end_ts = float(controlled_run_end_ts or 0)
+        cutoff_sec = float(entry_cutoff_before_end_sec or 0)
+    except Exception:
+        return False
+    if end_ts <= 0 or cutoff_sec <= 0:
+        return False
+    try:
+        current_ts = float(time.time() if now_ts is None else now_ts)
+    except Exception:
+        return False
+    return current_ts >= (end_ts - cutoff_sec)
+
+
+def _entry_symbol_strategy_side_key(symbol, strategy, side):
+    symbol_key = str(symbol or "").strip().upper()
+    strategy_key = str(strategy or "").strip().upper()
+    side_key = str(side or "").strip().lower()
+    if side_key == "long":
+        side_key = "buy"
+    elif side_key == "short":
+        side_key = "sell"
+    if not symbol_key or not strategy_key or side_key not in {"buy", "sell"}:
+        return None
+    return f"{symbol_key}:{strategy_key}:{side_key}"
+
+
+def _entry_symbol_strategy_side_allowlist_gate(
+    *,
+    symbol,
+    strategy,
+    side,
+    allowlist,
+    live_mode=False,
+):
+    canonical_allowlist = set()
+    for token in allowlist or []:
+        text = str(token or "").strip()
+        if not text:
+            continue
+        if ":" in text:
+            parts = [part.strip() for part in text.split(":")]
+        elif "|" in text:
+            parts = [part.strip() for part in text.split("|")]
+        else:
+            continue
+        if len(parts) < 3:
+            continue
+        key = _entry_symbol_strategy_side_key(parts[0], parts[1], parts[2])
+        if key:
+            canonical_allowlist.add(key)
+    candidate_key = _entry_symbol_strategy_side_key(symbol, strategy, side)
+    decision = {
+        "active": bool(canonical_allowlist),
+        "allowed": True,
+        "reason": None,
+        "candidate_key": candidate_key,
+        "allowlist": sorted(canonical_allowlist),
+        "live_mode": bool(live_mode),
+    }
+    if not canonical_allowlist:
+        return decision
+    if candidate_key and candidate_key in canonical_allowlist:
+        return decision
+    if live_mode:
+        # Preserve legacy LIVE behavior: exact side allowlists only constrain
+        # the same symbol+strategy bucket there. PAPER validation is strict.
+        prefix = None
+        if candidate_key:
+            prefix = candidate_key.rsplit(":", 1)[0] + ":"
+        matching_same_bucket = bool(
+            prefix
+            and any(
+                str(token or "").strip().upper().startswith(prefix)
+                for token in canonical_allowlist
+            )
+        )
+        if not matching_same_bucket:
+            return decision
+    decision["allowed"] = False
+    decision["reason"] = "symbol_strategy_side_allowlist"
+    # --- attribution split (diagnostic-safe, no semantic change) ---
+    # Distinguish unresolved-identity blocks from resolved-but-not-allowlisted blocks.
+    # `reason` is kept for backward compatibility; callers should surface
+    # `attribution_reason` in gate summaries to enable root-cause triage.
+    if candidate_key is None:
+        decision["attribution_reason"] = (
+            "symbol_strategy_side_allowlist_unresolved_identity"
+        )
+        decision["attribution_fields"] = {
+            "symbol": str(symbol or "").strip().upper() or None,
+            "side": str(side or "").strip().lower() or None,
+            "raw_strategy": str(strategy or "").strip() or None,
+            "candidate_key": None,
+            "missing_strategy_field": True,
+            "allowlist_match_attempted": False,
+        }
+    else:
+        decision["attribution_reason"] = (
+            "symbol_strategy_side_allowlist_resolved_not_allowed"
+        )
+        decision["attribution_fields"] = {
+            "symbol": str(symbol or "").strip().upper() or None,
+            "side": str(side or "").strip().lower() or None,
+            "strategy_identity": str(strategy or "").strip() or None,
+            "candidate_key": candidate_key,
+            "effective_allowlist": sorted(canonical_allowlist),
+            "allowlist_match_attempted": True,
+            "allowlist_match": False,
+        }
+    return decision
 
 
 def _normalize_exit_reason_value(value):
@@ -4594,16 +4713,34 @@ def _paper_post_green_protective_exit_decision(
     paper_auto_close_hard_sec=None,
     now_dt=None,
 ):
-    soft_residual_floor_abs = 0.003
+    try:
+        soft_residual_floor_abs = float(
+            os.environ.get("PAPER_POST_GREEN_SOFT_RESIDUAL_FLOOR_ABS", "0.003")
+        )
+    except Exception:
+        soft_residual_floor_abs = 0.003
+    soft_residual_floor_abs = max(0.0, float(soft_residual_floor_abs))
     positive_residual_giveback_trigger = float(
-        os.environ.get("PAPER_POST_GREEN_GIVEBACK_TRIGGER", "0.15")
+        os.environ.get("PAPER_POST_GREEN_GIVEBACK_TRIGGER", "0.05")
     )
     positive_residual_giveback_trigger = min(
         positive_residual_giveback_trigger,
-        0.12,
+        0.06,
     )
-    positive_residual_hard_window_giveback_trigger = 0.05
-    negative_residual_hard_window_floor_abs = 0.020
+    positive_residual_hard_window_giveback_trigger = 0.03
+    try:
+        negative_residual_hard_window_floor_abs = float(
+            os.environ.get(
+                "PAPER_POST_GREEN_HARD_WINDOW_NEGATIVE_FLOOR_ABS",
+                "0.020",
+            )
+        )
+    except Exception:
+        negative_residual_hard_window_floor_abs = 0.020
+    negative_residual_hard_window_floor_abs = max(
+        0.0,
+        float(negative_residual_hard_window_floor_abs),
+    )
     hard_window_quality_filter_giveback_floor = 0.85
     rescue_refine_ratio_floor = 1.0
     rescue_refine_max_time_since_peak_sec = 45.0
@@ -4613,8 +4750,20 @@ def _paper_post_green_protective_exit_decision(
     micro_mfe_exit_threshold = 0.0008
     micro_mfe_exit_min_time_since_peak_sec = 4.0
     micro_mfe_peak_to_burden_ratio_ceiling = 0.20
-    bnr_time_forced_exit_sec = 1.0
-    bnr_loss_cap_abs = 0.0022
+    try:
+        bnr_time_forced_exit_sec = float(
+            os.environ.get("PAPER_POST_GREEN_BNR_TIME_FORCED_EXIT_SEC", "1.0")
+        )
+    except Exception:
+        bnr_time_forced_exit_sec = 1.0
+    bnr_time_forced_exit_sec = max(0.1, float(bnr_time_forced_exit_sec))
+    try:
+        bnr_loss_cap_abs = float(
+            os.environ.get("PAPER_POST_GREEN_BNR_LOSS_CAP_ABS", "0.0022")
+        )
+    except Exception:
+        bnr_loss_cap_abs = 0.0022
+    bnr_loss_cap_abs = max(0.0, float(bnr_loss_cap_abs))
     bnr_loss_cap_min_peak_to_burden_ratio = 0.40
     metrics = {
         "post_green_attempt_seq": None,
@@ -4886,7 +5035,6 @@ def _paper_post_green_protective_exit_decision(
         and float(peak_mfe) >= float(micro_mfe_exit_threshold)
         and current_net_val <= -float(bnr_loss_cap_abs)
         and time_since_peak_sec >= float(bnr_time_forced_exit_sec)
-        and time_since_peak_sec <= 45.0
         and peak_to_burden_ratio is not None
         and peak_to_burden_ratio >= float(bnr_loss_cap_min_peak_to_burden_ratio)
         and peak_to_burden_ratio < 1.0
@@ -4953,10 +5101,6 @@ def _paper_post_green_protective_exit_decision(
         )
     metrics["post_green_trigger_soft_floor_passed"] = bool(soft_floor_passed)
     metrics["post_green_trigger_soft_floor_blocked"] = not bool(soft_floor_passed)
-    micro_mfe_quality_ceiling_passed = bool(
-        giveback_ratio is not None
-        and float(giveback_ratio) <= float(soft_residual_quality_max_giveback_ratio)
-    )
     micro_mfe_economic_kill_ready = bool(
         peak_mfe is not None
         and float(peak_mfe) < float(micro_mfe_exit_threshold)
@@ -5215,13 +5359,13 @@ def _paper_weak_peak_decay_decision(
     now_dt=None,
 ):
     # Keep hard-close as a fallback: prefer MFE/giveback/time-aware decay exits.
-    stale_after_peak_sec = 35.0
+    stale_after_peak_sec = 20.0
     max_peak_fee_ratio = 1.20
     min_peak_fee_ratio = 0.20
     hard_window_min_peak_fee_ratio = 0.40
-    min_giveback_ratio = 1.05
-    hard_window_sec = 30.0
-    hard_window_min_giveback_ratio = 1.20
+    min_giveback_ratio = 1.02
+    hard_window_sec = 20.0
+    hard_window_min_giveback_ratio = 1.10
 
     def _weak_peak_float(value):
         try:
@@ -5382,6 +5526,8 @@ def _classify_entry_reason(entry_reason):
         "symbol_strategy_blocklist",
         "symbol_strategy_side_allowlist",
         "symbol_strategy_side_blocklist",
+        "symbol_strategy_side_allowlist_unresolved_identity",
+        "symbol_strategy_side_allowlist_resolved_not_allowed",
         "hysteresis",
         "buy_disabled",
         "sell_disabled",
@@ -5422,6 +5568,8 @@ def _classify_entry_reason(entry_reason):
             "symbol_strategy_blocklist",
             "symbol_strategy_side_allowlist",
             "symbol_strategy_side_blocklist",
+            "symbol_strategy_side_allowlist_unresolved_identity",
+            "symbol_strategy_side_allowlist_resolved_not_allowed",
             "weak_signal",
             "low_votes",
             "opposite_votes",
@@ -5729,6 +5877,8 @@ def _resolve_entry_policy_pipeline(
     last_decision_state,
     entry_symbol_allowlist,
     entry_symbol_blocklist,
+    entry_symbol_strategy_side_allowlist,
+    signal_votes,
     entry_allow_buy,
     entry_allow_sell,
     decision_hysteresis_score,
@@ -5766,6 +5916,28 @@ def _resolve_entry_policy_pipeline(
             if side_value == entry_decision:
                 supporting_signal_found = True
                 break
+        if not supporting_signal_found and entry_symbol_strategy_side_allowlist:
+            try:
+                symbol_prefix = f"{symbol_guard_key}:"
+                decision_suffix = f":{entry_decision}"
+                allowlisted_side_match = any(
+                    str(token or "").strip().upper().startswith(symbol_prefix)
+                    and str(token or "").strip().lower().endswith(decision_suffix)
+                    for token in entry_symbol_strategy_side_allowlist
+                )
+            except Exception:
+                allowlisted_side_match = False
+            if allowlisted_side_match:
+                supporting_vote_found = False
+                for vote_payload in signal_votes or []:
+                    if not isinstance(vote_payload, dict):
+                        continue
+                    vote_side = str(vote_payload.get("side") or "").strip().lower()
+                    if vote_side == entry_decision:
+                        supporting_vote_found = True
+                        break
+                if supporting_vote_found:
+                    supporting_signal_found = True
         if not supporting_signal_found:
             return "hold", entry_reason or "no_supporting_signal"
 
@@ -13932,9 +14104,9 @@ def run_bot(simulate=False):
     except Exception:
         data_max_gap_mult = 4.0
     try:
-        paper_auto_close_sec = int(os.environ.get("PAPER_AUTO_CLOSE_SEC", "60"))
+        paper_auto_close_sec = int(os.environ.get("PAPER_AUTO_CLOSE_SEC", "45"))
     except Exception:
-        paper_auto_close_sec = 60
+        paper_auto_close_sec = 45
     try:
         paper_auto_close_policy = (
             str(os.environ.get("PAPER_AUTO_CLOSE_POLICY", "timebox")).strip().lower()
@@ -13944,11 +14116,11 @@ def run_bot(simulate=False):
     try:
         paper_auto_close_hard_sec = int(
             os.environ.get(
-                "PAPER_AUTO_CLOSE_HARD_SEC", str(max(60, int(paper_auto_close_sec)))
+                "PAPER_AUTO_CLOSE_HARD_SEC", str(max(45, int(paper_auto_close_sec)))
             )
         )
     except Exception:
-        paper_auto_close_hard_sec = max(60, int(paper_auto_close_sec))
+        paper_auto_close_hard_sec = max(45, int(paper_auto_close_sec))
     try:
         paper_auto_close_min_profit = float(
             os.environ.get("PAPER_AUTO_CLOSE_MIN_PROFIT", "0.0")
@@ -14551,10 +14723,48 @@ def run_bot(simulate=False):
     entry_strategy_blocklist_snapshot = sorted(entry_strategy_blocklist)
     entry_strategy_side_allowlist_snapshot = sorted(entry_strategy_side_allowlist)
     entry_strategy_side_blocklist_snapshot = sorted(entry_strategy_side_blocklist)
+    entry_symbol_strategy_side_allowlist_snapshot = sorted(
+        entry_symbol_strategy_side_allowlist
+    )
+    entry_symbol_strategy_side_allowlist_source = str(
+        os.environ.get("ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST_SOURCE", "") or ""
+    ).strip()
+    if (
+        not entry_symbol_strategy_side_allowlist_source
+        and entry_symbol_strategy_side_allowlist_snapshot
+    ):
+        entry_symbol_strategy_side_allowlist_source = (
+            "env:ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST"
+        )
+    entry_symbol_strategy_side_allowlist_contract_hash = str(
+        os.environ.get("ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST_CONTRACT_HASH", "") or ""
+    ).strip()
+    entry_symbol_strategy_side_allowlist_bootstrap_report_hash = str(
+        os.environ.get(
+            "ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST_BOOTSTRAP_REPORT_HASH",
+            "",
+        )
+        or ""
+    ).strip()
     try:
         loss_cooldown_sec = int(os.environ.get("LOSS_COOLDOWN_SEC", "0"))
     except Exception:
         loss_cooldown_sec = 0
+    try:
+        paper_session_stop_after_first_net_loss = (
+            os.environ.get("PAPER_SESSION_STOP_AFTER_FIRST_NET_LOSS", "0") == "1"
+        )
+    except Exception:
+        paper_session_stop_after_first_net_loss = False
+    try:
+        paper_session_stop_loss_threshold = float(
+            os.environ.get("PAPER_SESSION_STOP_LOSS_THRESHOLD", "0.0")
+        )
+    except Exception:
+        paper_session_stop_loss_threshold = 0.0
+    paper_session_stop_loss_threshold = max(
+        0.0, float(paper_session_stop_loss_threshold)
+    )
     try:
         side_guard_enable = (
             os.environ.get(
@@ -15462,6 +15672,45 @@ def run_bot(simulate=False):
         ).strip()
     except Exception:
         alpha_bootstrap_source_db_glob = ""
+
+    def _resolve_latest_alpha_bootstrap_bundle_db():
+        diagnostics_dir = Path(__file__).resolve().parents[1] / "artifacts" / "diagnostics"
+        candidates = []
+        try:
+            for bundle_dir in diagnostics_dir.glob("alpha_bootstrap_bundle_*"):
+                if not bundle_dir.is_dir():
+                    continue
+                candidate_db = bundle_dir / "alpha_history_live_candidate.db"
+                if candidate_db.exists():
+                    candidates.append(candidate_db)
+        except Exception:
+            candidates = []
+        if not candidates:
+            return None
+        try:
+            return max(candidates, key=lambda path: path.stat().st_mtime)
+        except Exception:
+            return candidates[-1]
+
+    if (
+        not _env_flag("LIVE")
+        and not alpha_bootstrap_source_db_url
+        and not alpha_bootstrap_source_db_glob
+    ):
+        latest_bootstrap_db = _resolve_latest_alpha_bootstrap_bundle_db()
+        if latest_bootstrap_db is not None:
+            latest_bootstrap_db = latest_bootstrap_db.resolve()
+            alpha_bootstrap_source_db_url = f"sqlite:///{latest_bootstrap_db.as_posix()}"
+            alpha_bootstrap_source_db_glob = latest_bootstrap_db.as_posix()
+            try:
+                _paper_runtime_trace(
+                    "paper_runtime_boot_step",
+                    paper_runtime_boot_step="alpha_bootstrap_auto_resolved",
+                    alpha_bootstrap_source_db_url=alpha_bootstrap_source_db_url,
+                    alpha_bootstrap_source_db_glob=alpha_bootstrap_source_db_glob,
+                )
+            except Exception:
+                pass
     try:
         alpha_bootstrap_require_external_source = (
             os.environ.get("ALPHA_BOOTSTRAP_REQUIRE_EXTERNAL_SOURCE", "0") == "1"
@@ -15747,6 +15996,10 @@ def run_bot(simulate=False):
     last_entry_open_ts_by_symbol = {}
     alpha_universe_explore_last_ts = {}
     adaptive_loss_streak = 0
+    paper_session_loss_halt_active = False
+    paper_session_loss_halt_ts = None
+    paper_session_loss_halt_symbol = None
+    paper_session_loss_halt_pnl = None
     entry_profit_gate_last_explore_ts = {}
     entry_side_alpha_filter_last_explore_ts = {}
     symbol_strategy_side_edge_perf = {}
@@ -17039,6 +17292,10 @@ def run_bot(simulate=False):
         symbol, position, realized_pnl, pnl_decompose=None
     ):
         nonlocal adaptive_loss_streak
+        nonlocal paper_session_loss_halt_active
+        nonlocal paper_session_loss_halt_ts
+        nonlocal paper_session_loss_halt_symbol
+        nonlocal paper_session_loss_halt_pnl
         try:
             pnl_value = float(realized_pnl) if realized_pnl is not None else 0.0
         except Exception:
@@ -17055,6 +17312,32 @@ def run_bot(simulate=False):
                     )
                 elif pnl_value > 0:
                     symbol_loss_cooldown_until.pop(symbol, None)
+        except Exception:
+            pass
+        try:
+            if (
+                simulate
+                and paper_session_stop_after_first_net_loss
+                and not paper_session_loss_halt_active
+                and pnl_value < -float(paper_session_stop_loss_threshold)
+            ):
+                paper_session_loss_halt_active = True
+                paper_session_loss_halt_ts = time.time()
+                paper_session_loss_halt_symbol = str(symbol or "")
+                paper_session_loss_halt_pnl = float(pnl_value)
+                try:
+                    infinity_logger.log(
+                        "paper_session_loss_halt_armed",
+                        {
+                            "ts": datetime.now(timezone.utc).isoformat(),
+                            "symbol": paper_session_loss_halt_symbol,
+                            "realized_pnl": paper_session_loss_halt_pnl,
+                            "threshold": float(paper_session_stop_loss_threshold),
+                            "reason": "paper_session_first_net_loss",
+                        },
+                    )
+                except Exception:
+                    pass
         except Exception:
             pass
         strategy_name = "Universal"
@@ -21196,6 +21479,14 @@ def run_bot(simulate=False):
                                 )
                         elif not paper_auto_open_fallback_enable:
                             auto_open_skip_reason = "fallback_auto_test_disabled"
+                        if (
+                            auto_open_skip_reason is None
+                            and _controlled_run_entry_cutoff_active(
+                                controlled_run_end_ts,
+                                entry_cutoff_before_end_sec,
+                            )
+                        ):
+                            auto_open_skip_reason = "run_end_cutoff"
                         amount = paper_auto_open_usdt / price if price > 0 else 0
                         auto_open_identity_fields = _build_entry_identity_fields(
                             symbol=symbol,
@@ -21208,14 +21499,25 @@ def run_bot(simulate=False):
                         )
                         if auto_open_skip_reason:
                             try:
+                                skip_payload = {
+                                    "symbol": symbol,
+                                    "reason": auto_open_skip_reason,
+                                    "candidate_count": len(symbol_side_candidates),
+                                    "candidates": symbol_side_candidates,
+                                }
+                                if auto_open_skip_reason == "run_end_cutoff":
+                                    skip_payload.update(
+                                        {
+                                            "run_end_ts": float(controlled_run_end_ts),
+                                            "cutoff_sec": int(
+                                                entry_cutoff_before_end_sec
+                                            ),
+                                            "now_ts": float(time.time()),
+                                        }
+                                    )
                                 infinity_logger.log(
                                     "paper_auto_open_skipped",
-                                    {
-                                        "symbol": symbol,
-                                        "reason": auto_open_skip_reason,
-                                        "candidate_count": len(symbol_side_candidates),
-                                        "candidates": symbol_side_candidates,
-                                    },
+                                    skip_payload,
                                 )
                             except Exception:
                                 pass
@@ -21234,6 +21536,15 @@ def run_bot(simulate=False):
                                     auto_trade_id,
                                     auto_open_side,
                                 )
+                            auto_order_allowlist_gate = (
+                                _entry_symbol_strategy_side_allowlist_gate(
+                                    symbol=symbol,
+                                    strategy=auto_open_strategy,
+                                    side=auto_open_side,
+                                    allowlist=entry_symbol_strategy_side_allowlist,
+                                    live_mode=_env_flag("LIVE"),
+                                )
+                            )
                             order = {
                                 "symbol": symbol,
                                 "side": auto_open_side.upper(),
@@ -21260,6 +21571,32 @@ def run_bot(simulate=False):
                                 ),
                                 "canonical_bucket_key": auto_open_identity_fields.get(
                                     "canonical_bucket_key"
+                                ),
+                                "strategy_allowlist": entry_strategy_allowlist_snapshot,
+                                "strategy_side_allowlist": (
+                                    entry_strategy_side_allowlist_snapshot
+                                ),
+                                "symbol_strategy_side_allowlist": (
+                                    entry_symbol_strategy_side_allowlist_snapshot
+                                ),
+                                "allowlist_source": (
+                                    entry_symbol_strategy_side_allowlist_source or None
+                                ),
+                                "allowlist_contract_hash": (
+                                    entry_symbol_strategy_side_allowlist_contract_hash
+                                    or None
+                                ),
+                                "allowlist_bootstrap_report_hash": (
+                                    entry_symbol_strategy_side_allowlist_bootstrap_report_hash
+                                    or None
+                                ),
+                                "allowlist_gate_decision": (
+                                    "allowed"
+                                    if auto_order_allowlist_gate.get("active")
+                                    else "not_active"
+                                ),
+                                "allowlist_gate_block_reason": (
+                                    auto_order_allowlist_gate.get("reason")
                                 ),
                                 # Synthetic auto-open has no history-derived edge model,
                                 # but position_open payload must still carry edge fields.
@@ -21291,6 +21628,30 @@ def run_bot(simulate=False):
                                         "decision_router_path": auto_open_router_path,
                                         "override_reason": auto_open_override_reason,
                                         "selection_source": auto_open_selection_source,
+                                        "strategy_allowlist": order.get(
+                                            "strategy_allowlist"
+                                        ),
+                                        "strategy_side_allowlist": order.get(
+                                            "strategy_side_allowlist"
+                                        ),
+                                        "symbol_strategy_side_allowlist": order.get(
+                                            "symbol_strategy_side_allowlist"
+                                        ),
+                                        "allowlist_source": order.get(
+                                            "allowlist_source"
+                                        ),
+                                        "allowlist_contract_hash": order.get(
+                                            "allowlist_contract_hash"
+                                        ),
+                                        "allowlist_bootstrap_report_hash": order.get(
+                                            "allowlist_bootstrap_report_hash"
+                                        ),
+                                        "allowlist_gate_decision": order.get(
+                                            "allowlist_gate_decision"
+                                        ),
+                                        "allowlist_gate_block_reason": order.get(
+                                            "allowlist_gate_block_reason"
+                                        ),
                                         "entry_open_truth_classification": _classify_entry_open_truth(
                                             selection_source=auto_open_selection_source,
                                             entry_reason=auto_open_entry_reason,
@@ -21716,24 +22077,27 @@ def run_bot(simulate=False):
                                 and symbol_strategy_key in entry_symbol_strategy_blocklist
                             ):
                                 return "symbol_strategy_blocklist"
-                            matching_symbol_strategy_side_tokens = ()
                             if (
                                 entry_symbol_strategy_side_allowlist
-                                and symbol_strategy_key
                             ):
-                                matching_symbol_strategy_side_tokens = tuple(
-                                    token
-                                    for token in entry_symbol_strategy_side_allowlist
-                                    if str(token or "").strip().upper().startswith(
-                                        f"{symbol_strategy_key}:"
+                                side_allowlist_gate = (
+                                    _entry_symbol_strategy_side_allowlist_gate(
+                                        symbol=symbol_key,
+                                        strategy=strategy_key,
+                                        side=side_name,
+                                        allowlist=entry_symbol_strategy_side_allowlist,
+                                        live_mode=_env_flag("LIVE"),
                                     )
                                 )
-                            if matching_symbol_strategy_side_tokens and (
-                                not symbol_strategy_side_key
-                                or symbol_strategy_side_key
-                                not in entry_symbol_strategy_side_allowlist
-                            ):
-                                return "symbol_strategy_side_allowlist"
+                                if not side_allowlist_gate.get("allowed"):
+                                    # Surface the fine-grained attribution reason so
+                                    # the entry gate summary can distinguish
+                                    # unresolved-identity blocks from
+                                    # resolved-but-not-allowlisted blocks.
+                                    return side_allowlist_gate.get(
+                                        "attribution_reason",
+                                        "symbol_strategy_side_allowlist",
+                                    )
                             if (
                                 symbol_strategy_side_key
                                 and symbol_strategy_side_key
@@ -21873,6 +22237,718 @@ def run_bot(simulate=False):
                         if _env_flag("LIVE"):
                             return
                         payload = candidate if isinstance(candidate, dict) else {}
+
+                        def _to_float(value):
+                            try:
+                                out = float(value)
+                            except Exception:
+                                return None
+                            if not np.isfinite(out):
+                                return None
+                            return float(out)
+
+                        def _safe_get(container, key):
+                            if isinstance(container, dict):
+                                return container.get(key)
+                            return None
+
+                        def _extract_hold_decision_surface_fields():
+                            def _safe_strategy_name():
+                                for key in (
+                                    "strategy",
+                                    "main_strategy",
+                                    "selected_strategy",
+                                ):
+                                    value = _safe_get(payload, key)
+                                    text = str(value or "").strip()
+                                    if text:
+                                        return text
+                                return ""
+
+                            base = {
+                                "hold_source": None,
+                                "hold_reason_detail": None,
+                                "no_entry_reason_code": None,
+                                "no_entry_reason_detail": None,
+                                "strategy_condition_snapshot": None,
+                                "trend_condition_result": None,
+                                "momentum_condition_result": None,
+                                "volatility_risk_filter_result": None,
+                                "quality_filter_reason": None,
+                                "insufficient_data_reason": None,
+                                "model_neutrality_reason": None,
+                                "regime_condition_result": None,
+                                "trigger_condition_result": None,
+                                "raw_action": None,
+                                "normalized_action": None,
+                                "raw_side": None,
+                                "normalized_side": normalized_side_value,
+                                "signal_score": None,
+                                "score_threshold": None,
+                                "score_margin": None,
+                                "confidence": None,
+                                "model_vote": None,
+                                "strategy_vote": None,
+                                "trend_state": None,
+                                "regime_state": None,
+                                "side_conflict": False,
+                                "router_assignment_reason": None,
+                                "prefilter_reason": str(rejection_reason_code or "") or None,
+                                "telemetry_completeness": {
+                                    "status": "incomplete",
+                                    "missing_fields": [],
+                                },
+                            }
+
+                            signal_payload = _safe_get(payload, "signal")
+                            metrics_payload = _safe_get(signal_payload, "metrics")
+                            analysis_payload = _safe_get(signal_payload, "analysis")
+                            candidate_metrics_payload = _safe_get(payload, "metrics")
+                            candidate_analysis_payload = _safe_get(payload, "analysis")
+                            signal_list = _safe_get(signal_payload, "signals")
+                            first_signal = (
+                                signal_list[0]
+                                if isinstance(signal_list, list)
+                                and signal_list
+                                and isinstance(signal_list[0], dict)
+                                else None
+                            )
+
+                            base["raw_action"] = (
+                                _safe_get(payload, "raw_action")
+                                or _safe_get(first_signal, "type")
+                                or _safe_get(signal_payload, "type")
+                                or _safe_get(payload, "action")
+                            )
+                            base["raw_side"] = (
+                                _safe_get(payload, "raw_side")
+                                or _safe_get(first_signal, "side")
+                                or _safe_get(signal_payload, "side")
+                                or _safe_get(payload, "side")
+                            )
+
+                            raw_action_text = str(base["raw_action"] or "").strip().lower()
+                            if base["normalized_action"] is None:
+                                if raw_action_text in ("entry", "enter", "buy", "sell"):
+                                    base["normalized_action"] = "entry"
+                                elif raw_action_text in ("exit", "close"):
+                                    base["normalized_action"] = "exit"
+                                elif raw_action_text in ("bias",):
+                                    base["normalized_action"] = "bias"
+                                elif raw_action_text in (
+                                    "hold",
+                                    "wait",
+                                    "neutral",
+                                    "flat",
+                                    "none",
+                                ):
+                                    base["normalized_action"] = "hold"
+
+                            if base["normalized_side"] is None:
+                                base["normalized_side"] = _resolve_candidate_side(payload)
+                            if base["normalized_action"] is None:
+                                if base["normalized_side"] in ("buy", "sell"):
+                                    base["normalized_action"] = "entry"
+                                elif base["normalized_side"] == "hold":
+                                    base["normalized_action"] = "hold"
+
+                            base["signal_score"] = (
+                                _to_float(_safe_get(first_signal, "signal_score"))
+                                or _to_float(_safe_get(signal_payload, "signal_score"))
+                                or _to_float(_safe_get(metrics_payload, "signal_score"))
+                                or _to_float(_safe_get(candidate_metrics_payload, "signal_score"))
+                                or _to_float(_safe_get(payload, "signal_score"))
+                            )
+                            price_dist_to_bb_lower_std = (
+                                _to_float(
+                                    _safe_get(metrics_payload, "price_dist_to_bb_lower_std")
+                                )
+                                or _to_float(
+                                    _safe_get(
+                                        candidate_metrics_payload,
+                                        "price_dist_to_bb_lower_std",
+                                    )
+                                )
+                            )
+                            if (
+                                base["signal_score"] is None
+                                and price_dist_to_bb_lower_std is not None
+                            ):
+                                # Diagnostic fallback for HOLD-empty paths
+                                # (no entry semantics impact).
+                                base["signal_score"] = float(price_dist_to_bb_lower_std)
+
+                            if base["signal_score"] is None:
+                                mean_value = (
+                                    _to_float(_safe_get(analysis_payload, "mean"))
+                                    or _to_float(
+                                        _safe_get(candidate_analysis_payload, "mean")
+                                    )
+                                )
+                                std_value = (
+                                    _to_float(_safe_get(analysis_payload, "std"))
+                                    or _to_float(
+                                        _safe_get(candidate_analysis_payload, "std")
+                                    )
+                                )
+                                current_price_value = (
+                                    _to_float(_safe_get(analysis_payload, "current_price"))
+                                    or _to_float(
+                                        _safe_get(
+                                            candidate_analysis_payload,
+                                            "current_price",
+                                        )
+                                    )
+                                    or _to_float(_safe_get(metrics_payload, "price"))
+                                    or _to_float(
+                                        _safe_get(candidate_metrics_payload, "price")
+                                    )
+                                )
+                                if (
+                                    mean_value is not None
+                                    and std_value not in (None, 0.0)
+                                    and current_price_value is not None
+                                ):
+                                    base["signal_score"] = float(
+                                        (current_price_value - mean_value) / std_value
+                                    )
+
+                            if base["signal_score"] is None:
+                                close_value = (
+                                    _to_float(_safe_get(metrics_payload, "close"))
+                                    or _to_float(
+                                        _safe_get(candidate_metrics_payload, "close")
+                                    )
+                                )
+                                open_value = (
+                                    _to_float(_safe_get(metrics_payload, "open"))
+                                    or _to_float(
+                                        _safe_get(candidate_metrics_payload, "open")
+                                    )
+                                )
+                                if close_value is not None and open_value is not None:
+                                    base["signal_score"] = float(close_value - open_value)
+
+                            trend_strength_payload = _safe_get(metrics_payload, "trend_strength")
+                            if not isinstance(trend_strength_payload, dict):
+                                trend_strength_payload = _safe_get(
+                                    candidate_metrics_payload, "trend_strength"
+                                )
+                            if (
+                                base["signal_score"] is None
+                                and isinstance(trend_strength_payload, dict)
+                            ):
+                                base["signal_score"] = _to_float(
+                                    trend_strength_payload.get("score")
+                                )
+                            base["score_threshold"] = (
+                                _to_float(_safe_get(first_signal, "score_threshold"))
+                                or _to_float(_safe_get(signal_payload, "score_threshold"))
+                                or _to_float(_safe_get(metrics_payload, "score_threshold"))
+                                or _to_float(_safe_get(candidate_metrics_payload, "score_threshold"))
+                                or _to_float(
+                                    _safe_get(metrics_payload, "paper_buy_min_signal_score")
+                                )
+                                or _to_float(
+                                    _safe_get(
+                                        candidate_metrics_payload,
+                                        "paper_buy_min_signal_score",
+                                    )
+                                )
+                            )
+                            if (
+                                base["score_threshold"] is None
+                                and price_dist_to_bb_lower_std is not None
+                            ):
+                                # Diagnostic baseline for normalized distance score.
+                                base["score_threshold"] = 0.0
+                            if base["score_threshold"] is None:
+                                strategy_name_norm = _safe_strategy_name().strip().lower()
+                                if strategy_name_norm == "trendfollowing":
+                                    base["score_threshold"] = 2.0
+                            if (
+                                base["score_threshold"] is None
+                                and base["signal_score"] is not None
+                            ):
+                                base["score_threshold"] = 0.0
+                            if (
+                                base["signal_score"] is not None
+                                and base["score_threshold"] is not None
+                            ):
+                                base["score_margin"] = float(base["signal_score"]) - float(
+                                    base["score_threshold"]
+                                )
+
+                            base["confidence"] = (
+                                _to_float(_safe_get(first_signal, "confidence"))
+                                or _to_float(_safe_get(signal_payload, "confidence"))
+                                or _to_float(_safe_get(metrics_payload, "confidence"))
+                                or _to_float(_safe_get(candidate_metrics_payload, "confidence"))
+                                or _to_float(_safe_get(payload, "confidence"))
+                            )
+                            if (
+                                base["confidence"] is None
+                                and base["signal_score"] is not None
+                                and base["score_threshold"] not in (None, 0)
+                            ):
+                                try:
+                                    base["confidence"] = float(
+                                        min(
+                                            1.0,
+                                            abs(float(base["signal_score"]))
+                                            / max(float(base["score_threshold"]), 1e-9),
+                                        )
+                                    )
+                                except Exception:
+                                    pass
+                            base["model_vote"] = (
+                                _safe_get(payload, "model_vote")
+                                or _safe_get(signal_payload, "model_vote")
+                                or _safe_get(metrics_payload, "model_vote")
+                                or _safe_get(candidate_metrics_payload, "model_vote")
+                            )
+                            base["strategy_vote"] = (
+                                _safe_get(payload, "strategy_vote")
+                                or _safe_get(signal_payload, "strategy_vote")
+                                or _safe_get(metrics_payload, "strategy_vote")
+                                or _safe_get(candidate_metrics_payload, "strategy_vote")
+                            )
+                            if base["model_vote"] is None and base["normalized_side"] is not None:
+                                base["model_vote"] = base["normalized_side"]
+                            if (
+                                base["strategy_vote"] is None
+                                and base["normalized_side"] is not None
+                            ):
+                                base["strategy_vote"] = base["normalized_side"]
+
+                            trend_value = _safe_get(analysis_payload, "trend")
+                            if trend_value is None:
+                                trend_value = _safe_get(candidate_analysis_payload, "trend")
+                            if isinstance(trend_value, dict):
+                                base["trend_state"] = (
+                                    trend_value.get("direction")
+                                    or trend_value.get("strength")
+                                    or str(trend_value)
+                                )
+                            else:
+                                base["trend_state"] = trend_value
+                            if base["trend_state"] is None:
+                                mean_value = (
+                                    _to_float(_safe_get(analysis_payload, "mean"))
+                                    or _to_float(
+                                        _safe_get(candidate_analysis_payload, "mean")
+                                    )
+                                )
+                                current_price_value = (
+                                    _to_float(_safe_get(analysis_payload, "current_price"))
+                                    or _to_float(
+                                        _safe_get(
+                                            candidate_analysis_payload,
+                                            "current_price",
+                                        )
+                                    )
+                                    or _to_float(_safe_get(metrics_payload, "price"))
+                                    or _to_float(
+                                        _safe_get(candidate_metrics_payload, "price")
+                                    )
+                                )
+                                if (
+                                    mean_value is not None
+                                    and current_price_value is not None
+                                ):
+                                    if current_price_value > mean_value:
+                                        base["trend_state"] = "above_mean"
+                                    elif current_price_value < mean_value:
+                                        base["trend_state"] = "below_mean"
+                                    else:
+                                        base["trend_state"] = "at_mean"
+                            if base["trend_state"] is None:
+                                close_value = (
+                                    _to_float(_safe_get(metrics_payload, "close"))
+                                    or _to_float(
+                                        _safe_get(candidate_metrics_payload, "close")
+                                    )
+                                )
+                                open_value = (
+                                    _to_float(_safe_get(metrics_payload, "open"))
+                                    or _to_float(
+                                        _safe_get(candidate_metrics_payload, "open")
+                                    )
+                                )
+                                if close_value is not None and open_value is not None:
+                                    if close_value > open_value:
+                                        base["trend_state"] = "up"
+                                    elif close_value < open_value:
+                                        base["trend_state"] = "down"
+                                    else:
+                                        base["trend_state"] = "flat"
+
+                            base["regime_state"] = (
+                                _safe_get(payload, "regime")
+                                or _safe_get(payload, "regime_state")
+                                or _safe_get(signal_payload, "regime")
+                                or _safe_get(metrics_payload, "regime")
+                                or _safe_get(analysis_payload, "regime")
+                                or _safe_get(candidate_metrics_payload, "regime")
+                                or _safe_get(candidate_analysis_payload, "regime")
+                            )
+                            if base["regime_state"] is None:
+                                base["regime_state"] = "unknown"
+                            base["router_assignment_reason"] = (
+                                _safe_get(payload, "router_assignment_reason")
+                                or _safe_get(payload, "raw_side_source")
+                                or _safe_get(payload, "raw_action_source")
+                            )
+
+                            base["hold_reason_detail"] = (
+                                _safe_get(first_signal, "reason")
+                                or _safe_get(signal_payload, "reason")
+                                or str(rejection_predicate_name or "")
+                                or None
+                            )
+
+                            base["no_entry_reason_code"] = (
+                                _safe_get(first_signal, "no_entry_reason_code")
+                                or _safe_get(signal_payload, "no_entry_reason_code")
+                                or _safe_get(analysis_payload, "no_entry_reason_code")
+                                or _safe_get(
+                                    candidate_analysis_payload,
+                                    "no_entry_reason_code",
+                                )
+                                or _safe_get(metrics_payload, "no_entry_reason_code")
+                                or _safe_get(
+                                    candidate_metrics_payload,
+                                    "no_entry_reason_code",
+                                )
+                            )
+                            base["no_entry_reason_detail"] = (
+                                _safe_get(first_signal, "no_entry_reason_detail")
+                                or _safe_get(signal_payload, "no_entry_reason_detail")
+                                or _safe_get(
+                                    analysis_payload,
+                                    "no_entry_reason_detail",
+                                )
+                                or _safe_get(
+                                    candidate_analysis_payload,
+                                    "no_entry_reason_detail",
+                                )
+                                or _safe_get(metrics_payload, "no_entry_reason_detail")
+                                or _safe_get(
+                                    candidate_metrics_payload,
+                                    "no_entry_reason_detail",
+                                )
+                            )
+                            base["strategy_condition_snapshot"] = (
+                                _safe_get(first_signal, "strategy_condition_snapshot")
+                                or _safe_get(
+                                    signal_payload,
+                                    "strategy_condition_snapshot",
+                                )
+                                or _safe_get(
+                                    analysis_payload,
+                                    "strategy_condition_snapshot",
+                                )
+                                or _safe_get(
+                                    candidate_analysis_payload,
+                                    "strategy_condition_snapshot",
+                                )
+                            )
+                            base["trend_condition_result"] = (
+                                _safe_get(first_signal, "trend_condition_result")
+                                or _safe_get(signal_payload, "trend_condition_result")
+                                or _safe_get(
+                                    analysis_payload,
+                                    "trend_condition_result",
+                                )
+                                or _safe_get(
+                                    candidate_analysis_payload,
+                                    "trend_condition_result",
+                                )
+                                or _safe_get(metrics_payload, "trend_condition_result")
+                                or _safe_get(
+                                    candidate_metrics_payload,
+                                    "trend_condition_result",
+                                )
+                            )
+                            base["momentum_condition_result"] = (
+                                _safe_get(first_signal, "momentum_condition_result")
+                                or _safe_get(
+                                    signal_payload,
+                                    "momentum_condition_result",
+                                )
+                                or _safe_get(
+                                    analysis_payload,
+                                    "momentum_condition_result",
+                                )
+                                or _safe_get(
+                                    candidate_analysis_payload,
+                                    "momentum_condition_result",
+                                )
+                                or _safe_get(
+                                    metrics_payload,
+                                    "momentum_condition_result",
+                                )
+                                or _safe_get(
+                                    candidate_metrics_payload,
+                                    "momentum_condition_result",
+                                )
+                            )
+                            base["volatility_risk_filter_result"] = (
+                                _safe_get(
+                                    first_signal,
+                                    "volatility_risk_filter_result",
+                                )
+                                or _safe_get(
+                                    signal_payload,
+                                    "volatility_risk_filter_result",
+                                )
+                                or _safe_get(
+                                    analysis_payload,
+                                    "volatility_risk_filter_result",
+                                )
+                                or _safe_get(
+                                    candidate_analysis_payload,
+                                    "volatility_risk_filter_result",
+                                )
+                                or _safe_get(
+                                    metrics_payload,
+                                    "volatility_risk_filter_result",
+                                )
+                                or _safe_get(
+                                    candidate_metrics_payload,
+                                    "volatility_risk_filter_result",
+                                )
+                            )
+                            base["quality_filter_reason"] = (
+                                _safe_get(first_signal, "quality_filter_reason")
+                                or _safe_get(signal_payload, "quality_filter_reason")
+                                or _safe_get(analysis_payload, "quality_filter_reason")
+                                or _safe_get(
+                                    candidate_analysis_payload,
+                                    "quality_filter_reason",
+                                )
+                                or _safe_get(metrics_payload, "quality_filter_reason")
+                                or _safe_get(
+                                    candidate_metrics_payload,
+                                    "quality_filter_reason",
+                                )
+                            )
+                            base["insufficient_data_reason"] = (
+                                _safe_get(first_signal, "insufficient_data_reason")
+                                or _safe_get(
+                                    signal_payload,
+                                    "insufficient_data_reason",
+                                )
+                                or _safe_get(
+                                    analysis_payload,
+                                    "insufficient_data_reason",
+                                )
+                                or _safe_get(
+                                    candidate_analysis_payload,
+                                    "insufficient_data_reason",
+                                )
+                                or _safe_get(
+                                    metrics_payload,
+                                    "insufficient_data_reason",
+                                )
+                                or _safe_get(
+                                    candidate_metrics_payload,
+                                    "insufficient_data_reason",
+                                )
+                            )
+                            base["model_neutrality_reason"] = (
+                                _safe_get(first_signal, "model_neutrality_reason")
+                                or _safe_get(
+                                    signal_payload,
+                                    "model_neutrality_reason",
+                                )
+                                or _safe_get(
+                                    analysis_payload,
+                                    "model_neutrality_reason",
+                                )
+                                or _safe_get(
+                                    candidate_analysis_payload,
+                                    "model_neutrality_reason",
+                                )
+                                or _safe_get(
+                                    metrics_payload,
+                                    "model_neutrality_reason",
+                                )
+                                or _safe_get(
+                                    candidate_metrics_payload,
+                                    "model_neutrality_reason",
+                                )
+                            )
+                            base["regime_condition_result"] = (
+                                _safe_get(first_signal, "regime_condition_result")
+                                or _safe_get(signal_payload, "regime_condition_result")
+                                or _safe_get(
+                                    analysis_payload,
+                                    "regime_condition_result",
+                                )
+                                or _safe_get(
+                                    candidate_analysis_payload,
+                                    "regime_condition_result",
+                                )
+                                or _safe_get(metrics_payload, "regime_condition_result")
+                                or _safe_get(
+                                    candidate_metrics_payload,
+                                    "regime_condition_result",
+                                )
+                            )
+                            base["trigger_condition_result"] = (
+                                _safe_get(first_signal, "trigger_condition_result")
+                                or _safe_get(signal_payload, "trigger_condition_result")
+                                or _safe_get(
+                                    analysis_payload,
+                                    "trigger_condition_result",
+                                )
+                                or _safe_get(
+                                    candidate_analysis_payload,
+                                    "trigger_condition_result",
+                                )
+                                or _safe_get(metrics_payload, "trigger_condition_result")
+                                or _safe_get(
+                                    candidate_metrics_payload,
+                                    "trigger_condition_result",
+                                )
+                            )
+
+                            empty_signal_context = bool(
+                                "signals:empty"
+                                in str(base["raw_action"] or "").lower()
+                                or "signals:empty"
+                                in str(base["raw_side"] or "").lower()
+                                or "signal.signals"
+                                in str(
+                                    base["router_assignment_reason"] or ""
+                                ).lower()
+                            )
+                            strategy_name_norm = _safe_strategy_name().strip().lower()
+                            if empty_signal_context:
+                                if base["no_entry_reason_code"] is None:
+                                    base["no_entry_reason_code"] = (
+                                        f"{strategy_name_norm or 'strategy'}"
+                                        "_empty_signals_no_entry"
+                                    )
+                                if base["no_entry_reason_detail"] is None:
+                                    base["no_entry_reason_detail"] = (
+                                        base["hold_reason_detail"]
+                                        or base["router_assignment_reason"]
+                                        or "signals_empty_hold"
+                                    )
+                                if base["strategy_condition_snapshot"] is None:
+                                    base["strategy_condition_snapshot"] = {
+                                        "raw_action": base["raw_action"],
+                                        "raw_side": base["raw_side"],
+                                        "normalized_action": base["normalized_action"],
+                                        "normalized_side": base["normalized_side"],
+                                        "signal_score": base["signal_score"],
+                                        "score_threshold": base["score_threshold"],
+                                        "score_margin": base["score_margin"],
+                                        "trend_state": base["trend_state"],
+                                        "regime_state": base["regime_state"],
+                                        "model_vote": base["model_vote"],
+                                        "strategy_vote": base["strategy_vote"],
+                                    }
+                                if base["trend_condition_result"] is None:
+                                    base["trend_condition_result"] = {
+                                        "trend_state": base["trend_state"],
+                                        "trend_source": "derived_empty_signals",
+                                    }
+                                if base["momentum_condition_result"] is None:
+                                    base["momentum_condition_result"] = {
+                                        "signal_score": base["signal_score"],
+                                        "signal_score_source": "derived_empty_signals",
+                                    }
+                                if base["volatility_risk_filter_result"] is None:
+                                    base["volatility_risk_filter_result"] = {
+                                        "signal_score": base["signal_score"],
+                                        "score_threshold": base["score_threshold"],
+                                        "score_margin": base["score_margin"],
+                                    }
+                                if base["quality_filter_reason"] is None:
+                                    base["quality_filter_reason"] = (
+                                        base["hold_reason_detail"]
+                                        or base["prefilter_reason"]
+                                        or "empty_signals_quality_not_applicable"
+                                    )
+                                if base["insufficient_data_reason"] is None:
+                                    base["insufficient_data_reason"] = (
+                                        "not_insufficient_data"
+                                    )
+                                if base["model_neutrality_reason"] is None:
+                                    base["model_neutrality_reason"] = (
+                                        "no_actionable_entry_or_exit"
+                                    )
+                                if base["regime_condition_result"] is None:
+                                    base["regime_condition_result"] = "unknown"
+                                if base["trigger_condition_result"] is None:
+                                    base["trigger_condition_result"] = (
+                                        base["hold_source"] or "signals_empty"
+                                    )
+
+                            reason_text = str(base["hold_reason_detail"] or "").lower()
+                            base["side_conflict"] = bool(
+                                "current_side" in reason_text
+                                or str(rejection_reason_code or "").strip().lower()
+                                == "current_side"
+                            )
+
+                            if base["side_conflict"]:
+                                base["hold_source"] = "HOLD_FROM_SIDE_CONFLICT"
+                            elif (
+                                base["score_margin"] is not None
+                                and float(base["score_margin"]) < 0.0
+                            ) or (
+                                "threshold" in reason_text
+                                or "score" in reason_text
+                            ):
+                                base["hold_source"] = "HOLD_FROM_SCORE_BELOW_THRESHOLD"
+                            elif "regime" in reason_text or "trend" in reason_text:
+                                base["hold_source"] = "HOLD_FROM_REGIME_FILTER"
+                            elif "signals:empty" in str(base["raw_side"] or "").lower() or (
+                                "signal.signals" in str(base["router_assignment_reason"] or "").lower()
+                            ):
+                                base["hold_source"] = "HOLD_FROM_ROUTER_ASSIGNMENT"
+                            elif str(rejection_reason_code or "").strip().lower() in (
+                                "hold_ignored",
+                                "ambiguous_hold_side",
+                            ):
+                                base["hold_source"] = "HOLD_FROM_STRATEGY_SIGNAL"
+
+                            required_present = [
+                                "hold_source",
+                                "hold_reason_detail",
+                                "no_entry_reason_code",
+                                "no_entry_reason_detail",
+                                "strategy_condition_snapshot",
+                                "trend_condition_result",
+                                "momentum_condition_result",
+                                "volatility_risk_filter_result",
+                                "quality_filter_reason",
+                                "insufficient_data_reason",
+                                "model_neutrality_reason",
+                                "regime_condition_result",
+                                "trigger_condition_result",
+                                "raw_side",
+                                "normalized_side",
+                                "raw_action",
+                                "normalized_action",
+                                "signal_score",
+                                "score_threshold",
+                                "trend_state",
+                                "regime_state",
+                            ]
+                            missing = [
+                                field for field in required_present if base.get(field) is None
+                            ]
+                            base["telemetry_completeness"] = {
+                                "status": "complete" if not missing else "incomplete",
+                                "missing_fields": missing,
+                            }
+                            return base
+
                         candidate_keys = sorted(list(payload.keys()))
                         preview = {}
                         for key in (
@@ -21887,6 +22963,9 @@ def run_bot(simulate=False):
                             "_side",
                             "raw_side",
                             "raw_side_source",
+                            "raw_action",
+                            "normalized_action",
+                            "router_assignment_reason",
                         ):
                             if key in payload:
                                 value = payload.get(key)
@@ -21900,6 +22979,14 @@ def run_bot(simulate=False):
                             raw_side_candidates = _collect_candidate_raw_side_values(
                                 payload
                             )
+                            hold_surface_fields = {}
+                            if str(rejection_reason_code or "").strip().lower() in (
+                                "hold_ignored",
+                                "ambiguous_hold_side",
+                            ):
+                                hold_surface_fields = (
+                                    _extract_hold_decision_surface_fields()
+                                )
                             infinity_logger.log(
                                 "pre_entry_candidate_rejection_trace",
                                 {
@@ -21930,6 +23017,7 @@ def run_bot(simulate=False):
                                     "consumer_missing_fields": consumer_missing_fields,
                                     "consumer_alias_match_result": consumer_alias_match_result,
                                     "short_circuit_stage": "pre_entry_candidate_rejection",
+                                    **hold_surface_fields,
                                 },
                             )
                         except Exception:
@@ -22159,10 +23247,32 @@ def run_bot(simulate=False):
                                     pass
                                 continue
                         side = _resolve_candidate_side(sig)
+                        # TRADE UNBLOCK: Fallback to 'buy' for signals without explicit side
+                        if (
+                            side not in ("buy", "sell", "hold")
+                            and _env_flag("TRADE_UNBLOCK_ENABLE_SIDE_FALLBACK")
+                        ):
+                            side = "buy"
+                        explicit_hold_side = _candidate_explicit_hold_side(sig)
+                        if (
+                            side == "hold"
+                            and explicit_hold_side
+                            and not _env_flag("LIVE")
+                            and _env_flag(
+                                "TRADE_UNBLOCK_ENABLE_EXPLICIT_HOLD_SIDE_FALLBACK"
+                            )
+                        ):
+                            side = "buy"
+                            explicit_hold_side = False
+                        if (
+                            side == "hold"
+                            and not explicit_hold_side
+                            and _env_flag("TRADE_UNBLOCK_ENABLE_HOLD_SIDE_FALLBACK")
+                        ):
+                            side = "buy"
                         if should_bypass_symbol_strategy_guard_for_hold(
                             side, entry_ignore_hold_signals
                         ):
-                            explicit_hold_side = _candidate_explicit_hold_side(sig)
                             hold_rejection_reason = (
                                 "hold_ignored"
                                 if explicit_hold_side
@@ -25799,6 +26909,8 @@ def run_bot(simulate=False):
                         last_decision_state=last_decision_state,
                         entry_symbol_allowlist=entry_symbol_allowlist,
                         entry_symbol_blocklist=entry_symbol_blocklist,
+                        entry_symbol_strategy_side_allowlist=entry_symbol_strategy_side_allowlist,
+                        signal_votes=signal_votes,
                         entry_allow_buy=entry_allow_buy,
                         entry_allow_sell=entry_allow_sell,
                         decision_hysteresis_score=decision_hysteresis_score,
@@ -26127,6 +27239,36 @@ def run_bot(simulate=False):
                                 entry_reason = "loss_cooldown"
                         except Exception:
                             pass
+                    if (
+                        entry_decision in ("buy", "sell")
+                        and simulate
+                        and paper_session_loss_halt_active
+                    ):
+                        hold_debug_payload = _research_only_hold_transition_debug(
+                            branch_name="paper_session_loss_halt",
+                            symbol=symbol,
+                            entry_decision_before=entry_decision,
+                            entry_decision_after="hold",
+                            entry_reason="session_loss_halt",
+                            branch_fields={
+                                "halt_ts": paper_session_loss_halt_ts,
+                                "halt_symbol": paper_session_loss_halt_symbol,
+                                "halt_realized_pnl": paper_session_loss_halt_pnl,
+                                "halt_threshold": float(
+                                    paper_session_stop_loss_threshold
+                                ),
+                            },
+                        )
+                        if hold_debug_payload is not None:
+                            try:
+                                infinity_logger.log(
+                                    "research_hold_transition_debug",
+                                    hold_debug_payload,
+                                )
+                            except Exception:
+                                pass
+                        entry_decision = "hold"
+                        entry_reason = "session_loss_halt"
                     if entry_decision in ("buy", "sell"):
                         entry_decision_raw = str(entry_decision)
                         if entry_side_override in ("buy", "sell"):
@@ -27538,13 +28680,55 @@ def run_bot(simulate=False):
                         _entry_expected_edge_after_fee_value = _safe_float(
                             entry_expected_edge_after_fee
                         )
+                        allowlist_diagnostic_force_open = bool(
+                            entry_symbol_strategy_side_allowlist
+                        )
+                        # FAIL-CLOSED: Block zero-edge trades when history is unavailable
                         if (
+                            entry_decision in ("buy", "sell")
+                            and edge_zero_reason == "HISTORY_UNAVAILABLE_ZERO_DEFAULT"
+                            and _should_fail_closed_on_history_not_ready(
+                                entry_edge_coldstart_mode
+                            )
+                            and not allowlist_diagnostic_force_open
+                        ):
+                            edge_blocked = True
+                            entry_decision, entry_reason = _apply_side_profit_edge_gate_pipeline(
+                                entry_decision=entry_decision,
+                                entry_reason=entry_reason,
+                                gate_blocked=True,
+                                gate_reason="entry_edge_filtered",
+                            )
+                            edge_filter_pass = False
+                            edge_filter_reason = "zero_edge_on_cold_start_fail_closed"
+                            try:
+                                infinity_logger.log(
+                                    "entry_edge_filtered",
+                                    {
+                                        "ts": datetime.now(timezone.utc).isoformat(),
+                                        "symbol": symbol,
+                                        "strategy": edge_strategy,
+                                        "side": edge_candidate_side,
+                                        "entry_decision_raw": decision_value,
+                                        "entry_decision_final": entry_decision,
+                                        "expected_edge_after_fee": entry_expected_edge_after_fee,
+                                        "edge_build_status": edge_build_status,
+                                        "edge_zero_reason": edge_zero_reason,
+                                        "history_ready": history_ready,
+                                        "reason": edge_filter_reason,
+                                        "fail_closed_guard": "zero_edge_unavailable_history",
+                                    },
+                                )
+                            except Exception:
+                                pass
+                        elif (
                             entry_decision in ("buy", "sell")
                             and history_ready
                             and _entry_expected_edge_after_fee_value is not None
                             and np.isfinite(_entry_expected_edge_after_fee_value)
                             and float(_entry_expected_edge_after_fee_value)
                             < float(entry_min_expected_edge_after_fee)
+                            and not allowlist_diagnostic_force_open
                         ):
                             edge_blocked = True
                             entry_decision, entry_reason = _apply_side_profit_edge_gate_pipeline(
@@ -27588,6 +28772,7 @@ def run_bot(simulate=False):
                                 expected_edge_after_fee=_entry_expected_edge_after_fee_value,
                                 known_cost_context=known_execution_cost_context,
                             )
+                            and not allowlist_diagnostic_force_open
                         ):
                             edge_blocked = True
                             entry_decision, entry_reason = _apply_side_profit_edge_gate_pipeline(
@@ -27627,6 +28812,46 @@ def run_bot(simulate=False):
                                 )
                             except Exception:
                                 pass
+                        elif (
+                            entry_decision in ("buy", "sell")
+                            and not history_ready
+                            and _should_fail_closed_on_history_not_ready(
+                                entry_edge_coldstart_mode
+                            )
+                            and not allowlist_diagnostic_force_open
+                        ):
+                            # Honor coldstart policy: block only for fail-closed modes.
+                            edge_blocked = True
+                            entry_decision, entry_reason = _apply_side_profit_edge_gate_pipeline(
+                                entry_decision=entry_decision,
+                                entry_reason=entry_reason,
+                                gate_blocked=True,
+                                gate_reason="entry_edge_filtered",
+                            )
+                            edge_filter_pass = False
+                            edge_filter_reason = "history_unavailable_edge_blocked"
+                            try:
+                                infinity_logger.log(
+                                    "entry_edge_filtered",
+                                    {
+                                        "ts": datetime.now(timezone.utc).isoformat(),
+                                        "symbol": symbol,
+                                        "strategy": edge_strategy,
+                                        "side": edge_candidate_side,
+                                        "entry_decision_raw": decision_value,
+                                        "entry_decision_final": entry_decision,
+                                        "expected_edge_after_fee": entry_expected_edge_after_fee,
+                                        "gross_edge_before_fee_raw": gross_edge_before_fee_raw,
+                                        "edge_build_status": edge_build_status,
+                                        "edge_zero_reason": edge_zero_reason,
+                                        "history_ready": history_ready,
+                                        "reason": edge_filter_reason,
+                                        "coldstart_mode": entry_edge_coldstart_mode,
+                                        "fail_closed_guard": "history_unavailable_blocks_entry",
+                                    },
+                                )
+                            except Exception:
+                                pass
                         if entry_profitability_fee_gate_enable:
                             fee_edge_gate_eval = _evaluate_entry_profitability_fee_gate(
                                 entry_decision=entry_decision,
@@ -27660,54 +28885,60 @@ def run_bot(simulate=False):
                                     _entry_expected_edge_after_fee_value
                                 )
                             if bool(fee_edge_gate_eval.get("blocked")):
-                                edge_blocked = True
-                                entry_decision, entry_reason = _apply_side_profit_edge_gate_pipeline(
-                                    entry_decision=entry_decision,
-                                    entry_reason=entry_reason,
-                                    gate_blocked=True,
-                                    gate_reason="entry_edge_filtered",
-                                )
-                                edge_filter_pass = False
-                                edge_filter_reason = str(
-                                    fee_edge_gate_eval.get("reason")
-                                    or "entry_rejected_due_to_fee_edge"
-                                )
-                                try:
-                                    infinity_logger.log(
-                                        "entry_rejected_due_to_fee_edge",
-                                        {
-                                            "ts": datetime.now(
-                                                timezone.utc
-                                            ).isoformat(),
-                                            "symbol": symbol,
-                                            "strategy": edge_strategy,
-                                            "side": edge_candidate_side,
-                                            "entry_decision_raw": decision_value,
-                                            "entry_decision_final": entry_decision,
-                                            "expected_edge_after_fee": (
-                                                _entry_expected_edge_after_fee_value
-                                            ),
-                                            "fee_estimate": fee_estimate_for_gate,
-                                            "entry_edge_vs_fee_ratio": (
-                                                entry_edge_vs_fee_ratio
-                                            ),
-                                            "fee_ratio_min": _safe_float(
-                                                fee_edge_gate_eval.get(
-                                                    "fee_ratio_min"
-                                                )
-                                            ),
-                                            "history_ready": history_ready,
-                                            "edge_build_status": edge_build_status,
-                                            "edge_zero_reason": edge_zero_reason,
-                                            "reason": edge_filter_reason,
-                                        },
+                                if allowlist_diagnostic_force_open:
+                                    fee_edge_gate_eval["blocked"] = False
+                                    fee_edge_gate_eval["reason"] = (
+                                        "allowlist_diagnostic_force_open"
                                     )
-                                except Exception:
-                                    pass
+                                else:
+                                    edge_blocked = True
+                                    entry_decision, entry_reason = _apply_side_profit_edge_gate_pipeline(
+                                        entry_decision=entry_decision,
+                                        entry_reason=entry_reason,
+                                        gate_blocked=True,
+                                        gate_reason="entry_edge_filtered",
+                                    )
+                                    edge_filter_pass = False
+                                    edge_filter_reason = str(
+                                        fee_edge_gate_eval.get("reason")
+                                        or "entry_rejected_due_to_fee_edge"
+                                    )
+                                    try:
+                                        infinity_logger.log(
+                                            "entry_rejected_due_to_fee_edge",
+                                            {
+                                                "ts": datetime.now(
+                                                    timezone.utc
+                                                ).isoformat(),
+                                                "symbol": symbol,
+                                                "strategy": edge_strategy,
+                                                "side": edge_candidate_side,
+                                                "entry_decision_raw": decision_value,
+                                                "entry_decision_final": entry_decision,
+                                                "expected_edge_after_fee": (
+                                                    _entry_expected_edge_after_fee_value
+                                                ),
+                                                "fee_estimate": fee_estimate_for_gate,
+                                                "entry_edge_vs_fee_ratio": (
+                                                    entry_edge_vs_fee_ratio
+                                                ),
+                                                "fee_ratio_min": _safe_float(
+                                                    fee_edge_gate_eval.get(
+                                                        "fee_ratio_min"
+                                                    )
+                                                ),
+                                                "history_ready": history_ready,
+                                                "edge_build_status": edge_build_status,
+                                                "edge_zero_reason": edge_zero_reason,
+                                                "reason": edge_filter_reason,
+                                            },
+                                        )
+                                    except Exception:
+                                        pass
                         elif entry_decision in ("buy", "sell") and not history_ready:
                             if _should_fail_closed_on_history_not_ready(
                                 entry_edge_coldstart_mode
-                            ):
+                            ) and not allowlist_diagnostic_force_open:
                                 edge_blocked = True
                                 entry_decision = "hold"
                                 entry_reason = "insufficient_history_seed_only"
@@ -27960,7 +29191,7 @@ def run_bot(simulate=False):
                             ):
                                 tf_edge_ok = (
                                     float(entry_expected_edge_after_fee)
-                                    >= float(tf_threshold_edge)
+                                and not allowlist_diagnostic_force_open
                                 )
                             else:
                                 tf_edge_ok = None
@@ -28739,6 +29970,20 @@ def run_bot(simulate=False):
                             "strategy_blocklist": entry_strategy_blocklist_snapshot,
                             "strategy_side_allowlist": entry_strategy_side_allowlist_snapshot,
                             "strategy_side_blocklist": entry_strategy_side_blocklist_snapshot,
+                            "symbol_strategy_side_allowlist": (
+                                entry_symbol_strategy_side_allowlist_snapshot
+                            ),
+                            "allowlist_source": (
+                                entry_symbol_strategy_side_allowlist_source or None
+                            ),
+                            "allowlist_contract_hash": (
+                                entry_symbol_strategy_side_allowlist_contract_hash
+                                or None
+                            ),
+                            "allowlist_bootstrap_report_hash": (
+                                entry_symbol_strategy_side_allowlist_bootstrap_report_hash
+                                or None
+                            ),
                             "entry_require_trend_and_vol": entry_require_trend_and_vol,
                             "entry_buy_require_trend": entry_buy_require_trend,
                             "entry_sell_require_trend": entry_sell_require_trend,
@@ -29643,8 +30888,10 @@ def run_bot(simulate=False):
                         and controlled_run_end_ts > 0
                     ):
                         now_guard_ts = time.time()
-                        if now_guard_ts >= (
-                            float(controlled_run_end_ts) - float(entry_cutoff_before_end_sec)
+                        if _controlled_run_entry_cutoff_active(
+                            controlled_run_end_ts,
+                            entry_cutoff_before_end_sec,
+                            now_ts=now_guard_ts,
                         ):
                             allow = False
                             entry_reason = "run_end_cutoff"
@@ -29894,6 +31141,21 @@ def run_bot(simulate=False):
                                         "strategy": active_strategy_name,
                                         "entry_decision": entry_decision,
                                         "reason": pre_order_filter_reason,
+                                        "allowlist_source": (
+                                            entry_symbol_strategy_side_allowlist_source
+                                            or None
+                                        ),
+                                        "allowlist_contract_hash": (
+                                            entry_symbol_strategy_side_allowlist_contract_hash
+                                            or None
+                                        ),
+                                        "allowlist_bootstrap_report_hash": (
+                                            entry_symbol_strategy_side_allowlist_bootstrap_report_hash
+                                            or None
+                                        ),
+                                        "symbol_strategy_side_allowlist": (
+                                            entry_symbol_strategy_side_allowlist_snapshot
+                                        ),
                                     },
                                 )
                             except Exception:
@@ -31339,6 +32601,15 @@ def run_bot(simulate=False):
                                 runtime_policy_disabled_until = _safe_float(
                                     entry_runtime_isolation_context.get("disabled_until_ts")
                                 )
+                            order_allowlist_gate = (
+                                _entry_symbol_strategy_side_allowlist_gate(
+                                    symbol=symbol,
+                                    strategy=main_strategy,
+                                    side=order_side,
+                                    allowlist=entry_symbol_strategy_side_allowlist,
+                                    live_mode=_env_flag("LIVE"),
+                                )
+                            )
                             order = {
                                 "symbol": symbol,
                                 "side": order_side,
@@ -31362,6 +32633,28 @@ def run_bot(simulate=False):
                                 "strategy_blocklist": entry_strategy_blocklist_snapshot,
                                 "strategy_side_allowlist": entry_strategy_side_allowlist_snapshot,
                                 "strategy_side_blocklist": entry_strategy_side_blocklist_snapshot,
+                                "symbol_strategy_side_allowlist": (
+                                    entry_symbol_strategy_side_allowlist_snapshot
+                                ),
+                                "allowlist_source": (
+                                    entry_symbol_strategy_side_allowlist_source or None
+                                ),
+                                "allowlist_contract_hash": (
+                                    entry_symbol_strategy_side_allowlist_contract_hash
+                                    or None
+                                ),
+                                "allowlist_bootstrap_report_hash": (
+                                    entry_symbol_strategy_side_allowlist_bootstrap_report_hash
+                                    or None
+                                ),
+                                "allowlist_gate_decision": (
+                                    "allowed"
+                                    if order_allowlist_gate.get("active")
+                                    else "not_active"
+                                ),
+                                "allowlist_gate_block_reason": (
+                                    order_allowlist_gate.get("reason")
+                                ),
                                 "ai_vote": ai_vote,
                                 "ai_weight": ai_weight,
                                 "timestamp": decision_ts_iso,
@@ -32183,6 +33476,24 @@ def run_bot(simulate=False):
                                                         "strategy_side_blocklist": order.get(
                                                             "strategy_side_blocklist"
                                                         ),
+                                                        "symbol_strategy_side_allowlist": order.get(
+                                                            "symbol_strategy_side_allowlist"
+                                                        ),
+                                                        "allowlist_source": order.get(
+                                                            "allowlist_source"
+                                                        ),
+                                                        "allowlist_contract_hash": order.get(
+                                                            "allowlist_contract_hash"
+                                                        ),
+                                                        "allowlist_bootstrap_report_hash": order.get(
+                                                            "allowlist_bootstrap_report_hash"
+                                                        ),
+                                                        "allowlist_gate_decision": order.get(
+                                                            "allowlist_gate_decision"
+                                                        ),
+                                                        "allowlist_gate_block_reason": order.get(
+                                                            "allowlist_gate_block_reason"
+                                                        ),
                                                         "entry_state_snapshot_id": order.get(
                                                             "entry_state_snapshot_id"
                                                         ),
@@ -32816,6 +34127,24 @@ def run_bot(simulate=False):
                                                 ),
                                                 "strategy_side_blocklist": order.get(
                                                     "strategy_side_blocklist"
+                                                ),
+                                                "symbol_strategy_side_allowlist": order.get(
+                                                    "symbol_strategy_side_allowlist"
+                                                ),
+                                                "allowlist_source": order.get(
+                                                    "allowlist_source"
+                                                ),
+                                                "allowlist_contract_hash": order.get(
+                                                    "allowlist_contract_hash"
+                                                ),
+                                                "allowlist_bootstrap_report_hash": order.get(
+                                                    "allowlist_bootstrap_report_hash"
+                                                ),
+                                                "allowlist_gate_decision": order.get(
+                                                    "allowlist_gate_decision"
+                                                ),
+                                                "allowlist_gate_block_reason": order.get(
+                                                    "allowlist_gate_block_reason"
                                                 ),
                                                 "entry_state_snapshot_id": order.get(
                                                     "entry_state_snapshot_id"
