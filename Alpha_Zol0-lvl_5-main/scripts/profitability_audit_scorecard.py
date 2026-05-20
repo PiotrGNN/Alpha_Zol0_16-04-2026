@@ -192,7 +192,78 @@ def _data_check_all_ok(payload: dict[str, Any]) -> bool:
     return all(_coerce_bool((stats or {}).get("ok")) for stats in results.values())
 
 
+def _profitability_contamination_reasons(after: dict[str, Any]) -> list[str]:
+    if not isinstance(after, dict):
+        return []
+
+    reasons: set[str] = set()
+    event_counts = after.get("event_counts") or {}
+    if isinstance(event_counts, dict):
+        for raw_key, raw_value in event_counts.items():
+            key = str(raw_key or "").strip()
+            if not key or _safe_int(raw_value) <= 0:
+                continue
+            if key.startswith("forced_cycle_") or key.startswith(
+                "post_promotion_force_cycle_"
+            ):
+                reasons.add(f"event_count:{key}")
+
+    trace = after.get("runner_termination_trace") or []
+    if isinstance(trace, list):
+        for item in trace:
+            if not isinstance(item, dict):
+                continue
+            reason = str(item.get("reason") or "").strip()
+            if reason == "controlled_kpi_window_end":
+                reasons.add("runner_close_reason:controlled_kpi_window_end")
+                break
+
+    forced_marker_fields = {
+        "post_promotion_forced_cycle_request_reason",
+        "post_promotion_forced_cycle_trigger_mode",
+    }
+    for field in forced_marker_fields:
+        value = str(after.get(field) or "").strip()
+        if value:
+            reasons.add(f"marker:{field}={value}")
+
+    for field in (
+        "runner_shutdown_reason",
+        "runner_termination_reason",
+        "post_promotion_window_exit_reason",
+        "post_promotion_reeval_exit_reason",
+    ):
+        value = str(after.get(field) or "").strip()
+        if not value:
+            continue
+        if value == "controlled_kpi_window_end" or "forced_cycle" in value:
+            reasons.add(f"marker:{field}={value}")
+
+    return sorted(reasons)
+
+
+def _run_has_profitability_contamination(run: dict[str, Any]) -> bool:
+    if _coerce_bool(run.get("profitability_contaminated")):
+        return True
+    reasons = run.get("profitability_contamination_reasons") or []
+    if any(str(item).strip() for item in reasons if item is not None):
+        return True
+    after = run.get("after") or {}
+    if isinstance(after, dict) and _profitability_contamination_reasons(after):
+        return True
+    payload = run.get("payload") or {}
+    if isinstance(payload, dict):
+        nested_after = payload.get("after") or {}
+        if isinstance(nested_after, dict) and _profitability_contamination_reasons(
+            nested_after
+        ):
+            return True
+    return False
+
+
 def _main_run_process_ok(run: dict[str, Any]) -> bool:
+    if _run_has_profitability_contamination(run):
+        return False
     process_returncode = _safe_int(run.get("process_returncode"))
     if process_returncode == 0:
         return True
@@ -218,6 +289,7 @@ def _candidate_after_row(path: Path, payload: dict[str, Any]) -> dict[str, Any] 
     csv_alignment = _read_csv_alignment(csv_path, after)
     started_date = _coerce_timestamp_date(after.get("started_at_utc"))
     ended_date = _coerce_timestamp_date(after.get("ended_at_utc"))
+    contamination_reasons = _profitability_contamination_reasons(after)
     row = {
         "run_id": str(payload.get("run_id") or result_path.stem.replace("controlled_kpi_", "")),
         "result_path": str(result_path),
@@ -245,8 +317,21 @@ def _candidate_after_row(path: Path, payload: dict[str, Any]) -> dict[str, Any] 
         ),
         "data_check_all_ok": _data_check_all_ok(payload),
         "csv_alignment": csv_alignment,
+        "profitability_contamination_reasons": contamination_reasons,
+        "profitability_contaminated": bool(contamination_reasons),
     }
     return row
+
+
+def _filter_main_corpus_runs(candidate_runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        run
+        for run in candidate_runs
+        if (not run["use_mock"])
+        and run["db_exists"]
+        and _safe_int(run.get("db_size_bytes")) > 0
+        and _main_run_process_ok(run)
+    ]
 
 
 def _candidate_after_runs(
@@ -1485,12 +1570,12 @@ def build_audit(
         else None
     )
     if accepted_manifest_path_resolved is not None:
-        accepted_runs = _accepted_runs_from_manifest(
+        candidate_runs = _accepted_runs_from_manifest(
             accepted_manifest_path_resolved,
             allowed_dates=allowed_dates,
             limit=limit,
         )
-        candidate_runs = list(accepted_runs)
+        accepted_runs = _filter_main_corpus_runs(candidate_runs)
         selection_source = "accepted_manifest"
     else:
         candidate_runs = _candidate_after_runs(
@@ -1498,14 +1583,7 @@ def build_audit(
             limit,
             allowed_dates=allowed_dates,
         )
-        accepted_runs = [
-            run
-            for run in candidate_runs
-            if (not run["use_mock"])
-            and run["db_exists"]
-            and _safe_int(run.get("db_size_bytes")) > 0
-            and _main_run_process_ok(run)
-        ]
+        accepted_runs = _filter_main_corpus_runs(candidate_runs)
     if not accepted_runs:
         raise ValueError("main corpus is empty after filtering")
     bootstrap_report = _load_json(bootstrap_report_path)

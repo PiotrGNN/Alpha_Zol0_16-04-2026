@@ -32,6 +32,81 @@ def _load_module():
     return module
 
 
+def _build_fallback_manifest_inputs(module):
+    from test_locked_positive_subset_audit import _build_exact_corpus
+
+    tmp_path = Path(mkdtemp(prefix="scorecard-fixture-"))
+    trades = [
+        {
+            "symbol": "ETHUSDTM",
+            "strategy": "TrendFollowing",
+            "side": "buy",
+            "pnl": 0.02,
+        }
+        for _ in range(6)
+    ] + [
+        {
+            "symbol": "ETHUSDTM",
+            "strategy": "TrendFollowing",
+            "side": "buy",
+            "pnl": -0.01,
+        }
+        for _ in range(4)
+    ]
+    scorecard_path, manifest_path = _build_exact_corpus(tmp_path, trades)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest_entry = (manifest.get("entries") or [])[0]
+    result_descriptor = (
+        ((manifest_entry.get("bundled_artifacts") or {}).get("result_json")) or {}
+    )
+    db_descriptor = (((manifest_entry.get("bundled_artifacts") or {}).get("db")) or {})
+    result_path = Path(str(result_descriptor.get("path") or ""))
+    alpha_history_db_path = Path(str(db_descriptor.get("path") or ""))
+    result_payload = json.loads(result_path.read_text(encoding="utf-8"))
+    result_after = result_payload.setdefault("after", {})
+    result_after["db_exists"] = True
+    result_after["started_at_utc"] = "2026-04-10T00:00:00+00:00"
+    result_after["ended_at_utc"] = "2026-04-10T00:01:00+00:00"
+    result_path.write_text(
+        json.dumps(result_payload, indent=2),
+        encoding="utf-8",
+    )
+    result_bytes = result_path.read_bytes()
+    result_descriptor["size_bytes"] = len(result_bytes)
+    result_descriptor["sha256"] = hashlib.sha256(result_bytes).hexdigest()
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2),
+        encoding="utf-8",
+    )
+    bootstrap_report_path = tmp_path / "bootstrap_report.json"
+    bootstrap_report_path.write_text(
+        json.dumps(
+            {
+                "pair_stats_top": [
+                    {
+                        "selected": True,
+                        "symbol": "ETHUSDTM",
+                        "strategy": "TrendFollowing",
+                        "trade_count": 10,
+                        "winrate": 0.6,
+                        "expectancy": 0.008,
+                    }
+                ]
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    return (
+        scorecard_path,
+        manifest_path,
+        ("2026-04-10",),
+        1,
+        bootstrap_report_path,
+        alpha_history_db_path,
+    )
+
+
 def _resolve_manifest_inputs(module):
     scorecard_path = module.ANALYSIS_DIR / "zol0_profitability_audit_scorecard.json"
     assert scorecard_path.exists()
@@ -39,83 +114,7 @@ def _resolve_manifest_inputs(module):
 
     global_kpis = scorecard.get("global_kpis") or {}
     if int(global_kpis.get("total_trade_count") or 0) <= 0:
-        from test_locked_positive_subset_audit import _build_exact_corpus
-
-        tmp_path = Path(mkdtemp(prefix="scorecard-fixture-"))
-        trades = [
-            {
-                "symbol": "ETHUSDTM",
-                "strategy": "TrendFollowing",
-                "side": "buy",
-                "pnl": 0.02,
-            }
-            for _ in range(6)
-        ] + [
-            {
-                "symbol": "ETHUSDTM",
-                "strategy": "TrendFollowing",
-                "side": "buy",
-                "pnl": -0.01,
-            }
-            for _ in range(4)
-        ]
-        scorecard_path, manifest_path = _build_exact_corpus(tmp_path, trades)
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        manifest_entry = (manifest.get("entries") or [])[0]
-        result_descriptor = (
-            ((manifest_entry.get("bundled_artifacts") or {}).get("result_json"))
-            or {}
-        )
-        db_descriptor = (
-            ((manifest_entry.get("bundled_artifacts") or {}).get("db")) or {}
-        )
-        result_path = Path(str(result_descriptor.get("path") or ""))
-        alpha_history_db_path = Path(
-            str(db_descriptor.get("path") or "")
-        )
-        result_payload = json.loads(result_path.read_text(encoding="utf-8"))
-        result_after = result_payload.setdefault("after", {})
-        result_after["db_exists"] = True
-        result_after["started_at_utc"] = "2026-04-10T00:00:00+00:00"
-        result_after["ended_at_utc"] = "2026-04-10T00:01:00+00:00"
-        result_path.write_text(
-            json.dumps(result_payload, indent=2),
-            encoding="utf-8",
-        )
-        result_bytes = result_path.read_bytes()
-        result_descriptor["size_bytes"] = len(result_bytes)
-        result_descriptor["sha256"] = hashlib.sha256(result_bytes).hexdigest()
-        manifest_path.write_text(
-            json.dumps(manifest, indent=2),
-            encoding="utf-8",
-        )
-        bootstrap_report_path = tmp_path / "bootstrap_report.json"
-        bootstrap_report_path.write_text(
-            json.dumps(
-                {
-                    "pair_stats_top": [
-                        {
-                            "selected": True,
-                            "symbol": "ETHUSDTM",
-                            "strategy": "TrendFollowing",
-                            "trade_count": 10,
-                            "winrate": 0.6,
-                            "expectancy": 0.008,
-                        }
-                    ]
-                },
-                indent=2,
-            ),
-            encoding="utf-8",
-        )
-        return (
-            scorecard_path,
-            manifest_path,
-            ("2026-04-10",),
-            1,
-            bootstrap_report_path,
-            alpha_history_db_path,
-        )
+        return _build_fallback_manifest_inputs(module)
 
     metadata = scorecard.get("metadata") or {}
     selection = metadata.get("selection") or {}
@@ -156,6 +155,20 @@ def _resolve_manifest_inputs(module):
     if accepted_run_count <= 0:
         accepted_run_count = len(selection.get("accepted_run_ids") or [])
     assert accepted_run_count > 0
+
+    try:
+        module.build_audit(
+            results_dir=_results_dir_from_manifest(module, manifest_path),
+            bootstrap_report_path=bootstrap_report_path,
+            alpha_history_db_path=alpha_history_db_path,
+            allowed_dates=allowed_dates,
+            limit=accepted_run_count,
+            accepted_manifest_path=manifest_path,
+        )
+    except ValueError as exc:
+        if "main corpus is empty after filtering" in str(exc):
+            return _build_fallback_manifest_inputs(module)
+        raise
 
     return (
         scorecard_path,
@@ -323,6 +336,185 @@ def test_candidate_after_row_coerces_string_use_mock(tmp_path):
     assert row["use_mock"] is False
     assert row["db_exists"] is False
     assert row["data_check_all_ok"] is True
+
+
+def _write_candidate_after_run(
+    tmp_path,
+    *,
+    run_id: str,
+    process_returncode: int,
+    shutdown_classification: str,
+    event_counts: dict | None = None,
+    runner_termination_trace: list[dict] | None = None,
+    extra_after: dict | None = None,
+):
+    json_path = tmp_path / f"controlled_kpi_{run_id}.json"
+    csv_path = json_path.with_suffix(".csv")
+    db_path = tmp_path / f"controlled_kpi_{run_id}.db"
+    db_path.write_bytes(b"db")
+
+    csv_row = {
+        "variant": "after",
+        "trade_count": "1",
+        "net_pnl": "0.25",
+        "winrate": "1.0",
+        "max_drawdown": "0.01",
+        "profit_factor": "2.0",
+        "gross_profit": "0.25",
+        "gross_loss_abs": "0.0",
+        "decisions_count": "2",
+        "duration_sec_actual": "60",
+    }
+    with csv_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(csv_row.keys()))
+        writer.writeheader()
+        writer.writerow(csv_row)
+
+    after = {
+        "variant": "after",
+        "trade_count": 1,
+        "net_pnl": 0.25,
+        "winrate": 1.0,
+        "max_drawdown": 0.01,
+        "profit_factor": 2.0,
+        "gross_profit": 0.25,
+        "gross_loss_abs": 0.0,
+        "decisions_count": 2,
+        "duration_sec_actual": 60,
+        "started_at_utc": "2026-04-12T00:00:00+00:00",
+        "ended_at_utc": "2026-04-12T00:01:00+00:00",
+        "db_path": str(db_path),
+        "db_exists": True,
+        "process_returncode": process_returncode,
+        "shutdown_classification": shutdown_classification,
+        "log_health": {"error_count": 0},
+        "event_counts": event_counts or {},
+        "runner_termination_trace": runner_termination_trace or [],
+    }
+    if extra_after:
+        after.update(extra_after)
+
+    payload = {
+        "run_id": run_id,
+        "params": {"use_mock": False},
+        "after": after,
+        "data_check": {"results": {"core": {"ok": True}}},
+    }
+    json_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return json_path, csv_path, db_path, payload
+
+
+def test_candidate_after_row_marks_runner_forced_exit_contamination(tmp_path):
+    module = _load_module()
+    json_path, _, _, payload = _write_candidate_after_run(
+        tmp_path,
+        run_id="forced_exit_contaminated",
+        process_returncode=0,
+        shutdown_classification="real_post_promotion_read_observed",
+        event_counts={
+            "forced_cycle_requested": 1,
+            "post_promotion_force_cycle_request": 1,
+        },
+        runner_termination_trace=[
+            {
+                "event": "position_close_request_enqueue_started",
+                "reason": "controlled_kpi_window_end",
+            }
+        ],
+        extra_after={
+            "post_promotion_forced_cycle_request_reason": "post_promotion_forced_cycle",
+            "post_promotion_forced_cycle_trigger_mode": "after_reeval_completed",
+        },
+    )
+
+    row = module._candidate_after_row(json_path, payload)
+
+    assert row is not None
+    assert row["profitability_contaminated"] is True
+    assert "runner_close_reason:controlled_kpi_window_end" in row[
+        "profitability_contamination_reasons"
+    ]
+    assert "event_count:forced_cycle_requested" in row[
+        "profitability_contamination_reasons"
+    ]
+    assert module._main_run_process_ok(row) is False
+
+
+def test_main_run_process_ok_allows_real_post_promotion_read_without_forced_exit_markers(
+    tmp_path,
+):
+    module = _load_module()
+    json_path, _, _, payload = _write_candidate_after_run(
+        tmp_path,
+        run_id="real_post_read_clean",
+        process_returncode=1,
+        shutdown_classification="real_post_promotion_read_observed",
+    )
+
+    row = module._candidate_after_row(json_path, payload)
+
+    assert row is not None
+    assert row["profitability_contaminated"] is False
+    assert row["profitability_contamination_reasons"] == []
+    assert module._main_run_process_ok(row) is True
+
+
+def test_build_audit_rejects_accepted_manifest_with_runner_forced_exit_contamination(
+    tmp_path,
+):
+    module = _load_module()
+    json_path, csv_path, db_path, _ = _write_candidate_after_run(
+        tmp_path,
+        run_id="manifest_forced_exit_contaminated",
+        process_returncode=0,
+        shutdown_classification="real_post_promotion_read_observed",
+        event_counts={"post_promotion_force_cycle_request": 1},
+        runner_termination_trace=[
+            {
+                "event": "position_close_request_enqueue_started",
+                "reason": "controlled_kpi_window_end",
+            }
+        ],
+    )
+
+    manifest_path = tmp_path / "accepted_manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "entries": [
+                    {
+                        "run_id": "manifest_forced_exit_contaminated",
+                        "bundled_artifacts": {
+                            "result_json": {
+                                "path": str(json_path),
+                                "sha256": hashlib.sha256(json_path.read_bytes()).hexdigest(),
+                            },
+                            "csv": {
+                                "path": str(csv_path),
+                                "sha256": hashlib.sha256(csv_path.read_bytes()).hexdigest(),
+                            },
+                            "db": {
+                                "path": str(db_path),
+                                "sha256": hashlib.sha256(db_path.read_bytes()).hexdigest(),
+                            },
+                        },
+                    }
+                ]
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="main corpus is empty after filtering"):
+        module.build_audit(
+            results_dir=tmp_path,
+            bootstrap_report_path=tmp_path / "unused_bootstrap.json",
+            alpha_history_db_path=tmp_path / "unused_alpha.db",
+            allowed_dates=("2026-04-12",),
+            limit=1,
+            accepted_manifest_path=manifest_path,
+        )
 
 
 def test_data_check_all_ok_coerces_string_flags():
