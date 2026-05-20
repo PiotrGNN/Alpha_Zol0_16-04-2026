@@ -1,0 +1,692 @@
+{
+  "generated_at": "2026-05-20T05:05:56.632538+00:00",
+  "report_type": "profitability_baseline_audit_readonly",
+  "contract_version": "v1",
+  "scope": {
+    "exchange": "KuCoin",
+    "mode": "PAPER_ONLY",
+    "live_in_scope": false,
+    "baseline_head_expected": "721c1931349c5ada9cc88d3f27a7e7c949d2b294",
+    "strict_clean_shutdown_required": "close_flush_done_pending_positions_zero"
+  },
+  "artifacts_used": {
+    "selected_scorecard": "analysis/zol0_profitability_audit_stability_candidate_20260515_220302_scorecard.json",
+    "selected_manifest": "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/zol0_profitability_audit_stability_candidate_20260515_220302_accepted_corpus_manifest.json",
+    "selected_manifest_bundle_dir": "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256",
+    "accepted_run_jsons": [
+      "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_20260411_183753.json",
+      "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_20260411_183637.json",
+      "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_20260411_183501.json",
+      "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_20260411_183318.json",
+      "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_20260411_183139.json",
+      "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_20260411_182947.json",
+      "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_20260411_182813.json",
+      "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_20260411_182635.json",
+      "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_20260411_182459.json",
+      "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_20260411_182320.json",
+      "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_20260411_182137.json",
+      "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_20260411_182001.json"
+    ],
+    "accepted_run_dbs": [
+      "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_after_20260411_183753.db",
+      "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_after_20260411_183637.db",
+      "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_after_20260411_183501.db",
+      "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_after_20260411_183318.db",
+      "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_after_20260411_183139.db",
+      "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_after_20260411_182947.db",
+      "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_after_20260411_182813.db",
+      "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_after_20260411_182635.db",
+      "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_after_20260411_182459.db",
+      "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_after_20260411_182320.db",
+      "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_after_20260411_182137.db",
+      "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_after_20260411_182001.db"
+    ],
+    "candidate_scorecards_considered": [
+      {
+        "path": "analysis/zol0_profitability_audit_stability_candidate_20260515_220302_scorecard.json",
+        "generated_at": "2026-05-15T22:44:51.244884+00:00",
+        "accepted_run_count": 12
+      },
+      {
+        "path": "analysis/zol0_profitability_audit_full_audit_20260515_204928_scorecard.json",
+        "generated_at": "2026-05-15T21:22:14.170606+00:00",
+        "accepted_run_count": 12
+      },
+      {
+        "path": "analysis/zol0_profitability_audit_live_promotion_candidate_20260507_scorecard.json",
+        "generated_at": "2026-05-07T17:56:51.815718+00:00",
+        "accepted_run_count": 12
+      },
+      {
+        "path": "analysis/zol0_profitability_audit_20260507_profit_or_hard_scorecard.json",
+        "generated_at": "2026-05-07T03:23:37.769791+00:00",
+        "accepted_run_count": 10
+      },
+      {
+        "path": "analysis/zol0_profitability_audit_20260506_accumulation_scorecard.json",
+        "generated_at": "2026-05-06T22:06:38.167371+00:00",
+        "accepted_run_count": 20
+      },
+      {
+        "path": "analysis/zol0_profitability_audit_scorecard.json",
+        "generated_at": "2026-05-05T06:08:54.187433+00:00",
+        "accepted_run_count": 60
+      },
+      {
+        "path": "analysis/zol0_profitability_audit_phase3_eth_momentum_buy_repaired_bootstrap_20260419_scorecard.json",
+        "generated_at": "2026-04-19T16:44:20.059381+00:00",
+        "accepted_run_count": 12
+      },
+      {
+        "path": "analysis/zol0_profitability_audit_phase3_eth_momentum_buy_20260419_scorecard.json",
+        "generated_at": "2026-04-19T16:27:26.314988+00:00",
+        "accepted_run_count": 12
+      },
+      {
+        "path": "analysis/zol0_profitability_audit_eth_momentum_buy_20260419_scorecard.json",
+        "generated_at": "2026-04-19T14:23:15.152774+00:00",
+        "accepted_run_count": 4
+      },
+      {
+        "path": "analysis/zol0_profitability_audit_operational_pass_20260418_scorecard.json",
+        "generated_at": "2026-04-18T04:53:29.124577+00:00",
+        "accepted_run_count": 4
+      }
+    ]
+  },
+  "scorecard_context": {
+    "reported_total_trade_count": 12,
+    "reported_total_net_pnl": 0.010987,
+    "reported_green_to_red_share": 0.25,
+    "strategy_validation_contract": {
+      "classification": "NATURAL_STRATEGY_EVIDENCE_SUFFICIENT",
+      "strategy_evidence_classification": "NATURAL_STRATEGY_EVIDENCE_SUFFICIENT",
+      "usable_strategy_economics": true,
+      "min_natural_entry_trade_count": 12,
+      "natural_entry_trade_count": 12,
+      "assisted_entry_trade_count": 0,
+      "unknown_entry_trade_count": 0,
+      "truth_classification_counts": {
+        "NATURAL_STRATEGY_ENTRY": 12
+      },
+      "reason_codes": [
+        "NATURAL_ENTRY_EVIDENCE_AVAILABLE"
+      ]
+    }
+  },
+  "corpus_counts": {
+    "manifest_entry_count": 12,
+    "accepted_clean_run_count": 0,
+    "rejected_run_count": 12,
+    "accepted_clean_trade_count": 0,
+    "observed_trade_count": 12
+  },
+  "rejected_run_reasons": {
+    "cycle_end_forced_exit": 12,
+    "post_green_protective_exit_observed": 6,
+    "shutdown_classification:real_post_promotion_read_observed": 12
+  },
+  "bucket_counts": {
+    "CYCLE_END_FORCED_EXIT": 12
+  },
+  "bucket_net_pnl": {
+    "CYCLE_END_FORCED_EXIT": 0.010987
+  },
+  "observed_corpus_metrics": {
+    "trade_count": 12,
+    "net_pnl": 0.010987,
+    "winrate": 0.333333,
+    "profit_factor": 1.296284,
+    "expectancy": 0.000916,
+    "avg_pnl_per_trade": 0.000916,
+    "max_loss": -0.011743,
+    "max_win": 0.027943,
+    "wins": 4,
+    "losses": 8,
+    "gross_profit": 0.04807,
+    "gross_loss_abs": 0.037083,
+    "fee_inversion_share": 0.166667,
+    "green_to_red_share": 0.25,
+    "exit_reason_distribution": {
+      "controlled_kpi_window_end": 4,
+      "post_green_protective_exit": 6,
+      "sl_usdt": 2
+    },
+    "symbol_distribution": {
+      "ETHUSDTM": 12
+    },
+    "side_distribution": {
+      "buy": 12
+    },
+    "strategy_distribution": {
+      "Momentum": 12
+    }
+  },
+  "natural_strategy_exit_metrics": {
+    "trade_count": 0,
+    "net_pnl": 0.0,
+    "winrate": null,
+    "profit_factor": 0.0,
+    "expectancy": null,
+    "avg_pnl_per_trade": null,
+    "max_loss": null,
+    "max_win": null,
+    "wins": 0,
+    "losses": 0,
+    "gross_profit": 0.0,
+    "gross_loss_abs": 0.0,
+    "fee_inversion_share": null,
+    "green_to_red_share": null,
+    "exit_reason_distribution": {},
+    "symbol_distribution": {},
+    "side_distribution": {},
+    "strategy_distribution": {}
+  },
+  "cycle_end_forced_exit_metrics": {
+    "trade_count": 12,
+    "net_pnl": 0.010987,
+    "winrate": 0.333333,
+    "profit_factor": 1.296284,
+    "expectancy": 0.000916,
+    "avg_pnl_per_trade": 0.000916,
+    "max_loss": -0.011743,
+    "max_win": 0.027943,
+    "wins": 4,
+    "losses": 8,
+    "gross_profit": 0.04807,
+    "gross_loss_abs": 0.037083,
+    "fee_inversion_share": 0.166667,
+    "green_to_red_share": 0.25,
+    "exit_reason_distribution": {
+      "controlled_kpi_window_end": 4,
+      "post_green_protective_exit": 6,
+      "sl_usdt": 2
+    },
+    "symbol_distribution": {
+      "ETHUSDTM": 12
+    },
+    "side_distribution": {
+      "buy": 12
+    },
+    "strategy_distribution": {
+      "Momentum": 12
+    }
+  },
+  "seed_or_fallback_assisted_metrics": {
+    "trade_count": 0,
+    "net_pnl": 0.0,
+    "winrate": null,
+    "profit_factor": 0.0,
+    "expectancy": null,
+    "avg_pnl_per_trade": null,
+    "max_loss": null,
+    "max_win": null,
+    "wins": 0,
+    "losses": 0,
+    "gross_profit": 0.0,
+    "gross_loss_abs": 0.0,
+    "fee_inversion_share": null,
+    "green_to_red_share": null,
+    "exit_reason_distribution": {},
+    "symbol_distribution": {},
+    "side_distribution": {},
+    "strategy_distribution": {}
+  },
+  "mock_or_diagnostic_metrics": {
+    "trade_count": 0,
+    "net_pnl": 0.0,
+    "winrate": null,
+    "profit_factor": 0.0,
+    "expectancy": null,
+    "avg_pnl_per_trade": null,
+    "max_loss": null,
+    "max_win": null,
+    "wins": 0,
+    "losses": 0,
+    "gross_profit": 0.0,
+    "gross_loss_abs": 0.0,
+    "fee_inversion_share": null,
+    "green_to_red_share": null,
+    "exit_reason_distribution": {},
+    "symbol_distribution": {},
+    "side_distribution": {},
+    "strategy_distribution": {}
+  },
+  "post_green_giveback_contribution": {
+    "trade_count": 6,
+    "net_pnl": 0.041317,
+    "share_of_observed_trades": 0.5
+  },
+  "forced_cycle_end_close_contribution": {
+    "trade_count": 12,
+    "net_pnl": 0.010987,
+    "share_of_observed_trades": 1.0
+  },
+  "dominant_loss_carrier": {
+    "by_bucket": "ETHUSDTM|Momentum|buy",
+    "by_exit_reason": "sl_usdt"
+  },
+  "validity": {
+    "status": "contaminated",
+    "corpus_sufficient": false,
+    "profitability_confirmed": false,
+    "clean_head_profitability_proven": false
+  },
+  "run_records": [
+    {
+      "run_id": "20260411_183753",
+      "result_json": "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_20260411_183753.json",
+      "db_path": "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_after_20260411_183753.db",
+      "trade_count": 1,
+      "manifest_trade_count": 1,
+      "manifest_net_pnl": -0.010711,
+      "observed_net_pnl": -0.010711,
+      "process_returncode": 0,
+      "shutdown_classification": "real_post_promotion_read_observed",
+      "pending_positions_final": 0,
+      "mock_or_diagnostic": false,
+      "seed_or_fallback_assisted": false,
+      "cycle_end_forced_exit": true,
+      "post_green_triggered": false,
+      "strict_clean_natural": false,
+      "primary_bucket": "CYCLE_END_FORCED_EXIT",
+      "rejection_reasons": [
+        "shutdown_classification:real_post_promotion_read_observed",
+        "cycle_end_forced_exit"
+      ],
+      "exit_reasons": [
+        "sl_usdt"
+      ],
+      "symbols": [
+        "ETHUSDTM"
+      ],
+      "strategies": [
+        "Momentum"
+      ],
+      "sides": [
+        "buy"
+      ]
+    },
+    {
+      "run_id": "20260411_183637",
+      "result_json": "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_20260411_183637.json",
+      "db_path": "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_after_20260411_183637.db",
+      "trade_count": 1,
+      "manifest_trade_count": 1,
+      "manifest_net_pnl": -0.011743,
+      "observed_net_pnl": -0.011743,
+      "process_returncode": 0,
+      "shutdown_classification": "real_post_promotion_read_observed",
+      "pending_positions_final": 0,
+      "mock_or_diagnostic": false,
+      "seed_or_fallback_assisted": false,
+      "cycle_end_forced_exit": true,
+      "post_green_triggered": false,
+      "strict_clean_natural": false,
+      "primary_bucket": "CYCLE_END_FORCED_EXIT",
+      "rejection_reasons": [
+        "shutdown_classification:real_post_promotion_read_observed",
+        "cycle_end_forced_exit"
+      ],
+      "exit_reasons": [
+        "sl_usdt"
+      ],
+      "symbols": [
+        "ETHUSDTM"
+      ],
+      "strategies": [
+        "Momentum"
+      ],
+      "sides": [
+        "buy"
+      ]
+    },
+    {
+      "run_id": "20260411_183501",
+      "result_json": "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_20260411_183501.json",
+      "db_path": "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_after_20260411_183501.db",
+      "trade_count": 1,
+      "manifest_trade_count": 1,
+      "manifest_net_pnl": 0.027943,
+      "observed_net_pnl": 0.027943,
+      "process_returncode": 0,
+      "shutdown_classification": "real_post_promotion_read_observed",
+      "pending_positions_final": 0,
+      "mock_or_diagnostic": false,
+      "seed_or_fallback_assisted": false,
+      "cycle_end_forced_exit": true,
+      "post_green_triggered": true,
+      "strict_clean_natural": false,
+      "primary_bucket": "CYCLE_END_FORCED_EXIT",
+      "rejection_reasons": [
+        "shutdown_classification:real_post_promotion_read_observed",
+        "cycle_end_forced_exit",
+        "post_green_protective_exit_observed"
+      ],
+      "exit_reasons": [
+        "post_green_protective_exit"
+      ],
+      "symbols": [
+        "ETHUSDTM"
+      ],
+      "strategies": [
+        "Momentum"
+      ],
+      "sides": [
+        "buy"
+      ]
+    },
+    {
+      "run_id": "20260411_183318",
+      "result_json": "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_20260411_183318.json",
+      "db_path": "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_after_20260411_183318.db",
+      "trade_count": 1,
+      "manifest_trade_count": 1,
+      "manifest_net_pnl": 0.000886,
+      "observed_net_pnl": 0.000886,
+      "process_returncode": 0,
+      "shutdown_classification": "real_post_promotion_read_observed",
+      "pending_positions_final": 0,
+      "mock_or_diagnostic": false,
+      "seed_or_fallback_assisted": false,
+      "cycle_end_forced_exit": true,
+      "post_green_triggered": false,
+      "strict_clean_natural": false,
+      "primary_bucket": "CYCLE_END_FORCED_EXIT",
+      "rejection_reasons": [
+        "shutdown_classification:real_post_promotion_read_observed",
+        "cycle_end_forced_exit"
+      ],
+      "exit_reasons": [
+        "controlled_kpi_window_end"
+      ],
+      "symbols": [
+        "ETHUSDTM"
+      ],
+      "strategies": [
+        "Momentum"
+      ],
+      "sides": [
+        "buy"
+      ]
+    },
+    {
+      "run_id": "20260411_183139",
+      "result_json": "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_20260411_183139.json",
+      "db_path": "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_after_20260411_183139.db",
+      "trade_count": 1,
+      "manifest_trade_count": 1,
+      "manifest_net_pnl": 0.012119,
+      "observed_net_pnl": 0.012119,
+      "process_returncode": 0,
+      "shutdown_classification": "real_post_promotion_read_observed",
+      "pending_positions_final": 0,
+      "mock_or_diagnostic": false,
+      "seed_or_fallback_assisted": false,
+      "cycle_end_forced_exit": true,
+      "post_green_triggered": true,
+      "strict_clean_natural": false,
+      "primary_bucket": "CYCLE_END_FORCED_EXIT",
+      "rejection_reasons": [
+        "shutdown_classification:real_post_promotion_read_observed",
+        "cycle_end_forced_exit",
+        "post_green_protective_exit_observed"
+      ],
+      "exit_reasons": [
+        "post_green_protective_exit"
+      ],
+      "symbols": [
+        "ETHUSDTM"
+      ],
+      "strategies": [
+        "Momentum"
+      ],
+      "sides": [
+        "buy"
+      ]
+    },
+    {
+      "run_id": "20260411_182947",
+      "result_json": "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_20260411_182947.json",
+      "db_path": "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_after_20260411_182947.db",
+      "trade_count": 1,
+      "manifest_trade_count": 1,
+      "manifest_net_pnl": 0.007122,
+      "observed_net_pnl": 0.007122,
+      "process_returncode": 0,
+      "shutdown_classification": "real_post_promotion_read_observed",
+      "pending_positions_final": 0,
+      "mock_or_diagnostic": false,
+      "seed_or_fallback_assisted": false,
+      "cycle_end_forced_exit": true,
+      "post_green_triggered": true,
+      "strict_clean_natural": false,
+      "primary_bucket": "CYCLE_END_FORCED_EXIT",
+      "rejection_reasons": [
+        "shutdown_classification:real_post_promotion_read_observed",
+        "cycle_end_forced_exit",
+        "post_green_protective_exit_observed"
+      ],
+      "exit_reasons": [
+        "post_green_protective_exit"
+      ],
+      "symbols": [
+        "ETHUSDTM"
+      ],
+      "strategies": [
+        "Momentum"
+      ],
+      "sides": [
+        "buy"
+      ]
+    },
+    {
+      "run_id": "20260411_182813",
+      "result_json": "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_20260411_182813.json",
+      "db_path": "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_after_20260411_182813.db",
+      "trade_count": 1,
+      "manifest_trade_count": 1,
+      "manifest_net_pnl": -0.002729,
+      "observed_net_pnl": -0.002729,
+      "process_returncode": 0,
+      "shutdown_classification": "real_post_promotion_read_observed",
+      "pending_positions_final": 0,
+      "mock_or_diagnostic": false,
+      "seed_or_fallback_assisted": false,
+      "cycle_end_forced_exit": true,
+      "post_green_triggered": false,
+      "strict_clean_natural": false,
+      "primary_bucket": "CYCLE_END_FORCED_EXIT",
+      "rejection_reasons": [
+        "shutdown_classification:real_post_promotion_read_observed",
+        "cycle_end_forced_exit"
+      ],
+      "exit_reasons": [
+        "controlled_kpi_window_end"
+      ],
+      "symbols": [
+        "ETHUSDTM"
+      ],
+      "strategies": [
+        "Momentum"
+      ],
+      "sides": [
+        "buy"
+      ]
+    },
+    {
+      "run_id": "20260411_182635",
+      "result_json": "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_20260411_182635.json",
+      "db_path": "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_after_20260411_182635.db",
+      "trade_count": 1,
+      "manifest_trade_count": 1,
+      "manifest_net_pnl": -0.002022,
+      "observed_net_pnl": -0.002022,
+      "process_returncode": 0,
+      "shutdown_classification": "real_post_promotion_read_observed",
+      "pending_positions_final": 0,
+      "mock_or_diagnostic": false,
+      "seed_or_fallback_assisted": false,
+      "cycle_end_forced_exit": true,
+      "post_green_triggered": false,
+      "strict_clean_natural": false,
+      "primary_bucket": "CYCLE_END_FORCED_EXIT",
+      "rejection_reasons": [
+        "shutdown_classification:real_post_promotion_read_observed",
+        "cycle_end_forced_exit"
+      ],
+      "exit_reasons": [
+        "controlled_kpi_window_end"
+      ],
+      "symbols": [
+        "ETHUSDTM"
+      ],
+      "strategies": [
+        "Momentum"
+      ],
+      "sides": [
+        "buy"
+      ]
+    },
+    {
+      "run_id": "20260411_182459",
+      "result_json": "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_20260411_182459.json",
+      "db_path": "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_after_20260411_182459.db",
+      "trade_count": 1,
+      "manifest_trade_count": 1,
+      "manifest_net_pnl": -0.002972,
+      "observed_net_pnl": -0.002972,
+      "process_returncode": 0,
+      "shutdown_classification": "real_post_promotion_read_observed",
+      "pending_positions_final": 0,
+      "mock_or_diagnostic": false,
+      "seed_or_fallback_assisted": false,
+      "cycle_end_forced_exit": true,
+      "post_green_triggered": true,
+      "strict_clean_natural": false,
+      "primary_bucket": "CYCLE_END_FORCED_EXIT",
+      "rejection_reasons": [
+        "shutdown_classification:real_post_promotion_read_observed",
+        "cycle_end_forced_exit",
+        "post_green_protective_exit_observed"
+      ],
+      "exit_reasons": [
+        "post_green_protective_exit"
+      ],
+      "symbols": [
+        "ETHUSDTM"
+      ],
+      "strategies": [
+        "Momentum"
+      ],
+      "sides": [
+        "buy"
+      ]
+    },
+    {
+      "run_id": "20260411_182320",
+      "result_json": "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_20260411_182320.json",
+      "db_path": "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_after_20260411_182320.db",
+      "trade_count": 1,
+      "manifest_trade_count": 1,
+      "manifest_net_pnl": -0.00401,
+      "observed_net_pnl": -0.00401,
+      "process_returncode": 0,
+      "shutdown_classification": "real_post_promotion_read_observed",
+      "pending_positions_final": 0,
+      "mock_or_diagnostic": false,
+      "seed_or_fallback_assisted": false,
+      "cycle_end_forced_exit": true,
+      "post_green_triggered": false,
+      "strict_clean_natural": false,
+      "primary_bucket": "CYCLE_END_FORCED_EXIT",
+      "rejection_reasons": [
+        "shutdown_classification:real_post_promotion_read_observed",
+        "cycle_end_forced_exit"
+      ],
+      "exit_reasons": [
+        "controlled_kpi_window_end"
+      ],
+      "symbols": [
+        "ETHUSDTM"
+      ],
+      "strategies": [
+        "Momentum"
+      ],
+      "sides": [
+        "buy"
+      ]
+    },
+    {
+      "run_id": "20260411_182137",
+      "result_json": "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_20260411_182137.json",
+      "db_path": "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_after_20260411_182137.db",
+      "trade_count": 1,
+      "manifest_trade_count": 1,
+      "manifest_net_pnl": -0.001647,
+      "observed_net_pnl": -0.001647,
+      "process_returncode": 0,
+      "shutdown_classification": "real_post_promotion_read_observed",
+      "pending_positions_final": 0,
+      "mock_or_diagnostic": false,
+      "seed_or_fallback_assisted": false,
+      "cycle_end_forced_exit": true,
+      "post_green_triggered": true,
+      "strict_clean_natural": false,
+      "primary_bucket": "CYCLE_END_FORCED_EXIT",
+      "rejection_reasons": [
+        "shutdown_classification:real_post_promotion_read_observed",
+        "cycle_end_forced_exit",
+        "post_green_protective_exit_observed"
+      ],
+      "exit_reasons": [
+        "post_green_protective_exit"
+      ],
+      "symbols": [
+        "ETHUSDTM"
+      ],
+      "strategies": [
+        "Momentum"
+      ],
+      "sides": [
+        "buy"
+      ]
+    },
+    {
+      "run_id": "20260411_182001",
+      "result_json": "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_20260411_182001.json",
+      "db_path": "artifacts/accepted_corpus/zol0_profitability_audit_stability_candidate_20260515_220302_20260515_224451_251256/accepted_runs/controlled_kpi_after_20260411_182001.db",
+      "trade_count": 1,
+      "manifest_trade_count": 1,
+      "manifest_net_pnl": -0.001249,
+      "observed_net_pnl": -0.001249,
+      "process_returncode": 0,
+      "shutdown_classification": "real_post_promotion_read_observed",
+      "pending_positions_final": 0,
+      "mock_or_diagnostic": false,
+      "seed_or_fallback_assisted": false,
+      "cycle_end_forced_exit": true,
+      "post_green_triggered": true,
+      "strict_clean_natural": false,
+      "primary_bucket": "CYCLE_END_FORCED_EXIT",
+      "rejection_reasons": [
+        "shutdown_classification:real_post_promotion_read_observed",
+        "cycle_end_forced_exit",
+        "post_green_protective_exit_observed"
+      ],
+      "exit_reasons": [
+        "post_green_protective_exit"
+      ],
+      "symbols": [
+        "ETHUSDTM"
+      ],
+      "strategies": [
+        "Momentum"
+      ],
+      "sides": [
+        "buy"
+      ]
+    }
+  ],
+  "final_classification": "PROFITABILITY_CONTAMINATED_BY_RUNTIME_OR_FORCED_EXITS"
+}
