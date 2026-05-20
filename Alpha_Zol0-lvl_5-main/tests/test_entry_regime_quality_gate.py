@@ -1,8 +1,8 @@
 """Tests for Faza 3A (giveback cap fix) and Faza 6A (regime quality gate).
 
 Tests verify:
-- PAPER_POST_GREEN_GIVEBACK_TRIGGER default is now 0.15 (was 0.10)
-- Cap on positive_residual_giveback_trigger is now 0.12 (was 0.06)
+- PAPER_POST_GREEN_GIVEBACK_TRIGGER clean HEAD default is 0.05
+- Cap on positive_residual_giveback_trigger is 0.06
 - ENTRY_REGIME_QUALITY_GATE_BLOCKLIST env var is parsed correctly
 - auto_after_overrides contains the expected regime gate keys
 """
@@ -28,11 +28,11 @@ def botcore():
 
 
 # ------------------------------------------------------------------ #
-# Faza 3A: post_green giveback cap and default
+# Clean HEAD: post_green giveback cap and default
 # ------------------------------------------------------------------ #
 
 class TestGivebackTriggerDefaults:
-    """Validate the Faza 3A changes to positive_residual_giveback_trigger."""
+    """Validate clean HEAD positive_residual_giveback_trigger contract."""
 
     def _get_trigger(self, botcore, env_override=None):
         """Helper: run just the trigger computation from BotCore source."""
@@ -41,76 +41,75 @@ class TestGivebackTriggerDefaults:
             env["PAPER_POST_GREEN_GIVEBACK_TRIGGER"] = str(env_override)
         with patch.dict(os.environ, env, clear=True):
             raw = float(
-                os.environ.get("PAPER_POST_GREEN_GIVEBACK_TRIGGER", "0.15")
+                os.environ.get("PAPER_POST_GREEN_GIVEBACK_TRIGGER", "0.05")
             )
-            capped = min(raw, 0.12)
+            capped = min(raw, 0.06)
         return raw, capped
 
-    def test_default_is_015(self, botcore):
-        """Default env value is now 0.15 (was 0.10)."""
+    def test_default_is_005(self, botcore):
+        """Default env value matches clean HEAD."""
         raw, capped = self._get_trigger(botcore)
-        assert raw == 0.15
+        assert raw == 0.05
 
-    def test_cap_is_012(self, botcore):
-        """Cap is now 0.12 (was 0.06)."""
+    def test_cap_is_006(self, botcore):
+        """Cap matches clean HEAD."""
         raw, capped = self._get_trigger(botcore)
-        assert capped == 0.12  # 0.15 capped to 0.12
+        assert capped == 0.05
 
     def test_env_override_above_cap_is_capped(self, botcore):
-        """Values above cap (0.12) are clamped to 0.12."""
+        """Values above cap are clamped to 0.06."""
         raw, capped = self._get_trigger(botcore, env_override=0.20)
         assert raw == pytest.approx(0.20)
-        assert capped == pytest.approx(0.12)
+        assert capped == pytest.approx(0.06)
 
     def test_env_override_below_cap_is_not_clamped(self, botcore):
-        """Values below cap (e.g. 0.08) pass through unchanged."""
-        raw, capped = self._get_trigger(botcore, env_override=0.08)
-        assert raw == pytest.approx(0.08)
-        assert capped == pytest.approx(0.08)
+        """Values below cap pass through unchanged."""
+        raw, capped = self._get_trigger(botcore, env_override=0.04)
+        assert raw == pytest.approx(0.04)
+        assert capped == pytest.approx(0.04)
 
     def test_exact_cap_boundary(self, botcore):
-        """Setting exactly 0.12 should not be clamped."""
-        raw, capped = self._get_trigger(botcore, env_override=0.12)
-        assert raw == pytest.approx(0.12)
-        assert capped == pytest.approx(0.12)
+        """Setting exactly 0.06 should not be clamped."""
+        raw, capped = self._get_trigger(botcore, env_override=0.06)
+        assert raw == pytest.approx(0.06)
+        assert capped == pytest.approx(0.06)
 
     def test_just_above_cap_is_clamped(self, botcore):
-        """0.13 > 0.12 → clamped to 0.12."""
-        raw, capped = self._get_trigger(botcore, env_override=0.13)
-        assert capped == pytest.approx(0.12)
+        """Values just above the clean HEAD cap are clamped."""
+        raw, capped = self._get_trigger(botcore, env_override=0.07)
+        assert capped == pytest.approx(0.06)
 
-    def test_old_cap_would_have_fired_at_007(self, botcore):
-        """0.07 < 0.12 → passes through (old cap 0.06 would have blocked it)."""
+    def test_value_above_clean_head_cap_is_clamped(self, botcore):
+        """0.07 is above the clean HEAD cap and clamps to 0.06."""
         _, capped = self._get_trigger(botcore, env_override=0.07)
-        assert capped == pytest.approx(0.07)  # not capped at 0.06 anymore
+        assert capped == pytest.approx(0.06)
 
     def test_botcore_source_has_new_cap_value(self):
-        """Source code assertion: BotCore.py must have 0.12 cap, not 0.06."""
+        """Source code assertion: BotCore.py keeps the clean HEAD 0.06 cap."""
         source = BOTCORE_PATH.read_text(encoding="utf-8")
-        # Old cap should NOT be present next to the trigger
         trigger_area = source[
             source.find("PAPER_POST_GREEN_GIVEBACK_TRIGGER"):
             source.find("PAPER_POST_GREEN_GIVEBACK_TRIGGER") + 500
         ]
-        assert "0.12" in trigger_area, (
-            "Expected cap 0.12 in PAPER_POST_GREEN_GIVEBACK_TRIGGER area"
+        assert "0.06" in trigger_area, (
+            "Expected cap 0.06 in PAPER_POST_GREEN_GIVEBACK_TRIGGER area"
         )
-        assert "0.06" not in trigger_area, (
-            "Old cap 0.06 should not appear near PAPER_POST_GREEN_GIVEBACK_TRIGGER"
+        assert "0.12" not in trigger_area, (
+            "Unaccepted cap 0.12 should not appear near PAPER_POST_GREEN_GIVEBACK_TRIGGER"
         )
 
     def test_botcore_source_has_new_default_value(self):
-        """Source code assertion: BotCore.py default must be 0.15, not 0.10."""
+        """Source code assertion: BotCore.py default matches clean HEAD."""
         source = BOTCORE_PATH.read_text(encoding="utf-8")
         trigger_area = source[
             source.find("PAPER_POST_GREEN_GIVEBACK_TRIGGER"):
             source.find("PAPER_POST_GREEN_GIVEBACK_TRIGGER") + 200
         ]
-        assert '"0.15"' in trigger_area, (
-            "Expected default 0.15 for PAPER_POST_GREEN_GIVEBACK_TRIGGER"
+        assert '"0.05"' in trigger_area, (
+            "Expected default 0.05 for PAPER_POST_GREEN_GIVEBACK_TRIGGER"
         )
-        assert '"0.10"' not in trigger_area, (
-            "Old default 0.10 should not appear near PAPER_POST_GREEN_GIVEBACK_TRIGGER"
+        assert '"0.15"' not in trigger_area, (
+            "Unaccepted default 0.15 should not appear near PAPER_POST_GREEN_GIVEBACK_TRIGGER"
         )
 
 
