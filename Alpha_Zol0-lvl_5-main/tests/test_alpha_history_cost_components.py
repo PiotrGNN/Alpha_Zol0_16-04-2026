@@ -327,6 +327,43 @@ def test_build_history_db_and_main_with_temp_sources(monkeypatch, tmp_path, caps
         filtered_rows = conn.execute("SELECT COUNT(*) FROM logs").fetchone()[0]
     assert filtered_rows == 1
 
+    output_strict = tmp_path / "tmp" / "alpha_history_strict.db"
+    report_strict = module.build_history_db(
+        output_path=output_strict,
+        glob_patterns=["tmp/controlled_kpi_*.db"],
+        max_sources=10,
+        max_per_source=50,
+        max_total=100,
+        min_abs_pnl=0.0,
+        quality_filter=True,
+        min_pair_trades=5,
+        min_pair_winrate=0.9,
+        min_pair_expectancy=10.0,
+        fallback_top_pairs=0,
+        exclude_strategies={"exchangesync"},
+    )
+
+    assert report_strict["rows_inserted"] == 0
+    assert report_strict["fallback_used"] is False
+    assert report_strict["strict_zero_rows_root_cause"] == (
+        "MIXED_STRICT_BOOTSTRAP_REJECTION"
+    )
+    assert report_strict["rejected_count"] == 2
+    assert report_strict["reject_reasons"] == [
+        "min_pair_expectancy",
+        "min_pair_trades",
+        "min_pair_winrate",
+        "net_pnl_nonpositive",
+    ]
+    assert report_strict["strict_rejection_breakdown"]["min_pair_trades"] == 2
+    rejected = report_strict["strict_rejected_rows"][0]
+    assert rejected["source_paths"]
+    assert rejected["symbol"] in {"ETHUSDTM", "BTCUSDTM"}
+    assert rejected["side"] in {"buy", "sell"}
+    assert rejected["strategy"] in {"TrendFollowing", "MeanReversion"}
+    assert rejected["quality_filter_values_used"]["fallback_top_pairs"] == 0
+    assert rejected["missing_fields"] == []
+
     report_json_path = tmp_path / "tmp" / "alpha_history_report.json"
     monkeypatch.setattr(
         sys,
