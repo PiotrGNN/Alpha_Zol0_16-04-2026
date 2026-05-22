@@ -166,7 +166,11 @@ def _resolve_manifest_inputs(module):
             accepted_manifest_path=manifest_path,
         )
     except ValueError as exc:
-        if "main corpus is empty after filtering" in str(exc):
+        message = str(exc)
+        if (
+            "main corpus is empty after filtering" in message
+            or "accepted_count_matches_limit" in message
+        ):
             return _build_fallback_manifest_inputs(module)
         raise
 
@@ -347,11 +351,33 @@ def _write_candidate_after_run(
     event_counts: dict | None = None,
     runner_termination_trace: list[dict] | None = None,
     extra_after: dict | None = None,
+    extra_payload: dict | None = None,
+    db_logs: list[tuple[str, dict]] | None = None,
 ):
     json_path = tmp_path / f"controlled_kpi_{run_id}.json"
     csv_path = json_path.with_suffix(".csv")
     db_path = tmp_path / f"controlled_kpi_{run_id}.db"
-    db_path.write_bytes(b"db")
+    if db_logs is None:
+        db_path.write_bytes(b"db")
+    else:
+        conn = sqlite3.connect(db_path)
+        try:
+            conn.execute(
+                "CREATE TABLE logs (id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                "timestamp TEXT, event TEXT, details TEXT)"
+            )
+            for event_name, details in db_logs:
+                conn.execute(
+                    "INSERT INTO logs(timestamp, event, details) VALUES (?, ?, ?)",
+                    (
+                        "2026-04-12T00:00:00+00:00",
+                        event_name,
+                        json.dumps(details),
+                    ),
+                )
+            conn.commit()
+        finally:
+            conn.close()
 
     csv_row = {
         "variant": "after",
@@ -400,8 +426,64 @@ def _write_candidate_after_run(
         "after": after,
         "data_check": {"results": {"core": {"ok": True}}},
     }
+    if extra_payload:
+        payload.update(extra_payload)
     json_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     return json_path, csv_path, db_path, payload
+
+
+def _benign_post_promotion_bookkeeping_logs() -> list[tuple[str, dict]]:
+    return [
+        (
+            "post_promotion_force_cycle_scheduler_caller_enter",
+            {
+                "event": "post_promotion_force_cycle_scheduler_caller_enter",
+                "has_pending_forced_cycle_request": False,
+                "last_post_promotion_force_cycle_request_id": 0,
+            },
+        ),
+        (
+            "post_promotion_force_cycle_request_scan_empty",
+            {
+                "event": "post_promotion_force_cycle_request_scan_empty",
+                "request_count_seen": 0,
+                "scan_reason": "request_rows_absent",
+                "last_post_promotion_force_cycle_request_id": 0,
+            },
+        ),
+        (
+            "post_promotion_force_cycle_pending_not_visible",
+            {
+                "event": "post_promotion_force_cycle_pending_not_visible",
+                "has_pending_forced_cycle_request": False,
+                "skip_reason": "pending_request_not_visible",
+                "last_post_promotion_force_cycle_request_id": 0,
+            },
+        ),
+        (
+            "post_promotion_force_cycle_drain_skipped",
+            {
+                "event": "post_promotion_force_cycle_drain_skipped",
+                "request_count_seen": 0,
+                "skip_reason": "pending_request_not_visible",
+                "last_post_promotion_force_cycle_request_id": 0,
+            },
+        ),
+        (
+            "post_promotion_force_cycle_pre_drain_reject",
+            {
+                "event": "post_promotion_force_cycle_pre_drain_reject",
+                "request_count_seen": 0,
+                "pre_drain_reject_reason": "pending_request_not_visible",
+                "has_pending_forced_cycle_request": False,
+                "last_post_promotion_force_cycle_request_id": 0,
+            },
+        ),
+    ]
+
+
+def _benign_post_promotion_bookkeeping_counts() -> dict[str, int]:
+    return {event_name: 1 for event_name, _ in _benign_post_promotion_bookkeeping_logs()}
 
 
 def test_candidate_after_row_marks_runner_forced_exit_contamination(tmp_path):
@@ -438,6 +520,174 @@ def test_candidate_after_row_marks_runner_forced_exit_contamination(tmp_path):
         "profitability_contamination_reasons"
     ]
     assert module._main_run_process_ok(row) is False
+
+
+def test_candidate_after_row_allows_bookkeeping_only_post_promotion_force_cycle(
+    tmp_path,
+):
+    module = _load_module()
+    json_path, _, _, payload = _write_candidate_after_run(
+        tmp_path,
+        run_id="bookkeeping_only_force_cycle",
+        process_returncode=0,
+        shutdown_classification="close_flush_done_pending_positions_zero",
+        event_counts=_benign_post_promotion_bookkeeping_counts(),
+        db_logs=_benign_post_promotion_bookkeeping_logs(),
+    )
+
+    row = module._candidate_after_row(json_path, payload)
+
+    assert row is not None
+    assert row["profitability_contaminated"] is False
+    assert row["profitability_contamination_reasons"] == []
+    assert module._main_run_process_ok(row) is True
+
+
+def test_candidate_after_row_rejects_exact_post_promotion_force_cycle_request(
+    tmp_path,
+):
+    module = _load_module()
+    json_path, _, _, payload = _write_candidate_after_run(
+        tmp_path,
+        run_id="exact_force_cycle_request",
+        process_returncode=0,
+        shutdown_classification="close_flush_done_pending_positions_zero",
+        event_counts={"post_promotion_force_cycle_request": 1},
+    )
+
+    row = module._candidate_after_row(json_path, payload)
+
+    assert row is not None
+    assert row["profitability_contaminated"] is True
+    assert "event_count:post_promotion_force_cycle_request" in row[
+        "profitability_contamination_reasons"
+    ]
+
+
+def test_candidate_after_row_rejects_exact_forced_cycle_started(tmp_path):
+    module = _load_module()
+    json_path, _, _, payload = _write_candidate_after_run(
+        tmp_path,
+        run_id="exact_forced_cycle_started",
+        process_returncode=0,
+        shutdown_classification="close_flush_done_pending_positions_zero",
+        event_counts={"forced_cycle_started": 1},
+    )
+
+    row = module._candidate_after_row(json_path, payload)
+
+    assert row is not None
+    assert row["profitability_contaminated"] is True
+    assert "event_count:forced_cycle_started" in row[
+        "profitability_contamination_reasons"
+    ]
+
+
+def test_candidate_after_row_rejects_bookkeeping_plus_auto_close_hard_without_forced_cycle_reason(
+    tmp_path,
+):
+    module = _load_module()
+    json_path, _, _, payload = _write_candidate_after_run(
+        tmp_path,
+        run_id="bookkeeping_auto_close_hard",
+        process_returncode=0,
+        shutdown_classification="close_flush_done_pending_positions_zero",
+        event_counts=_benign_post_promotion_bookkeeping_counts(),
+        extra_after={"exit_reason_distribution": {"auto_close_hard": 1}},
+        db_logs=_benign_post_promotion_bookkeeping_logs(),
+    )
+
+    row = module._candidate_after_row(json_path, payload)
+
+    assert row is not None
+    assert row["profitability_contaminated"] is True
+    assert "exit_reason:auto_close_hard" in row[
+        "profitability_contamination_reasons"
+    ]
+    assert not any(
+        reason.startswith("event_count:post_promotion_force_cycle_")
+        for reason in row["profitability_contamination_reasons"]
+    )
+
+
+def test_candidate_after_row_rejects_bookkeeping_plus_positive_side_fallback_without_forced_cycle_reason(
+    tmp_path,
+):
+    module = _load_module()
+    json_path, _, _, payload = _write_candidate_after_run(
+        tmp_path,
+        run_id="bookkeeping_positive_side_fallback",
+        process_returncode=0,
+        shutdown_classification="close_flush_done_pending_positions_zero",
+        event_counts=_benign_post_promotion_bookkeeping_counts(),
+        extra_payload={
+            "alpha_bootstrap_refresh": {
+                "report": {
+                    "positive_side_fallback_used": True,
+                    "fallback_used": False,
+                }
+            }
+        },
+        db_logs=_benign_post_promotion_bookkeeping_logs(),
+    )
+
+    row = module._candidate_after_row(json_path, payload)
+
+    assert row is not None
+    assert row["profitability_contaminated"] is True
+    assert "bootstrap:positive_side_fallback_used" in row[
+        "profitability_contamination_reasons"
+    ]
+    assert not any(
+        reason.startswith("event_count:post_promotion_force_cycle_")
+        for reason in row["profitability_contamination_reasons"]
+    )
+
+
+def test_candidate_after_row_rejects_20260521_shape_for_auto_close_and_fallback_only(
+    tmp_path,
+):
+    module = _load_module()
+    json_path, _, _, payload = _write_candidate_after_run(
+        tmp_path,
+        run_id="shape_20260521_140745",
+        process_returncode=0,
+        shutdown_classification="close_flush_done_pending_positions_zero",
+        event_counts=_benign_post_promotion_bookkeeping_counts(),
+        extra_after={
+            "trade_count": 6,
+            "exit_reason_distribution": {
+                "post_green_protective_exit": 4,
+                "auto_close_hard": 2,
+            },
+            "final_close_drain_snapshot": {"pending_positions": 0},
+        },
+        extra_payload={
+            "alpha_bootstrap_refresh": {
+                "report": {
+                    "positive_side_fallback_used": True,
+                    "fallback_used": False,
+                    "fallback_positive_side_pairs": 2,
+                }
+            }
+        },
+        db_logs=_benign_post_promotion_bookkeeping_logs(),
+    )
+
+    row = module._candidate_after_row(json_path, payload)
+
+    assert row is not None
+    assert row["profitability_contaminated"] is True
+    assert "exit_reason:auto_close_hard" in row[
+        "profitability_contamination_reasons"
+    ]
+    assert "bootstrap:positive_side_fallback_used" in row[
+        "profitability_contamination_reasons"
+    ]
+    assert not any(
+        reason.startswith("event_count:post_promotion_force_cycle_")
+        for reason in row["profitability_contamination_reasons"]
+    )
 
 
 def test_main_run_process_ok_allows_real_post_promotion_read_without_forced_exit_markers(

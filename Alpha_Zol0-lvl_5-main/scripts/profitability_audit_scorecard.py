@@ -35,6 +35,39 @@ ASSISTED_ENTRY_TRUTH_CLASSES = {
     "BOOTSTRAP_ALLOWLIST_ASSISTED",
     "SEED_TRADES_OVERRIDE_ASSISTED",
 }
+TRUE_FORCED_CYCLE_EVENT_NAMES = {
+    "post_promotion_force_cycle_request",
+    "forced_cycle_requested",
+    "forced_cycle_started",
+    "forced_cycle_completed",
+    "forced_cycle_failed",
+}
+BENIGN_POST_PROMOTION_FORCE_CYCLE_BOOKKEEPING_EVENTS = {
+    "post_promotion_force_cycle_scheduler_caller_enter",
+    "post_promotion_force_cycle_scheduler_caller_exit",
+    "post_promotion_force_cycle_drain_enter",
+    "post_promotion_force_cycle_scheduler_gate_enter",
+    "post_promotion_force_cycle_scheduler_gate_result",
+    "post_promotion_force_cycle_scheduler_gate_blocked",
+    "post_promotion_force_cycle_pending_check_enter",
+    "post_promotion_force_cycle_pending_check_result",
+    "post_promotion_force_cycle_pending_not_visible",
+    "post_promotion_force_cycle_drain_skipped",
+    "post_promotion_force_cycle_pre_drain_candidate",
+    "post_promotion_force_cycle_pre_drain_skip",
+    "post_promotion_force_cycle_pre_drain_skip_reason",
+    "post_promotion_force_cycle_pre_drain_reject",
+    "post_promotion_force_cycle_pre_drain_reject_reason",
+    "post_promotion_force_cycle_pre_drain_return",
+    "post_promotion_force_cycle_request_scan_enter",
+    "post_promotion_force_cycle_request_scan_empty",
+    "post_promotion_force_cycle_request_scan_empty_reason",
+    "post_promotion_force_cycle_request_scan_result",
+}
+NATURAL_CORPUS_REJECT_EXIT_REASONS = {
+    "auto_close_hard",
+    "auto_close_hard_near_zero",
+}
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -192,21 +225,194 @@ def _data_check_all_ok(payload: dict[str, Any]) -> bool:
     return all(_coerce_bool((stats or {}).get("ok")) for stats in results.values())
 
 
-def _profitability_contamination_reasons(after: dict[str, Any]) -> list[str]:
+def _candidate_db_path(after: dict[str, Any], db_path: Path | None = None) -> Path | None:
+    if db_path is not None:
+        return db_path
+    raw = str((after or {}).get("db_path") or "").strip()
+    if not raw:
+        return None
+    path = Path(raw)
+    if not path.is_absolute():
+        path = WORKDIR / path
+    return path
+
+
+def _parse_log_details(raw: Any) -> dict[str, Any]:
+    if isinstance(raw, dict):
+        return raw
+    if not isinstance(raw, str):
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except Exception:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _benign_force_cycle_bookkeeping_payload(details: dict[str, Any]) -> bool:
+    event_name = str(details.get("event") or "").strip()
+    if event_name not in BENIGN_POST_PROMOTION_FORCE_CYCLE_BOOKKEEPING_EVENTS:
+        return False
+    if _coerce_bool(details.get("has_pending_forced_cycle_request")):
+        return False
+    if _coerce_bool(details.get("scheduler_tick_eligible")):
+        return False
+    if _safe_int(details.get("request_count_seen")) > 0:
+        return False
+    if _safe_int(details.get("request_id")) > 0:
+        return False
+    if _safe_int(details.get("last_post_promotion_force_cycle_request_id")) > 0:
+        return False
+    scan_reason = str(details.get("scan_reason") or "").strip()
+    if scan_reason and scan_reason != "request_rows_absent":
+        return False
+    empty_reason = str(details.get("empty_reason") or "").strip()
+    if empty_reason and empty_reason != "no_pending_requests_exist":
+        return False
+    gate_reason = str(details.get("gate_reason") or "").strip()
+    if gate_reason and gate_reason not in {
+        "forced_cycle_scheduler_gate",
+        "pending_request_not_visible",
+    }:
+        return False
+    for field in (
+        "skip_reason",
+        "pre_drain_skip_reason",
+        "pre_drain_reject_reason",
+    ):
+        reason = str(details.get(field) or "").strip()
+        if reason and reason != "pending_request_not_visible":
+            return False
+    return True
+
+
+def _db_confirms_bookkeeping_only_force_cycle(
+    after: dict[str, Any],
+    bookkeeping_events: set[str],
+    *,
+    db_path: Path | None = None,
+) -> bool:
+    if not bookkeeping_events:
+        return True
+    if not bookkeeping_events.issubset(BENIGN_POST_PROMOTION_FORCE_CYCLE_BOOKKEEPING_EVENTS):
+        return False
+    resolved_db_path = _candidate_db_path(after, db_path)
+    if resolved_db_path is None or not resolved_db_path.exists():
+        return False
+    conn = None
+    try:
+        uri = f"file:{resolved_db_path.resolve().as_posix()}?mode=ro"
+        conn = sqlite3.connect(uri, uri=True)
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        table_exists = cur.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='logs'"
+        ).fetchone()
+        if table_exists is None:
+            return False
+        placeholders = ",".join("?" for _ in TRUE_FORCED_CYCLE_EVENT_NAMES)
+        true_count = cur.execute(
+            f"SELECT COUNT(*) FROM logs WHERE event IN ({placeholders})",
+            tuple(sorted(TRUE_FORCED_CYCLE_EVENT_NAMES)),
+        ).fetchone()[0]
+        if _safe_int(true_count) > 0:
+            return False
+        window_count = cur.execute(
+            "SELECT COUNT(*) FROM logs "
+            "WHERE event = 'controlled_kpi_window_end' "
+            "OR details LIKE '%controlled_kpi_window_end%'"
+        ).fetchone()[0]
+        if _safe_int(window_count) > 0:
+            return False
+        unknown_count = cur.execute(
+            "SELECT COUNT(*) FROM logs "
+            "WHERE event LIKE 'post_promotion_force_cycle_%' "
+            f"AND event NOT IN ({','.join('?' for _ in BENIGN_POST_PROMOTION_FORCE_CYCLE_BOOKKEEPING_EVENTS)})",
+            tuple(sorted(BENIGN_POST_PROMOTION_FORCE_CYCLE_BOOKKEEPING_EVENTS)),
+        ).fetchone()[0]
+        if _safe_int(unknown_count) > 0:
+            return False
+        has_no_pending_request_evidence = False
+        has_request_rows_absent_evidence = False
+        has_pending_not_visible_evidence = False
+        for event_name in sorted(bookkeeping_events):
+            rows = cur.execute(
+                "SELECT details FROM logs WHERE event = ?",
+                (event_name,),
+            ).fetchall()
+            if not rows:
+                return False
+            for row in rows:
+                details = _parse_log_details(row["details"])
+                if not _benign_force_cycle_bookkeeping_payload(details):
+                    return False
+                if details.get("has_pending_forced_cycle_request") is False:
+                    has_no_pending_request_evidence = True
+                if _safe_int(details.get("last_post_promotion_force_cycle_request_id")) == 0:
+                    has_no_pending_request_evidence = True
+                if _safe_int(details.get("request_count_seen")) == 0:
+                    has_request_rows_absent_evidence = True
+                if str(details.get("scan_reason") or "").strip() == "request_rows_absent":
+                    has_request_rows_absent_evidence = True
+                if str(details.get("skip_reason") or "").strip() == "pending_request_not_visible":
+                    has_pending_not_visible_evidence = True
+                if (
+                    str(details.get("pre_drain_reject_reason") or "").strip()
+                    == "pending_request_not_visible"
+                ):
+                    has_pending_not_visible_evidence = True
+                if str(details.get("gate_reason") or "").strip() == "pending_request_not_visible":
+                    has_pending_not_visible_evidence = True
+                if event_name in {
+                    "post_promotion_force_cycle_pending_not_visible",
+                    "post_promotion_force_cycle_drain_skipped",
+                }:
+                    has_pending_not_visible_evidence = True
+        if not (
+            has_no_pending_request_evidence
+            and has_request_rows_absent_evidence
+            and has_pending_not_visible_evidence
+        ):
+            return False
+        return True
+    except Exception:
+        return False
+    finally:
+        if conn is not None:
+            conn.close()
+
+
+def _profitability_contamination_reasons(
+    after: dict[str, Any],
+    *,
+    payload: dict[str, Any] | None = None,
+    db_path: Path | None = None,
+) -> list[str]:
     if not isinstance(after, dict):
         return []
 
     reasons: set[str] = set()
     event_counts = after.get("event_counts") or {}
+    post_promotion_bookkeeping_events: set[str] = set()
     if isinstance(event_counts, dict):
         for raw_key, raw_value in event_counts.items():
             key = str(raw_key or "").strip()
             if not key or _safe_int(raw_value) <= 0:
                 continue
-            if key.startswith("forced_cycle_") or key.startswith(
-                "post_promotion_force_cycle_"
-            ):
+            if key in TRUE_FORCED_CYCLE_EVENT_NAMES or key.startswith("forced_cycle_"):
                 reasons.add(f"event_count:{key}")
+            elif key.startswith("post_promotion_force_cycle_"):
+                if key in BENIGN_POST_PROMOTION_FORCE_CYCLE_BOOKKEEPING_EVENTS:
+                    post_promotion_bookkeeping_events.add(key)
+                else:
+                    reasons.add(f"event_count:{key}")
+    if post_promotion_bookkeeping_events and not _db_confirms_bookkeeping_only_force_cycle(
+        after,
+        post_promotion_bookkeeping_events,
+        db_path=db_path,
+    ):
+        for key in sorted(post_promotion_bookkeeping_events):
+            reasons.add(f"event_count:{key}")
 
     trace = after.get("runner_termination_trace") or []
     if isinstance(trace, list):
@@ -239,6 +445,54 @@ def _profitability_contamination_reasons(after: dict[str, Any]) -> list[str]:
         if value == "controlled_kpi_window_end" or "forced_cycle" in value:
             reasons.add(f"marker:{field}={value}")
 
+    exit_reason_distribution = after.get("exit_reason_distribution") or {}
+    if isinstance(exit_reason_distribution, dict):
+        for raw_reason, raw_count in exit_reason_distribution.items():
+            reason = str(raw_reason or "").strip()
+            if reason in NATURAL_CORPUS_REJECT_EXIT_REASONS and _safe_int(raw_count) > 0:
+                reasons.add(f"exit_reason:{reason}")
+
+    final_close = after.get("final_close_drain_snapshot") or {}
+    if isinstance(final_close, dict) and _safe_int(final_close.get("pending_positions")) > 0:
+        reasons.add(
+            f"pending_positions:{_safe_int(final_close.get('pending_positions'))}"
+        )
+
+    for field in (
+        "assisted_seed_admitted_count",
+        "assisted_seed_open_count",
+        "fallback_open_count",
+    ):
+        count = _safe_int(after.get(field))
+        if count > 0:
+            reasons.add(f"{field}:{count}")
+
+    effective_env = after.get("effective_env_values") or {}
+    if isinstance(effective_env, dict):
+        if _coerce_bool(effective_env.get("SEED_TRADES_ENABLE")):
+            reasons.add("env:SEED_TRADES_ENABLE=1")
+        if _coerce_bool(effective_env.get("ALPHA_WHITELIST_FALLBACK_ENABLE")):
+            reasons.add("env:ALPHA_WHITELIST_FALLBACK_ENABLE=1")
+
+    diagnostic_env = after.get("diagnostic_env_flags") or {}
+    if isinstance(diagnostic_env, dict) and _coerce_bool(diagnostic_env.get("LIVE")):
+        reasons.add("live:LIVE=1")
+
+    if isinstance(payload, dict):
+        params = payload.get("params") or {}
+        if isinstance(params, dict) and _coerce_bool(params.get("use_mock")):
+            reasons.add("mock:use_mock")
+        refresh_report = (
+            ((payload.get("alpha_bootstrap_refresh") or {}).get("report") or {})
+            if isinstance(payload.get("alpha_bootstrap_refresh"), dict)
+            else {}
+        )
+        if isinstance(refresh_report, dict):
+            if _coerce_bool(refresh_report.get("positive_side_fallback_used")):
+                reasons.add("bootstrap:positive_side_fallback_used")
+            if _coerce_bool(refresh_report.get("fallback_used")):
+                reasons.add("bootstrap:fallback_used")
+
     return sorted(reasons)
 
 
@@ -248,14 +502,23 @@ def _run_has_profitability_contamination(run: dict[str, Any]) -> bool:
     reasons = run.get("profitability_contamination_reasons") or []
     if any(str(item).strip() for item in reasons if item is not None):
         return True
-    after = run.get("after") or {}
-    if isinstance(after, dict) and _profitability_contamination_reasons(after):
-        return True
     payload = run.get("payload") or {}
+    run_db_path = None
+    if isinstance(run.get("db_path"), (str, Path)):
+        run_db_path = Path(str(run.get("db_path")))
+    after = run.get("after") or {}
+    if isinstance(after, dict) and _profitability_contamination_reasons(
+        after,
+        payload=payload if isinstance(payload, dict) else None,
+        db_path=run_db_path,
+    ):
+        return True
     if isinstance(payload, dict):
         nested_after = payload.get("after") or {}
         if isinstance(nested_after, dict) and _profitability_contamination_reasons(
-            nested_after
+            nested_after,
+            payload=payload,
+            db_path=run_db_path,
         ):
             return True
     return False
@@ -289,7 +552,11 @@ def _candidate_after_row(path: Path, payload: dict[str, Any]) -> dict[str, Any] 
     csv_alignment = _read_csv_alignment(csv_path, after)
     started_date = _coerce_timestamp_date(after.get("started_at_utc"))
     ended_date = _coerce_timestamp_date(after.get("ended_at_utc"))
-    contamination_reasons = _profitability_contamination_reasons(after)
+    contamination_reasons = _profitability_contamination_reasons(
+        after,
+        payload=payload,
+        db_path=db_path,
+    )
     row = {
         "run_id": str(payload.get("run_id") or result_path.stem.replace("controlled_kpi_", "")),
         "result_path": str(result_path),
