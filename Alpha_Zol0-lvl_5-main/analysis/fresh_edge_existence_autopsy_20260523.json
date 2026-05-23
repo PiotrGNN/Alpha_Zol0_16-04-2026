@@ -1,0 +1,1153 @@
+{
+  "generated_at_utc": "2026-05-23T20:55:31.904247+00:00",
+  "executive_summary": "Strict bucket gate found zero passing side buckets on fresh source. Positive expectancy buckets exist, but only with 1-2 trades; the best 15-trade bucket remains below winrate requirement.",
+  "scope": [
+    "Inspect fresh source DB: tmp/alpha_history_all_recent_20260523.db",
+    "Inspect companion report used by probe",
+    "Inspect bucket extraction/gating in scripts/controlled_kpi_run.py via _probe_alpha_bootstrap_source_db and _derive_profitability_bucket_gate",
+    "Check missing script reference scripts/refresh_bootstrap_corpus_from_recent_paper.py"
+  ],
+  "locked_facts": [
+    "KuCoin-only PAPER constraints preserved; no LIVE commands executed.",
+    "Source DB exists: True; companion report exists: True",
+    "position_close rows in DB: 342",
+    "report rows_inserted: 342",
+    "report output matches DB: True",
+    "strict thresholds: trades>=5, winrate>=0.45, expectancy>0.0000",
+    "strict passing side buckets: 0",
+    "near-pass buckets blocked by min-trades: 5"
+  ],
+  "thresholds": {
+    "min_side_trades": 5,
+    "min_side_winrate": 0.45,
+    "min_side_expectancy_gt": 0.0
+  },
+  "source_artifacts": {
+    "source_db": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\alpha_history_all_recent_20260523.db",
+    "companion_report": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\alpha_history_all_recent_20260523_report.json",
+    "report_output": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\alpha_history_all_recent_20260523.db",
+    "missing_refresh_script_exists": false,
+    "missing_refresh_script_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\scripts\\refresh_bootstrap_corpus_from_recent_paper.py"
+  },
+  "bucket_rejection_table": [
+    {
+      "symbol": "ADAUSDTM",
+      "strategy": "MEANREVERSION",
+      "side": "buy",
+      "trade_count": 4,
+      "winrate": 0.5,
+      "net_pnl": -0.026287006562730506,
+      "expectancy": -0.0065717516406826266,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.0065717516406826266,
+      "rejection_reason": "INSUFFICIENT_TRADES",
+      "all_rejection_reasons": [
+        "INSUFFICIENT_TRADES",
+        "NEGATIVE_EDGE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "ADAUSDTM",
+      "strategy": "MEANREVERSION",
+      "side": "sell",
+      "trade_count": 1,
+      "winrate": 1.0,
+      "net_pnl": 0.0013103640301735222,
+      "expectancy": 0.0013103640301735222,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": 0.0013103640301735222,
+      "rejection_reason": "INSUFFICIENT_TRADES",
+      "all_rejection_reasons": [
+        "INSUFFICIENT_TRADES"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "ADAUSDTM",
+      "strategy": "MOMENTUM",
+      "side": "buy",
+      "trade_count": 1,
+      "winrate": 0.0,
+      "net_pnl": -0.01741773193693367,
+      "expectancy": -0.01741773193693367,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.01741773193693367,
+      "rejection_reason": "INSUFFICIENT_TRADES",
+      "all_rejection_reasons": [
+        "INSUFFICIENT_TRADES",
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": false
+    },
+    {
+      "symbol": "ADAUSDTM",
+      "strategy": "TRENDFOLLOWING",
+      "side": "buy",
+      "trade_count": 3,
+      "winrate": 0.3333333333333333,
+      "net_pnl": -0.02064660184136545,
+      "expectancy": -0.006882200613788483,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.006882200613788483,
+      "rejection_reason": "INSUFFICIENT_TRADES",
+      "all_rejection_reasons": [
+        "INSUFFICIENT_TRADES",
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "ADAUSDTM",
+      "strategy": "TRENDFOLLOWING",
+      "side": "sell",
+      "trade_count": 4,
+      "winrate": 0.25,
+      "net_pnl": -0.026211176477639653,
+      "expectancy": -0.006552794119409913,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.006552794119409913,
+      "rejection_reason": "INSUFFICIENT_TRADES",
+      "all_rejection_reasons": [
+        "INSUFFICIENT_TRADES",
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "ADAUSDTM",
+      "strategy": "UNIVERSAL",
+      "side": "buy",
+      "trade_count": 2,
+      "winrate": 0.0,
+      "net_pnl": -0.017821375932807807,
+      "expectancy": -0.008910687966403904,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.008910687966403904,
+      "rejection_reason": "INSUFFICIENT_TRADES",
+      "all_rejection_reasons": [
+        "INSUFFICIENT_TRADES",
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "ADAUSDTM",
+      "strategy": "UNIVERSAL",
+      "side": "sell",
+      "trade_count": 14,
+      "winrate": 0.14285714285714285,
+      "net_pnl": -0.1120809624645728,
+      "expectancy": -0.008005783033183772,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.008005783033183772,
+      "rejection_reason": "NEGATIVE_EDGE",
+      "all_rejection_reasons": [
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "BNBUSDTM",
+      "strategy": "MEANREVERSION",
+      "side": "buy",
+      "trade_count": 1,
+      "winrate": 0.0,
+      "net_pnl": -0.00277379292218051,
+      "expectancy": -0.00277379292218051,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.00277379292218051,
+      "rejection_reason": "INSUFFICIENT_TRADES",
+      "all_rejection_reasons": [
+        "INSUFFICIENT_TRADES",
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "BNBUSDTM",
+      "strategy": "MEANREVERSION",
+      "side": "sell",
+      "trade_count": 2,
+      "winrate": 0.5,
+      "net_pnl": 0.0011857683908513498,
+      "expectancy": 0.0005928841954256749,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": 0.0005928841954256749,
+      "rejection_reason": "INSUFFICIENT_TRADES",
+      "all_rejection_reasons": [
+        "INSUFFICIENT_TRADES"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "BNBUSDTM",
+      "strategy": "MOMENTUM",
+      "side": "buy",
+      "trade_count": 1,
+      "winrate": 0.0,
+      "net_pnl": -0.001205508984289636,
+      "expectancy": -0.001205508984289636,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.001205508984289636,
+      "rejection_reason": "INSUFFICIENT_TRADES",
+      "all_rejection_reasons": [
+        "INSUFFICIENT_TRADES",
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "BNBUSDTM",
+      "strategy": "MOMENTUM",
+      "side": "sell",
+      "trade_count": 6,
+      "winrate": 0.0,
+      "net_pnl": -0.03287884181250911,
+      "expectancy": -0.005479806968751518,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.005479806968751518,
+      "rejection_reason": "NEGATIVE_EDGE",
+      "all_rejection_reasons": [
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "BNBUSDTM",
+      "strategy": "TRENDFOLLOWING",
+      "side": "buy",
+      "trade_count": 1,
+      "winrate": 0.0,
+      "net_pnl": -0.005010399130779816,
+      "expectancy": -0.005010399130779816,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.005010399130779816,
+      "rejection_reason": "INSUFFICIENT_TRADES",
+      "all_rejection_reasons": [
+        "INSUFFICIENT_TRADES",
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "BNBUSDTM",
+      "strategy": "UNIVERSAL",
+      "side": "sell",
+      "trade_count": 3,
+      "winrate": 0.0,
+      "net_pnl": -0.007944378809499365,
+      "expectancy": -0.0026481262698331218,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.0026481262698331218,
+      "rejection_reason": "INSUFFICIENT_TRADES",
+      "all_rejection_reasons": [
+        "INSUFFICIENT_TRADES",
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "BTCUSDTM",
+      "strategy": "MEANREVERSION",
+      "side": "buy",
+      "trade_count": 4,
+      "winrate": 0.25,
+      "net_pnl": -0.012132570089645956,
+      "expectancy": -0.003033142522411489,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.003033142522411489,
+      "rejection_reason": "INSUFFICIENT_TRADES",
+      "all_rejection_reasons": [
+        "INSUFFICIENT_TRADES",
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "BTCUSDTM",
+      "strategy": "MEANREVERSION",
+      "side": "sell",
+      "trade_count": 1,
+      "winrate": 1.0,
+      "net_pnl": 0.005458985878900268,
+      "expectancy": 0.005458985878900268,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": 0.005458985878900268,
+      "rejection_reason": "INSUFFICIENT_TRADES",
+      "all_rejection_reasons": [
+        "INSUFFICIENT_TRADES"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "BTCUSDTM",
+      "strategy": "MOMENTUM",
+      "side": "buy",
+      "trade_count": 10,
+      "winrate": 0.0,
+      "net_pnl": -0.07834291557166148,
+      "expectancy": -0.007834291557166148,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.007834291557166148,
+      "rejection_reason": "NEGATIVE_EDGE",
+      "all_rejection_reasons": [
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "BTCUSDTM",
+      "strategy": "MOMENTUM",
+      "side": "sell",
+      "trade_count": 9,
+      "winrate": 0.1111111111111111,
+      "net_pnl": -0.046616372282385084,
+      "expectancy": -0.005179596920265009,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.005179596920265009,
+      "rejection_reason": "NEGATIVE_EDGE",
+      "all_rejection_reasons": [
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "BTCUSDTM",
+      "strategy": "TRENDFOLLOWING",
+      "side": "buy",
+      "trade_count": 12,
+      "winrate": 0.08333333333333333,
+      "net_pnl": -0.0664413348915091,
+      "expectancy": -0.005536777907625758,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.005536777907625758,
+      "rejection_reason": "NEGATIVE_EDGE",
+      "all_rejection_reasons": [
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "BTCUSDTM",
+      "strategy": "TRENDFOLLOWING",
+      "side": "sell",
+      "trade_count": 1,
+      "winrate": 0.0,
+      "net_pnl": -0.012798024449089049,
+      "expectancy": -0.012798024449089049,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.012798024449089049,
+      "rejection_reason": "INSUFFICIENT_TRADES",
+      "all_rejection_reasons": [
+        "INSUFFICIENT_TRADES",
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "BTCUSDTM",
+      "strategy": "UNIVERSAL",
+      "side": "buy",
+      "trade_count": 2,
+      "winrate": 0.5,
+      "net_pnl": -0.006542301250960746,
+      "expectancy": -0.003271150625480373,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.003271150625480373,
+      "rejection_reason": "INSUFFICIENT_TRADES",
+      "all_rejection_reasons": [
+        "INSUFFICIENT_TRADES",
+        "NEGATIVE_EDGE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "BTCUSDTM",
+      "strategy": "UNIVERSAL",
+      "side": "sell",
+      "trade_count": 13,
+      "winrate": 0.0,
+      "net_pnl": -0.08874801729096697,
+      "expectancy": -0.006826770560843613,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.006826770560843613,
+      "rejection_reason": "NEGATIVE_EDGE",
+      "all_rejection_reasons": [
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "DOGEUSDTM",
+      "strategy": "MEANREVERSION",
+      "side": "buy",
+      "trade_count": 5,
+      "winrate": 0.4,
+      "net_pnl": -0.05151433495195483,
+      "expectancy": -0.010302866990390966,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.010302866990390966,
+      "rejection_reason": "NEGATIVE_EDGE",
+      "all_rejection_reasons": [
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": false
+    },
+    {
+      "symbol": "DOGEUSDTM",
+      "strategy": "MOMENTUM",
+      "side": "buy",
+      "trade_count": 1,
+      "winrate": 0.0,
+      "net_pnl": -0.004939057969952457,
+      "expectancy": -0.004939057969952457,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.004939057969952457,
+      "rejection_reason": "INSUFFICIENT_TRADES",
+      "all_rejection_reasons": [
+        "INSUFFICIENT_TRADES",
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "DOGEUSDTM",
+      "strategy": "MOMENTUM",
+      "side": "sell",
+      "trade_count": 1,
+      "winrate": 0.0,
+      "net_pnl": -0.009826278411910482,
+      "expectancy": -0.009826278411910482,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.009826278411910482,
+      "rejection_reason": "INSUFFICIENT_TRADES",
+      "all_rejection_reasons": [
+        "INSUFFICIENT_TRADES",
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "DOGEUSDTM",
+      "strategy": "TRENDFOLLOWING",
+      "side": "buy",
+      "trade_count": 1,
+      "winrate": 0.0,
+      "net_pnl": -0.003677136241426611,
+      "expectancy": -0.003677136241426611,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.003677136241426611,
+      "rejection_reason": "INSUFFICIENT_TRADES",
+      "all_rejection_reasons": [
+        "INSUFFICIENT_TRADES",
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "DOGEUSDTM",
+      "strategy": "UNIVERSAL",
+      "side": "buy",
+      "trade_count": 5,
+      "winrate": 0.0,
+      "net_pnl": -0.04484461824436241,
+      "expectancy": -0.008968923648872482,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.008968923648872482,
+      "rejection_reason": "NEGATIVE_EDGE",
+      "all_rejection_reasons": [
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "DOGEUSDTM",
+      "strategy": "UNIVERSAL",
+      "side": "sell",
+      "trade_count": 7,
+      "winrate": 0.42857142857142855,
+      "net_pnl": -0.033206744534205315,
+      "expectancy": -0.004743820647743617,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.004743820647743617,
+      "rejection_reason": "NEGATIVE_EDGE",
+      "all_rejection_reasons": [
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "ETHUSDTM",
+      "strategy": "MEANREVERSION",
+      "side": "buy",
+      "trade_count": 2,
+      "winrate": 0.5,
+      "net_pnl": -0.0037869853053879464,
+      "expectancy": -0.0018934926526939732,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.0018934926526939732,
+      "rejection_reason": "INSUFFICIENT_TRADES",
+      "all_rejection_reasons": [
+        "INSUFFICIENT_TRADES",
+        "NEGATIVE_EDGE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "ETHUSDTM",
+      "strategy": "MEANREVERSION",
+      "side": "sell",
+      "trade_count": 10,
+      "winrate": 0.3,
+      "net_pnl": -0.00611905928848052,
+      "expectancy": -0.000611905928848052,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.000611905928848052,
+      "rejection_reason": "NEGATIVE_EDGE",
+      "all_rejection_reasons": [
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "ETHUSDTM",
+      "strategy": "MOMENTUM",
+      "side": "buy",
+      "trade_count": 7,
+      "winrate": 0.0,
+      "net_pnl": -0.04946267999369336,
+      "expectancy": -0.0070660971419561945,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.0070660971419561945,
+      "rejection_reason": "NEGATIVE_EDGE",
+      "all_rejection_reasons": [
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "ETHUSDTM",
+      "strategy": "MOMENTUM",
+      "side": "sell",
+      "trade_count": 5,
+      "winrate": 0.2,
+      "net_pnl": -0.05769285898916937,
+      "expectancy": -0.011538571797833875,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.011538571797833875,
+      "rejection_reason": "NEGATIVE_EDGE",
+      "all_rejection_reasons": [
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "ETHUSDTM",
+      "strategy": "TRENDFOLLOWING",
+      "side": "buy",
+      "trade_count": 2,
+      "winrate": 0.0,
+      "net_pnl": -0.006751810341134923,
+      "expectancy": -0.0033759051705674614,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.0033759051705674614,
+      "rejection_reason": "INSUFFICIENT_TRADES",
+      "all_rejection_reasons": [
+        "INSUFFICIENT_TRADES",
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "ETHUSDTM",
+      "strategy": "TRENDFOLLOWING",
+      "side": "sell",
+      "trade_count": 1,
+      "winrate": 0.0,
+      "net_pnl": -0.004105199903094679,
+      "expectancy": -0.004105199903094679,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.004105199903094679,
+      "rejection_reason": "INSUFFICIENT_TRADES",
+      "all_rejection_reasons": [
+        "INSUFFICIENT_TRADES",
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "ETHUSDTM",
+      "strategy": "UNIVERSAL",
+      "side": "buy",
+      "trade_count": 5,
+      "winrate": 0.0,
+      "net_pnl": -0.09328105381883847,
+      "expectancy": -0.018656210763767694,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.018656210763767694,
+      "rejection_reason": "NEGATIVE_EDGE",
+      "all_rejection_reasons": [
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "ETHUSDTM",
+      "strategy": "UNIVERSAL",
+      "side": "sell",
+      "trade_count": 13,
+      "winrate": 0.23076923076923078,
+      "net_pnl": -0.012745779685088648,
+      "expectancy": -0.0009804445911606651,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.0009804445911606651,
+      "rejection_reason": "NEGATIVE_EDGE",
+      "all_rejection_reasons": [
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "LINKUSDTM",
+      "strategy": "MOMENTUM",
+      "side": "buy",
+      "trade_count": 3,
+      "winrate": 0.3333333333333333,
+      "net_pnl": -0.008635703154696441,
+      "expectancy": -0.002878567718232147,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.002878567718232147,
+      "rejection_reason": "INSUFFICIENT_TRADES",
+      "all_rejection_reasons": [
+        "INSUFFICIENT_TRADES",
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "LINKUSDTM",
+      "strategy": "MOMENTUM",
+      "side": "sell",
+      "trade_count": 2,
+      "winrate": 0.0,
+      "net_pnl": -0.01666636684098128,
+      "expectancy": -0.00833318342049064,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.00833318342049064,
+      "rejection_reason": "INSUFFICIENT_TRADES",
+      "all_rejection_reasons": [
+        "INSUFFICIENT_TRADES",
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "LINKUSDTM",
+      "strategy": "TRENDFOLLOWING",
+      "side": "buy",
+      "trade_count": 1,
+      "winrate": 0.0,
+      "net_pnl": -0.012482303734440075,
+      "expectancy": -0.012482303734440075,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.012482303734440075,
+      "rejection_reason": "INSUFFICIENT_TRADES",
+      "all_rejection_reasons": [
+        "INSUFFICIENT_TRADES",
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": false
+    },
+    {
+      "symbol": "LINKUSDTM",
+      "strategy": "UNIVERSAL",
+      "side": "buy",
+      "trade_count": 4,
+      "winrate": 0.0,
+      "net_pnl": -0.037920678381129044,
+      "expectancy": -0.009480169595282261,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.009480169595282261,
+      "rejection_reason": "INSUFFICIENT_TRADES",
+      "all_rejection_reasons": [
+        "INSUFFICIENT_TRADES",
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "LINKUSDTM",
+      "strategy": "UNIVERSAL",
+      "side": "sell",
+      "trade_count": 1,
+      "winrate": 1.0,
+      "net_pnl": 0.0008140865440367726,
+      "expectancy": 0.0008140865440367726,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": 0.0008140865440367726,
+      "rejection_reason": "INSUFFICIENT_TRADES",
+      "all_rejection_reasons": [
+        "INSUFFICIENT_TRADES"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "SOLUSDTM",
+      "strategy": "MEANREVERSION",
+      "side": "buy",
+      "trade_count": 4,
+      "winrate": 0.25,
+      "net_pnl": -0.00029299119567197107,
+      "expectancy": -7.324779891799277e-05,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -7.324779891799277e-05,
+      "rejection_reason": "INSUFFICIENT_TRADES",
+      "all_rejection_reasons": [
+        "INSUFFICIENT_TRADES",
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "SOLUSDTM",
+      "strategy": "MEANREVERSION",
+      "side": "sell",
+      "trade_count": 7,
+      "winrate": 0.42857142857142855,
+      "net_pnl": -0.016891358692787455,
+      "expectancy": -0.0024130512418267793,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.0024130512418267793,
+      "rejection_reason": "NEGATIVE_EDGE",
+      "all_rejection_reasons": [
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "SOLUSDTM",
+      "strategy": "MOMENTUM",
+      "side": "buy",
+      "trade_count": 2,
+      "winrate": 0.0,
+      "net_pnl": -0.01884609401907722,
+      "expectancy": -0.00942304700953861,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.00942304700953861,
+      "rejection_reason": "INSUFFICIENT_TRADES",
+      "all_rejection_reasons": [
+        "INSUFFICIENT_TRADES",
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "SOLUSDTM",
+      "strategy": "MOMENTUM",
+      "side": "sell",
+      "trade_count": 5,
+      "winrate": 0.0,
+      "net_pnl": -0.019131854772172968,
+      "expectancy": -0.003826370954434594,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.003826370954434594,
+      "rejection_reason": "NEGATIVE_EDGE",
+      "all_rejection_reasons": [
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "SOLUSDTM",
+      "strategy": "TRENDFOLLOWING",
+      "side": "buy",
+      "trade_count": 6,
+      "winrate": 0.3333333333333333,
+      "net_pnl": -0.03442890016853759,
+      "expectancy": -0.005738150028089598,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.005738150028089598,
+      "rejection_reason": "NEGATIVE_EDGE",
+      "all_rejection_reasons": [
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "SOLUSDTM",
+      "strategy": "TRENDFOLLOWING",
+      "side": "sell",
+      "trade_count": 3,
+      "winrate": 0.3333333333333333,
+      "net_pnl": -0.004989428255320659,
+      "expectancy": -0.0016631427517735532,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.0016631427517735532,
+      "rejection_reason": "INSUFFICIENT_TRADES",
+      "all_rejection_reasons": [
+        "INSUFFICIENT_TRADES",
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "SOLUSDTM",
+      "strategy": "UNIVERSAL",
+      "side": "buy",
+      "trade_count": 16,
+      "winrate": 0.0625,
+      "net_pnl": -0.05734063574628936,
+      "expectancy": -0.003583789734143085,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.003583789734143085,
+      "rejection_reason": "NEGATIVE_EDGE",
+      "all_rejection_reasons": [
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "SOLUSDTM",
+      "strategy": "UNIVERSAL",
+      "side": "sell",
+      "trade_count": 20,
+      "winrate": 0.2,
+      "net_pnl": -0.10717034672680907,
+      "expectancy": -0.005358517336340454,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.005358517336340454,
+      "rejection_reason": "NEGATIVE_EDGE",
+      "all_rejection_reasons": [
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "SUIUSDTM",
+      "strategy": "MOMENTUM",
+      "side": "buy",
+      "trade_count": 1,
+      "winrate": 0.0,
+      "net_pnl": -0.005209324129603543,
+      "expectancy": -0.005209324129603543,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.005209324129603543,
+      "rejection_reason": "INSUFFICIENT_TRADES",
+      "all_rejection_reasons": [
+        "INSUFFICIENT_TRADES",
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "SUIUSDTM",
+      "strategy": "MOMENTUM",
+      "side": "sell",
+      "trade_count": 1,
+      "winrate": 0.0,
+      "net_pnl": -0.011146832000000079,
+      "expectancy": -0.011146832000000079,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.011146832000000079,
+      "rejection_reason": "INSUFFICIENT_TRADES",
+      "all_rejection_reasons": [
+        "INSUFFICIENT_TRADES",
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "SUIUSDTM",
+      "strategy": "UNIVERSAL",
+      "side": "buy",
+      "trade_count": 12,
+      "winrate": 0.25,
+      "net_pnl": -0.014510592082497987,
+      "expectancy": -0.0012092160068748322,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.0012092160068748322,
+      "rejection_reason": "NEGATIVE_EDGE",
+      "all_rejection_reasons": [
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "SUIUSDTM",
+      "strategy": "UNIVERSAL",
+      "side": "sell",
+      "trade_count": 1,
+      "winrate": 0.0,
+      "net_pnl": -0.0001479473178137092,
+      "expectancy": -0.0001479473178137092,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.0001479473178137092,
+      "rejection_reason": "INSUFFICIENT_TRADES",
+      "all_rejection_reasons": [
+        "INSUFFICIENT_TRADES",
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "XRPUSDTM",
+      "strategy": "MEANREVERSION",
+      "side": "buy",
+      "trade_count": 9,
+      "winrate": 0.3333333333333333,
+      "net_pnl": -0.026904353561352467,
+      "expectancy": -0.0029893726179280517,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.0029893726179280517,
+      "rejection_reason": "NEGATIVE_EDGE",
+      "all_rejection_reasons": [
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "XRPUSDTM",
+      "strategy": "MEANREVERSION",
+      "side": "sell",
+      "trade_count": 2,
+      "winrate": 0.5,
+      "net_pnl": 0.0012972454405873264,
+      "expectancy": 0.0006486227202936632,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": 0.0006486227202936632,
+      "rejection_reason": "INSUFFICIENT_TRADES",
+      "all_rejection_reasons": [
+        "INSUFFICIENT_TRADES"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "XRPUSDTM",
+      "strategy": "MOMENTUM",
+      "side": "buy",
+      "trade_count": 2,
+      "winrate": 0.0,
+      "net_pnl": -0.0076951333236328825,
+      "expectancy": -0.0038475666618164412,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.0038475666618164412,
+      "rejection_reason": "INSUFFICIENT_TRADES",
+      "all_rejection_reasons": [
+        "INSUFFICIENT_TRADES",
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "XRPUSDTM",
+      "strategy": "MOMENTUM",
+      "side": "sell",
+      "trade_count": 15,
+      "winrate": 0.4,
+      "net_pnl": 0.0016697954494447192,
+      "expectancy": 0.00011131969662964795,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": 0.00011131969662964795,
+      "rejection_reason": "LOW_WINRATE",
+      "all_rejection_reasons": [
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "XRPUSDTM",
+      "strategy": "TRENDFOLLOWING",
+      "side": "buy",
+      "trade_count": 5,
+      "winrate": 0.0,
+      "net_pnl": -0.042496091742464895,
+      "expectancy": -0.008499218348492979,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.008499218348492979,
+      "rejection_reason": "NEGATIVE_EDGE",
+      "all_rejection_reasons": [
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "XRPUSDTM",
+      "strategy": "TRENDFOLLOWING",
+      "side": "sell",
+      "trade_count": 23,
+      "winrate": 0.17391304347826086,
+      "net_pnl": -0.12150859178428852,
+      "expectancy": -0.005282982251490805,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.005282982251490805,
+      "rejection_reason": "NEGATIVE_EDGE",
+      "all_rejection_reasons": [
+        "NEGATIVE_EDGE",
+        "LOW_WINRATE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "XRPUSDTM",
+      "strategy": "UNIVERSAL",
+      "side": "buy",
+      "trade_count": 2,
+      "winrate": 0.5,
+      "net_pnl": -0.00815818501057593,
+      "expectancy": -0.004079092505287965,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.004079092505287965,
+      "rejection_reason": "INSUFFICIENT_TRADES",
+      "all_rejection_reasons": [
+        "INSUFFICIENT_TRADES",
+        "NEGATIVE_EDGE"
+      ],
+      "pair_selected": true
+    },
+    {
+      "symbol": "XRPUSDTM",
+      "strategy": "UNIVERSAL",
+      "side": "sell",
+      "trade_count": 33,
+      "winrate": 0.45454545454545453,
+      "net_pnl": -0.03391246019890412,
+      "expectancy": -0.0010276503090577006,
+      "mean_edge": null,
+      "max_edge": null,
+      "fee_adjusted_edge": -0.0010276503090577006,
+      "rejection_reason": "NEGATIVE_EDGE",
+      "all_rejection_reasons": [
+        "NEGATIVE_EDGE"
+      ],
+      "pair_selected": true
+    }
+  ],
+  "rejection_reason_counts": {
+    "INSUFFICIENT_TRADES": 35,
+    "NEGATIVE_EDGE": 24,
+    "LOW_WINRATE": 1
+  },
+  "missing_tooling_check": [
+    "scripts/refresh_bootstrap_corpus_from_recent_paper.py exists: False",
+    "controlled_kpi_run.py still references the missing refresh script in the staleness warning path"
+  ],
+  "classification_candidates": {
+    "NO_CLEAN_EDGE_FOUND": false,
+    "CLEAN_EDGE_HIDDEN_BY_TOOLING_GAP": false,
+    "CLEAN_EDGE_BLOCKED_BY_MIN_TRADES": true,
+    "SOURCE_DB_INVALID_OR_INCOMPLETE": false,
+    "COMPANION_REPORT_MISMATCH": false,
+    "BOOTSTRAP_REFRESH_SCRIPT_MISSING_BLOCKER": true
+  },
+  "final_classification": "CLEAN_EDGE_BLOCKED_BY_MIN_TRADES",
+  "minimal_next_step": "Keep thresholds/readiness unchanged. Accumulate more fresh PAPER closes for currently positive selected sides (e.g., XRPUSDTM|MeanReversion|sell, BNBUSDTM|MeanReversion|sell) until trade_count >= 5, then rerun this autopsy.",
+  "live_status": "LIVE remains blocked. No LIVE command executed."
+}
