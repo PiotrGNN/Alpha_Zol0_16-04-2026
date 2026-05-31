@@ -25,6 +25,7 @@ from scripts.canonical_edge_history_linkage import (
     next_canonical_trace_seq,
     promote_to_canonical_edge_history,
     record_unresolved_row,
+    reset_canonical_edge_history_state,
     resolve_simulated_close_quantity,
 )
 
@@ -39,6 +40,16 @@ from utils.news_social_scheduler import NewsSocialScheduler
 
 _POST_PROMOTION_EXECUTION_LOCK = False
 _POST_PROMOTION_FORCED_CYCLE_CANONICAL_KEYS = set()
+
+
+def _reset_simulated_run_in_memory_state():
+    global _POST_PROMOTION_EXECUTION_LOCK
+
+    reset_canonical_edge_history_state()
+    _POST_PROMOTION_EXECUTION_LOCK = False
+    _POST_PROMOTION_FORCED_CYCLE_CANONICAL_KEYS.clear()
+    _RESEARCH_ONLY_EXPLICIT_POST_PROMOTION_EVAL_BY_SYMBOL.clear()
+    _RESEARCH_ONLY_POST_PROMOTION_LOOP_PROBE_BY_SYMBOL.clear()
 
 
 def _resolve_repo_config_path():
@@ -213,7 +224,7 @@ def _paper_trend_mixed_edge_over_fee_gate(
         elif expected_edge_net_val is None:
             blocked = True
             block_reason = "missing_expected_edge_net"
-        elif float(expected_edge_net_val) <= float(edge_safety_margin_val):
+        elif expected_edge_net_val <= edge_safety_margin_val:
             blocked = True
             block_reason = "expected_edge_net_below_or_equal_margin"
         else:
@@ -406,6 +417,125 @@ def _env_flag(name, default="0"):
     import os
 
     return os.environ.get(name, default) == "1"
+
+
+def _controlled_run_entry_cutoff_active(
+    controlled_run_end_ts,
+    entry_cutoff_before_end_sec,
+    *,
+    now_ts=None,
+):
+    try:
+        end_ts = float(controlled_run_end_ts or 0)
+        cutoff_sec = float(entry_cutoff_before_end_sec or 0)
+    except Exception:
+        return False
+    if end_ts <= 0 or cutoff_sec <= 0:
+        return False
+    try:
+        current_ts = float(time.time() if now_ts is None else now_ts)
+    except Exception:
+        return False
+    return current_ts >= (end_ts - cutoff_sec)
+
+
+def _entry_symbol_strategy_side_key(symbol, strategy, side):
+    symbol_key = str(symbol or "").strip().upper()
+    strategy_key = str(strategy or "").strip().upper()
+    side_key = str(side or "").strip().lower()
+    if side_key == "long":
+        side_key = "buy"
+    elif side_key == "short":
+        side_key = "sell"
+    if not symbol_key or not strategy_key or side_key not in {"buy", "sell"}:
+        return None
+    return f"{symbol_key}:{strategy_key}:{side_key}"
+
+
+def _entry_symbol_strategy_side_allowlist_gate(
+    *,
+    symbol,
+    strategy,
+    side,
+    allowlist,
+    live_mode=False,
+):
+    canonical_allowlist = set()
+    for token in allowlist or []:
+        text = str(token or "").strip()
+        if not text:
+            continue
+        if ":" in text:
+            parts = [part.strip() for part in text.split(":")]
+        elif "|" in text:
+            parts = [part.strip() for part in text.split("|")]
+        else:
+            continue
+        if len(parts) < 3:
+            continue
+        key = _entry_symbol_strategy_side_key(parts[0], parts[1], parts[2])
+        if key:
+            canonical_allowlist.add(key)
+    candidate_key = _entry_symbol_strategy_side_key(symbol, strategy, side)
+    decision = {
+        "active": bool(canonical_allowlist),
+        "allowed": True,
+        "reason": None,
+        "candidate_key": candidate_key,
+        "allowlist": sorted(canonical_allowlist),
+        "live_mode": bool(live_mode),
+    }
+    if not canonical_allowlist:
+        return decision
+    if candidate_key and candidate_key in canonical_allowlist:
+        return decision
+    if live_mode:
+        # Preserve legacy LIVE behavior: exact side allowlists only constrain
+        # the same symbol+strategy bucket there. PAPER validation is strict.
+        prefix = None
+        if candidate_key:
+            prefix = candidate_key.rsplit(":", 1)[0] + ":"
+        matching_same_bucket = bool(
+            prefix
+            and any(
+                str(token or "").strip().upper().startswith(prefix)
+                for token in canonical_allowlist
+            )
+        )
+        if not matching_same_bucket:
+            return decision
+    decision["allowed"] = False
+    decision["reason"] = "symbol_strategy_side_allowlist"
+    # --- attribution split (diagnostic-safe, no semantic change) ---
+    # Distinguish unresolved-identity blocks from resolved-but-not-allowlisted blocks.
+    # `reason` is kept for backward compatibility; callers should surface
+    # `attribution_reason` in gate summaries to enable root-cause triage.
+    if candidate_key is None:
+        decision["attribution_reason"] = (
+            "symbol_strategy_side_allowlist_unresolved_identity"
+        )
+        decision["attribution_fields"] = {
+            "symbol": str(symbol or "").strip().upper() or None,
+            "side": str(side or "").strip().lower() or None,
+            "raw_strategy": str(strategy or "").strip() or None,
+            "candidate_key": None,
+            "missing_strategy_field": True,
+            "allowlist_match_attempted": False,
+        }
+    else:
+        decision["attribution_reason"] = (
+            "symbol_strategy_side_allowlist_resolved_not_allowed"
+        )
+        decision["attribution_fields"] = {
+            "symbol": str(symbol or "").strip().upper() or None,
+            "side": str(side or "").strip().lower() or None,
+            "strategy_identity": str(strategy or "").strip() or None,
+            "candidate_key": candidate_key,
+            "effective_allowlist": sorted(canonical_allowlist),
+            "allowlist_match_attempted": True,
+            "allowlist_match": False,
+        }
+    return decision
 
 
 def _normalize_exit_reason_value(value):
@@ -610,11 +740,12 @@ def _select_layered_exit_candidate(
     hard_reasons = {
         str(reason or "") for reason in (hard_reason_names or []) if reason is not None
     }
+    hard_candidates = [
+        c for c in candidates if str(c.get("reason") or "") in hard_reasons
+    ]
     non_hard_candidates = [
         c for c in candidates if str(c.get("reason") or "") not in hard_reasons
     ]
-    use_non_hard_pool = bool(prefer_non_hard and non_hard_candidates)
-    selection_pool = non_hard_candidates if use_non_hard_pool else candidates
 
     def _selection_key(candidate):
         expected_net = candidate.get("expected_net_after_fee")
@@ -627,6 +758,25 @@ def _select_layered_exit_candidate(
         except Exception:
             priority_value = 0
         return (expected_net_value, priority_value)
+
+    use_non_hard_pool = bool(prefer_non_hard and non_hard_candidates)
+    force_hard_pool = False
+    if use_non_hard_pool and hard_candidates:
+        best_non_hard = max(non_hard_candidates, key=_selection_key)
+        try:
+            best_non_hard_net = float(best_non_hard.get("expected_net_after_fee"))
+        except Exception:
+            best_non_hard_net = float("-inf")
+        if best_non_hard_net < 0.0:
+            use_non_hard_pool = False
+            force_hard_pool = True
+
+    if use_non_hard_pool:
+        selection_pool = non_hard_candidates
+    elif force_hard_pool and hard_candidates:
+        selection_pool = hard_candidates
+    else:
+        selection_pool = candidates
 
     return max(selection_pool, key=_selection_key), bool(non_hard_candidates)
 
@@ -734,6 +884,65 @@ def should_bypass_symbol_strategy_guard_for_hold(side, entry_ignore_hold_signals
     except Exception:
         side_name = ""
     return bool(entry_ignore_hold_signals and side_name == "hold")
+
+
+def should_apply_universal_hold_passthrough(
+    *,
+    strategy_name,
+    explicit_hold_side,
+    universal_hold_passthrough_enabled,
+    live_mode,
+):
+    try:
+        strategy_norm = str(strategy_name or "").strip().lower()
+    except Exception:
+        strategy_norm = ""
+    return bool(
+        bool(universal_hold_passthrough_enabled)
+        and not bool(live_mode)
+        and bool(explicit_hold_side)
+        and strategy_norm == "universal"
+    )
+
+
+def _resolve_side_guard_history_inputs(pnl_hist, history_source, require_runtime_only):
+    safe_pnl_hist = []
+    for value in pnl_hist or []:
+        try:
+            safe_pnl_hist.append(float(value))
+        except Exception:
+            continue
+    source_hist = list(history_source or [])
+    if len(source_hist) < len(safe_pnl_hist):
+        source_hist.extend(["unknown"] * (len(safe_pnl_hist) - len(source_hist)))
+    elif len(source_hist) > len(safe_pnl_hist):
+        source_hist = source_hist[-len(safe_pnl_hist):]
+
+    bootstrap_trade_count = sum(
+        1 for src in source_hist if str(src or "").strip().lower() == "bootstrap"
+    )
+    runtime_trade_count = sum(
+        1 for src in source_hist if str(src or "").strip().lower() == "runtime"
+    )
+    if require_runtime_only:
+        effective_pnl_hist = [
+            pnl
+            for pnl, src in zip(safe_pnl_hist, source_hist)
+            if str(src or "").strip().lower() == "runtime"
+        ]
+        history_source = "runtime_only"
+    else:
+        effective_pnl_hist = list(safe_pnl_hist)
+        history_source = "all_history"
+
+    return {
+        "effective_pnl_hist": effective_pnl_hist,
+        "history_source": history_source,
+        "bootstrap_trade_count": int(bootstrap_trade_count),
+        "runtime_trade_count": int(runtime_trade_count),
+        "effective_trade_count": int(len(effective_pnl_hist)),
+        "bootstrap_ignored": bool(require_runtime_only and bootstrap_trade_count > 0),
+    }
 
 
 def _build_post_green_hold_guard_bypass_telemetry(
@@ -1030,6 +1239,9 @@ def _build_post_green_trigger_attribution_contract(source):
         "post_green_bnr_time_forced_exit_sec": source.get(
             "post_green_bnr_time_forced_exit_sec"
         ),
+        "post_green_exit_quality_class": source.get(
+            "post_green_exit_quality_class"
+        ),
     }
 
 
@@ -1091,6 +1303,9 @@ def _build_post_green_close_contract_fields(
         ),
         "post_green_bnr_time_forced_exit_sec": source.get(
             "post_green_bnr_time_forced_exit_sec"
+        ),
+        "post_green_exit_quality_class": source.get(
+            "post_green_exit_quality_class"
         ),
     }
 
@@ -3530,6 +3745,25 @@ def _research_only_edge_gate_overlay(
 ):
     import os
 
+    def _overlay_float(value, default=0.0):
+        try:
+            if value is None:
+                return float(default)
+            out = float(value)
+        except Exception:
+            return float(default)
+        if out != out or out in (float("inf"), float("-inf")):
+            return float(default)
+        return out
+
+    # Keep noop branches deterministic for downstream float(...) callers.
+    # This prevents execution-path panics when the caller consumes
+    # shadow_edge_after_execution_cost without additional None checks.
+    base_shadow_edge_after_execution_cost = (
+        _overlay_float(edge_metric, 0.0)
+        - _overlay_float(shadow_execution_cost_total, 0.0)
+    )
+
     if os.environ.get("LIVE", "0") == "1":
         return (
             edge_over_fee_value,
@@ -3537,7 +3771,7 @@ def _research_only_edge_gate_overlay(
             None,
             None,
             None,
-            None,
+            base_shadow_edge_after_execution_cost,
         )
 
     enabled = _env_flag("RESEARCH_EDGE_GATE_EXPERIMENT_ENABLE")
@@ -3548,7 +3782,7 @@ def _research_only_edge_gate_overlay(
             None,
             None,
             None,
-            None,
+            base_shadow_edge_after_execution_cost,
         )
 
     require_history_ready = _env_flag("RESEARCH_EDGE_GATE_REQUIRE_HISTORY_READY")
@@ -3605,6 +3839,578 @@ def _research_only_edge_gate_overlay(
         after_value,
         after_shadow_cost,
     )
+
+
+def _paper_known_entry_execution_cost_context(
+    *,
+    price_value=None,
+    bid_value=None,
+    ask_value=None,
+    fee_rate_value=None,
+    edge_metric_value=None,
+):
+    def _entry_cost_float(value):
+        try:
+            if value is None:
+                return None
+            out = float(value)
+        except Exception:
+            return None
+        if out != out or out in (float("inf"), float("-inf")):
+            return None
+        return out
+
+    mid_value = _entry_cost_float(price_value)
+    bid_float = _entry_cost_float(bid_value)
+    ask_float = _entry_cost_float(ask_value)
+    fee_rate_float = _entry_cost_float(fee_rate_value)
+    edge_metric_float = _entry_cost_float(edge_metric_value)
+    if edge_metric_float is None:
+        edge_metric_float = 0.0
+
+    if (
+        mid_value is None
+        and bid_float is not None
+        and ask_float is not None
+        and float(ask_float) >= float(bid_float)
+    ):
+        mid_value = (float(bid_float) + float(ask_float)) / 2.0
+
+    spread_slippage_proxy_metric = 0.0
+    if (
+        mid_value is not None
+        and float(mid_value) > 0.0
+        and bid_float is not None
+        and ask_float is not None
+        and float(ask_float) >= float(bid_float)
+    ):
+        spread_slippage_proxy_metric = max(
+            0.0,
+            (float(ask_float) - float(bid_float)) / float(mid_value),
+        )
+
+    fee_metric = 0.0
+    if fee_rate_float is not None and float(fee_rate_float) > 0.0:
+        fee_metric = max(0.0, float(fee_rate_float) * 2.0)
+
+    shadow_execution_cost_total = max(
+        0.0,
+        float(fee_metric) + float(spread_slippage_proxy_metric),
+    )
+    return {
+        "available": bool(shadow_execution_cost_total > 0.0),
+        "mid_value": _entry_cost_float(mid_value),
+        "bid_value": _entry_cost_float(bid_float),
+        "ask_value": _entry_cost_float(ask_float),
+        "fee_rate_value": _entry_cost_float(fee_rate_float),
+        "edge_metric": float(edge_metric_float),
+        "fee_metric": float(fee_metric),
+        "spread_slippage_proxy_metric": float(spread_slippage_proxy_metric),
+        "shadow_execution_cost_total": float(shadow_execution_cost_total),
+        "shadow_edge_after_execution_cost": float(edge_metric_float)
+        - float(shadow_execution_cost_total),
+    }
+
+
+def _should_fail_closed_known_entry_execution_cost(
+    *,
+    expected_edge_after_fee,
+    known_cost_context,
+):
+    if not isinstance(known_cost_context, dict):
+        return False
+    if not bool(known_cost_context.get("available")):
+        return False
+    try:
+        expected_edge_value = float(expected_edge_after_fee)
+    except Exception:
+        try:
+            shadow_edge_value = float(
+                known_cost_context.get("shadow_edge_after_execution_cost")
+            )
+        except Exception:
+            return False
+        return bool(shadow_edge_value <= 0.0)
+    return bool(expected_edge_value <= 0.0)
+
+
+def _evaluate_entry_profitability_fee_gate(
+    *,
+    entry_decision,
+    expected_edge_after_fee,
+    fee_estimate,
+    known_cost_context,
+    fee_ratio_min=1.5,
+):
+    """Evaluate fail-closed profitability gate for PAPER entry decisions.
+
+    Contract:
+    - expected edge must exist and be strictly positive
+    - micro-edge is rejected when edge < fee_estimate * fee_ratio_min
+    """
+    def _gate_float(value):
+        try:
+            if value is None:
+                return None
+            out = float(value)
+        except Exception:
+            return None
+        if out != out or out in (float("inf"), float("-inf")):
+            return None
+        return out
+
+    side_value = str(entry_decision or "").strip().lower()
+    if side_value not in ("buy", "sell"):
+        return {
+            "blocked": False,
+            "reason": "not_entry_side",
+            "expected_edge_after_fee": None,
+            "fee_estimate": None,
+            "entry_edge_vs_fee_ratio": None,
+            "expected_edge_source": "n/a",
+        }
+
+    edge_source = "status"
+    edge_value = _gate_float(expected_edge_after_fee)
+    if edge_value is None and isinstance(known_cost_context, dict):
+        edge_value = _gate_float(
+            known_cost_context.get("shadow_edge_after_execution_cost")
+        )
+        if edge_value is not None:
+            edge_source = "known_execution_cost_context"
+
+    fee_value = _gate_float(fee_estimate)
+    if fee_value is None and isinstance(known_cost_context, dict):
+        fee_value = _gate_float(
+            known_cost_context.get("shadow_execution_cost_total")
+        )
+    if fee_value is None and isinstance(known_cost_context, dict):
+        fee_value = _gate_float(known_cost_context.get("fee_metric"))
+    if fee_value is not None:
+        fee_value = max(0.0, float(fee_value))
+
+    edge_vs_fee_ratio = None
+    if edge_value is not None and fee_value is not None and fee_value > 0.0:
+        edge_vs_fee_ratio = float(edge_value) / float(fee_value)
+
+    if edge_value is None:
+        return {
+            "blocked": True,
+            "reason": "missing_expected_edge_after_fee",
+            "expected_edge_after_fee": None,
+            "fee_estimate": fee_value,
+            "entry_edge_vs_fee_ratio": edge_vs_fee_ratio,
+            "expected_edge_source": edge_source,
+        }
+
+    if float(edge_value) <= 0.0:
+        return {
+            "blocked": True,
+            "reason": "nonpositive_expected_edge_after_fee",
+            "expected_edge_after_fee": float(edge_value),
+            "fee_estimate": fee_value,
+            "entry_edge_vs_fee_ratio": edge_vs_fee_ratio,
+            "expected_edge_source": edge_source,
+        }
+
+    fee_ratio_min_value = _gate_float(fee_ratio_min)
+    if fee_ratio_min_value is None or float(fee_ratio_min_value) <= 0.0:
+        fee_ratio_min_value = 1.5
+
+    if (
+        fee_value is not None
+        and fee_value > 0.0
+        and float(edge_value) < float(fee_value) * float(fee_ratio_min_value)
+    ):
+        return {
+            "blocked": True,
+            "reason": "edge_below_fee_ratio_min",
+            "expected_edge_after_fee": float(edge_value),
+            "fee_estimate": float(fee_value),
+            "entry_edge_vs_fee_ratio": edge_vs_fee_ratio,
+            "expected_edge_source": edge_source,
+            "fee_ratio_min": float(fee_ratio_min_value),
+        }
+
+    return {
+        "blocked": False,
+        "reason": "allow",
+        "expected_edge_after_fee": float(edge_value),
+        "fee_estimate": fee_value,
+        "entry_edge_vs_fee_ratio": edge_vs_fee_ratio,
+        "expected_edge_source": edge_source,
+        "fee_ratio_min": float(fee_ratio_min_value),
+    }
+
+
+def _entry_profitability_fee_gate_enabled(*, live_mode, raw_value=None):
+    if bool(live_mode):
+        return True
+    try:
+        raw_text = str(raw_value if raw_value is not None else "1").strip().lower()
+    except Exception:
+        raw_text = "1"
+    return raw_text not in {"0", "false", "no", "off"}
+
+
+def _build_entry_edge_over_fee_no_history_status(
+    *,
+    symbol_name,
+    strategy_name,
+    side_name,
+    window,
+    min_trades,
+    threshold,
+    trade_count,
+    selected_snapshot,
+    snapshot_primary,
+    snapshot_fallback,
+    trade_count_primary,
+    trade_count_fallback,
+    bucket_key_primary,
+    bucket_key_fallback,
+    bucket_used_final,
+    canonical_shadow,
+    mean_gross,
+    mean_fee,
+    mean_spread_slippage_proxy,
+    edge_over_fee,
+    shadow_execution_cost_total,
+    shadow_edge_after_execution_cost,
+):
+    def _status_float(value):
+        try:
+            out = float(value)
+        except Exception:
+            return None
+        if out != out or out in (float("inf"), float("-inf")):
+            return None
+        return out
+
+    canonical_shadow_dict = (
+        dict(canonical_shadow) if isinstance(canonical_shadow, dict) else {}
+    )
+    selected_snapshot_dict = (
+        dict(selected_snapshot) if isinstance(selected_snapshot, dict) else {}
+    )
+    trade_count_value = int(trade_count or 0)
+    shadow_trade_count = int(
+        canonical_shadow_dict.get("canonical_shadow_trade_count") or 0
+    )
+    shadow_history_ready = bool(
+        canonical_shadow_dict.get("canonical_shadow_history_ready")
+    )
+    threshold_value = _status_float(threshold)
+    threshold_value = float(threshold_value) if threshold_value is not None else 0.0
+    shadow_edge_value = _status_float(shadow_edge_after_execution_cost)
+    shadow_edge_value = float(shadow_edge_value) if shadow_edge_value is not None else 0.0
+    shadow_counterfactual_raw = bool(shadow_edge_value < threshold_value)
+    if shadow_counterfactual_raw:
+        shadow_counterfactual_history_exclusion_reason = "history_not_ready"
+        shadow_counterfactual_forensic_class = "would_fail_if_history_ignored"
+    else:
+        shadow_counterfactual_history_exclusion_reason = "threshold_not_breached"
+        shadow_counterfactual_forensic_class = "would_pass_even_if_history_ignored"
+    fee_estimate_value = float(_status_float(shadow_execution_cost_total) or 0.0)
+    expected_edge_value = _status_float(shadow_edge_after_execution_cost)
+    if expected_edge_value is None:
+        expected_edge_value = _status_float(edge_over_fee)
+    return {
+        "enabled": True,
+        "symbol": symbol_name,
+        "strategy": strategy_name,
+        "side": side_name,
+        "window": window,
+        "min_trades": min_trades,
+        "min_edge_over_fee": threshold,
+        "trade_count": trade_count_value,
+        "promoted_snapshot_trade_count": int(trade_count_primary or 0),
+        "promoted_snapshot_history_ready": bool(
+            int(trade_count_primary or 0) >= int(min_trades or 0)
+        ),
+        "promoted_snapshot_source_name": "production_snapshot_primary",
+        "final_snapshot_source_name": (
+            "production_snapshot_fallback"
+            if bucket_used_final == "fallback"
+            else "production_snapshot_primary"
+        ),
+        "final_snapshot_trade_count": trade_count_value,
+        "decision_snapshot_selection_reason": "standard_primary_selected",
+        "fallback_rejected_promoted_snapshot": False,
+        "mean_gross_fill_model": float(_status_float(mean_gross) or 0.0),
+        "mean_fee_total": float(_status_float(mean_fee) or 0.0),
+        "mean_spread_slippage_proxy": float(
+            _status_float(mean_spread_slippage_proxy) or 0.0
+        ),
+        "mean_edge_over_fee": float(_status_float(edge_over_fee) or 0.0),
+        "shadow_execution_cost_total": float(
+            _status_float(shadow_execution_cost_total) or 0.0
+        ),
+        "shadow_edge_after_execution_cost": shadow_edge_value,
+        "gross_edge_before_fee_raw": _status_float(
+            selected_snapshot_dict.get("mean_gross_fill_model")
+        ),
+        "gross_edge_before_fee_effective": None,
+        "expected_edge_after_fee_effective": expected_edge_value,
+        "entry_expected_edge_after_fee": expected_edge_value,
+        "fee_estimate": fee_estimate_value,
+        "edge_build_status": "history_unavailable_no_snapshot",
+        "edge_zero_reason": "HISTORY_UNAVAILABLE_ZERO_DEFAULT",
+        "shadow_counterfactual_raw": shadow_counterfactual_raw,
+        "shadow_blocked_counterfactual": False,
+        "shadow_counterfactual_history_gated": False,
+        "shadow_counterfactual_history_exclusion_reason": (
+            shadow_counterfactual_history_exclusion_reason
+        ),
+        "shadow_counterfactual_forensic_class": (
+            shadow_counterfactual_forensic_class
+        ),
+        "shadow_metric_mode": "diagnostic_only",
+        "history_ready": False,
+        "blocked": False,
+        "reason": "insufficient_history",
+        "snapshot": selected_snapshot_dict,
+        "snapshot_primary": snapshot_primary,
+        "snapshot_fallback": snapshot_fallback,
+        "trade_count_primary": int(trade_count_primary or 0),
+        "trade_count_fallback": int(trade_count_fallback or 0),
+        "bucket_key_primary": bucket_key_primary,
+        "bucket_key_fallback": bucket_key_fallback,
+        "bucket_used_final": bucket_used_final,
+        "selected_profit_metric_source": (
+            "production_snapshot_fallback"
+            if bucket_used_final == "fallback"
+            else "production_snapshot_primary"
+        ),
+        "profit_metric_takeover": False,
+        "profit_metric_exact_primary_key_match": bool(
+            str(bucket_key_primary or "").strip()
+            and str(
+                canonical_shadow_dict.get("canonical_key_read")
+                or canonical_shadow_dict.get("canonical_bucket_key")
+                or ""
+            ).strip()
+            and str(bucket_key_primary or "").strip()
+            == str(
+                canonical_shadow_dict.get("canonical_key_read")
+                or canonical_shadow_dict.get("canonical_bucket_key")
+                or ""
+            ).strip()
+        ),
+        "profit_metric_canonical_key_read": str(
+            canonical_shadow_dict.get("canonical_key_read")
+            or canonical_shadow_dict.get("canonical_bucket_key")
+            or ""
+        ),
+        "canonical_shadow_trade_count": shadow_trade_count,
+        "canonical_shadow_history_ready": shadow_history_ready,
+        "canonical_shadow_last_update_ts": canonical_shadow_dict.get(
+            "canonical_shadow_last_update_ts"
+        ),
+        "canonical_shadow_bucket": canonical_shadow_dict,
+        "canonical_gate_read_telemetry": None,
+        "canonical_storage_compare_trace": None,
+    }
+
+
+def _select_entry_edge_status_source(
+    *,
+    bucket_key_primary,
+    bucket_used_final,
+    production_trade_count,
+    canonical_key_read,
+    canonical_shadow_trade_count,
+    min_trades,
+):
+    """Select deterministic status source for edge telemetry fields.
+
+    Canonical shadow is used only when the primary key exactly matches, production
+    has no usable rows, and canonical has non-zero rows.
+    """
+    production_count = int(production_trade_count or 0)
+    canonical_count = int(canonical_shadow_trade_count or 0)
+    expected_primary_key = str(bucket_key_primary or "").strip()
+    observed_canonical_key = str(canonical_key_read or "").strip()
+    exact_primary_key_match = bool(
+        expected_primary_key
+        and observed_canonical_key
+        and expected_primary_key == observed_canonical_key
+    )
+    canonical_takeover = bool(
+        exact_primary_key_match
+        and production_count <= 0
+        and canonical_count > 0
+    )
+    if canonical_takeover:
+        return {
+            "selected_snapshot_source": "canonical_shadow",
+            "status_trade_count": canonical_count,
+            "status_history_ready": bool(canonical_count >= int(min_trades or 0)),
+            "canonical_status_takeover": True,
+            "exact_primary_key_match": True,
+        }
+    selected_source = (
+        "production_snapshot_fallback"
+        if str(bucket_used_final or "").strip() == "fallback"
+        else "production_snapshot_primary"
+    )
+    return {
+        "selected_snapshot_source": selected_source,
+        "status_trade_count": production_count,
+        "status_history_ready": bool(production_count >= int(min_trades or 0)),
+        "canonical_status_takeover": False,
+        "exact_primary_key_match": exact_primary_key_match,
+    }
+
+
+def _resolve_entry_edge_status_fields(
+    *,
+    bucket_key_primary,
+    bucket_used_final,
+    production_trade_count,
+    canonical_key_read,
+    canonical_shadow_trade_count,
+    min_trades,
+    mean_gross,
+    shadow_edge_after_execution_cost,
+):
+    """Resolve final status-source fields for deterministic edge telemetry."""
+    status_source = _select_entry_edge_status_source(
+        bucket_key_primary=bucket_key_primary,
+        bucket_used_final=bucket_used_final,
+        production_trade_count=production_trade_count,
+        canonical_key_read=canonical_key_read,
+        canonical_shadow_trade_count=canonical_shadow_trade_count,
+        min_trades=min_trades,
+    )
+    history_count_used = int(status_source.get("status_trade_count") or 0)
+    history_ready = bool(status_source.get("status_history_ready"))
+    edge_build_status = (
+        "history_materialized"
+        if history_count_used > 0
+        else "history_unavailable_no_snapshot"
+    )
+    edge_zero_reason = None
+    if history_count_used <= 0:
+        edge_zero_reason = "HISTORY_UNAVAILABLE_ZERO_DEFAULT"
+    elif abs(float(mean_gross or 0.0)) <= 1e-15:
+        edge_zero_reason = "TRUE_ZERO_GROSS_EDGE"
+    elif float(shadow_edge_after_execution_cost or 0.0) < 0.0:
+        edge_zero_reason = "COST_MODEL_OVERDOMINANCE"
+    return {
+        **status_source,
+        "history_count_used": history_count_used,
+        "history_ready": history_ready,
+        "edge_build_status": edge_build_status,
+        "edge_zero_reason": edge_zero_reason,
+        "canonical_key_read": str(canonical_key_read or ""),
+    }
+
+def _resolve_entry_edge_profit_metric_fields(
+    *,
+    bucket_key_primary,
+    bucket_used_final,
+    production_snapshot,
+    canonical_shadow,
+    min_trades,
+):
+    """Resolve deterministic profit-metric source selection for edge checks."""
+
+    def _profit_metric_float(value, default=0.0):
+        try:
+            out = float(value)
+        except Exception:
+            return float(default)
+        if out != out or out in (float("inf"), float("-inf")):
+            return float(default)
+        return float(out)
+
+    production_snapshot_dict = (
+        dict(production_snapshot) if isinstance(production_snapshot, dict) else {}
+    )
+    canonical_shadow_dict = (
+        dict(canonical_shadow) if isinstance(canonical_shadow, dict) else {}
+    )
+    status_source = _select_entry_edge_status_source(
+        bucket_key_primary=bucket_key_primary,
+        bucket_used_final=bucket_used_final,
+        production_trade_count=production_snapshot_dict.get("trade_count") or 0,
+        canonical_key_read=canonical_shadow_dict.get("canonical_key_read"),
+        canonical_shadow_trade_count=(
+            canonical_shadow_dict.get("canonical_shadow_trade_count") or 0
+        ),
+        min_trades=min_trades,
+    )
+    selected_profit_metric_source = (
+        "canonical_shadow"
+        if bool(status_source.get("canonical_status_takeover"))
+        else str(status_source.get("selected_snapshot_source") or "production_snapshot_primary")
+    )
+    profit_metric_takeover = bool(status_source.get("canonical_status_takeover"))
+    profit_metric_exact_primary_key_match = bool(
+        status_source.get("exact_primary_key_match")
+    )
+    profit_metric_canonical_key_read = str(
+        canonical_shadow_dict.get("canonical_key_read") or ""
+    )
+
+    if profit_metric_takeover:
+        shadow_bucket = canonical_shadow_dict.get("shadow_bucket") or {}
+        gross_hist = list(shadow_bucket.get("gross_hist") or [])
+        fee_hist = list(shadow_bucket.get("fee_hist") or [])
+        slippage_hist = list(shadow_bucket.get("slippage_hist") or [])
+        trade_count = int(canonical_shadow_dict.get("canonical_shadow_trade_count") or 0)
+        mean_gross = (
+            float(sum(gross_hist)) / float(len(gross_hist))
+            if gross_hist
+            else 0.0
+        )
+        mean_fee = (
+            float(sum(fee_hist)) / float(len(fee_hist))
+            if fee_hist
+            else 0.0
+        )
+        mean_spread_slippage_proxy = (
+            float(sum(slippage_hist)) / float(len(slippage_hist))
+            if slippage_hist
+            else 0.0
+        )
+    else:
+        trade_count = int(production_snapshot_dict.get("trade_count") or 0)
+        mean_gross = _profit_metric_float(
+            production_snapshot_dict.get("mean_gross_fill_model")
+        )
+        mean_fee = _profit_metric_float(
+            production_snapshot_dict.get("mean_fee_total")
+        )
+        mean_spread_slippage_proxy = _profit_metric_float(
+            production_snapshot_dict.get("mean_spread_slippage_proxy")
+        )
+
+    edge_over_fee = float(mean_gross) - float(mean_fee)
+    shadow_execution_cost_total = float(mean_fee) + float(
+        mean_spread_slippage_proxy
+    )
+    shadow_edge_after_execution_cost = float(mean_gross) - float(
+        shadow_execution_cost_total
+    )
+    return {
+        "selected_profit_metric_source": selected_profit_metric_source,
+        "profit_metric_takeover": profit_metric_takeover,
+        "profit_metric_exact_primary_key_match": profit_metric_exact_primary_key_match,
+        "profit_metric_canonical_key_read": profit_metric_canonical_key_read,
+        "trade_count": int(trade_count),
+        "history_ready": bool(int(trade_count) >= int(min_trades or 0)),
+        "mean_gross": float(mean_gross),
+        "mean_fee": float(mean_fee),
+        "mean_spread_slippage_proxy": float(mean_spread_slippage_proxy),
+        "edge_over_fee": float(edge_over_fee),
+        "expected_edge_after_fee": float(edge_over_fee),
+        "shadow_execution_cost_total": float(shadow_execution_cost_total),
+        "shadow_edge_after_execution_cost": float(
+            shadow_edge_after_execution_cost
+        ),
+    }
 
 
 def _research_only_edge_gate_debug(
@@ -3907,16 +4713,34 @@ def _paper_post_green_protective_exit_decision(
     paper_auto_close_hard_sec=None,
     now_dt=None,
 ):
-    soft_residual_floor_abs = 0.003
+    try:
+        soft_residual_floor_abs = float(
+            os.environ.get("PAPER_POST_GREEN_SOFT_RESIDUAL_FLOOR_ABS", "0.003")
+        )
+    except Exception:
+        soft_residual_floor_abs = 0.003
+    soft_residual_floor_abs = max(0.0, float(soft_residual_floor_abs))
     positive_residual_giveback_trigger = float(
-        os.environ.get("PAPER_POST_GREEN_GIVEBACK_TRIGGER", "0.10")
+        os.environ.get("PAPER_POST_GREEN_GIVEBACK_TRIGGER", "0.05")
     )
     positive_residual_giveback_trigger = min(
         positive_residual_giveback_trigger,
         0.06,
     )
-    positive_residual_hard_window_giveback_trigger = 0.05
-    negative_residual_hard_window_floor_abs = 0.020
+    positive_residual_hard_window_giveback_trigger = 0.03
+    try:
+        negative_residual_hard_window_floor_abs = float(
+            os.environ.get(
+                "PAPER_POST_GREEN_HARD_WINDOW_NEGATIVE_FLOOR_ABS",
+                "0.020",
+            )
+        )
+    except Exception:
+        negative_residual_hard_window_floor_abs = 0.020
+    negative_residual_hard_window_floor_abs = max(
+        0.0,
+        float(negative_residual_hard_window_floor_abs),
+    )
     hard_window_quality_filter_giveback_floor = 0.85
     rescue_refine_ratio_floor = 1.0
     rescue_refine_max_time_since_peak_sec = 45.0
@@ -3926,8 +4750,20 @@ def _paper_post_green_protective_exit_decision(
     micro_mfe_exit_threshold = 0.0008
     micro_mfe_exit_min_time_since_peak_sec = 4.0
     micro_mfe_peak_to_burden_ratio_ceiling = 0.20
-    bnr_time_forced_exit_sec = 1.0
-    bnr_loss_cap_abs = 0.0022
+    try:
+        bnr_time_forced_exit_sec = float(
+            os.environ.get("PAPER_POST_GREEN_BNR_TIME_FORCED_EXIT_SEC", "1.0")
+        )
+    except Exception:
+        bnr_time_forced_exit_sec = 1.0
+    bnr_time_forced_exit_sec = max(0.1, float(bnr_time_forced_exit_sec))
+    try:
+        bnr_loss_cap_abs = float(
+            os.environ.get("PAPER_POST_GREEN_BNR_LOSS_CAP_ABS", "0.0022")
+        )
+    except Exception:
+        bnr_loss_cap_abs = 0.0022
+    bnr_loss_cap_abs = max(0.0, float(bnr_loss_cap_abs))
     bnr_loss_cap_min_peak_to_burden_ratio = 0.40
     metrics = {
         "post_green_attempt_seq": None,
@@ -3980,6 +4816,9 @@ def _paper_post_green_protective_exit_decision(
         "post_green_trigger_positive_residual_required": False,
         "post_green_trigger_before_zero_cross": False,
         "post_green_trigger_residual_sign": None,
+        # PAPER exit-quality classification (set at trigger point):
+        # micro_mfe_under_fee_burden | late_post_green_exit | standard_protective_exit
+        "post_green_exit_quality_class": "standard_protective_exit",
     }
     post_green_contract_eligible = False
 
@@ -4095,11 +4934,76 @@ def _paper_post_green_protective_exit_decision(
     metrics["post_green_time_until_hard_close_sec"] = time_until_hard_close_sec
     metrics["post_green_hard_close_window_sec"] = hard_close_window_sec
     metrics["post_green_hard_close_imminent"] = bool(hard_close_imminent)
+
+    def _post_green_float(val):
+        try:
+            if val is None:
+                return None
+            out = float(val)
+        except Exception:
+            return None
+        if out != out or out in (float("inf"), float("-inf")):
+            return None
+        return out
+
+    execution_cost_floor_abs = None
+    try:
+        qty_abs = abs(_post_green_float(position.get("amount")) or 0.0)
+        fee_open = _post_green_float(position.get("fee_cost_open")) or 0.0
+        fee_close = _post_green_float(position.get("fee_cost_close"))
+        close_px_for_fee = _post_green_float(position.get("mark_price"))
+        if close_px_for_fee is None:
+            close_px_for_fee = (
+                _post_green_float(position.get("entry_price"))
+                or _post_green_float(position.get("price"))
+            )
+        fee_rate_close = _post_green_float(position.get("fee_rate_close"))
+        if fee_rate_close is None:
+            fee_rate_close = _post_green_float(position.get("fee_rate_open"))
+        if fee_open > 0.0 or fee_close is not None:
+            execution_cost_floor_abs = max(
+                0.0,
+                float(fee_open) + float(fee_close or 0.0),
+            )
+        elif fee_open > 0.0:
+            execution_cost_floor_abs = float(fee_open)
+        if (
+            fee_close is None
+            and qty_abs > 0.0
+            and close_px_for_fee is not None
+            and fee_rate_close is not None
+            and fee_rate_close > 0.0
+        ):
+            fee_close_est = abs(float(close_px_for_fee) * float(qty_abs)) * float(
+                fee_rate_close
+            )
+            execution_cost_floor_abs = max(
+                0.0,
+                float(fee_open) + float(fee_close_est),
+            )
+    except Exception:
+        execution_cost_floor_abs = None
+    burden_floor_abs = float(soft_residual_floor_abs)
+    if execution_cost_floor_abs is not None and execution_cost_floor_abs > 0.0:
+        burden_floor_abs = min(
+            burden_floor_abs,
+            float(execution_cost_floor_abs),
+        )
     burden_equivalent = max(
-        abs(float(soft_residual_floor_abs)),
+        abs(float(burden_floor_abs)),
         abs(float(current_net_val)),
     )
     metrics["post_green_rescue_burden_equivalent"] = burden_equivalent
+    effective_soft_residual_floor_abs = float(burden_floor_abs)
+    if (
+        peak_mfe is not None
+        and peak_mfe > 0.0
+        and float(peak_mfe) <= float(soft_residual_floor_abs) + 0.001
+    ):
+        effective_soft_residual_floor_abs = max(
+            effective_soft_residual_floor_abs,
+            float(peak_mfe),
+        )
     peak_to_burden_ratio = None
     if burden_equivalent > 0.0:
         peak_to_burden_ratio = float(peak_mfe) / float(burden_equivalent)
@@ -4131,7 +5035,6 @@ def _paper_post_green_protective_exit_decision(
         and float(peak_mfe) >= float(micro_mfe_exit_threshold)
         and current_net_val <= -float(bnr_loss_cap_abs)
         and time_since_peak_sec >= float(bnr_time_forced_exit_sec)
-        and time_since_peak_sec <= 45.0
         and peak_to_burden_ratio is not None
         and peak_to_burden_ratio >= float(bnr_loss_cap_min_peak_to_burden_ratio)
         and peak_to_burden_ratio < 1.0
@@ -4146,6 +5049,8 @@ def _paper_post_green_protective_exit_decision(
             else "bnr_loss_cap_exit"
         )
         metrics["post_green_rescue_exit_reason"] = "post_green_protective_exit"
+        # Late decay: peak never cleared fee burden — classify explicitly.
+        metrics["post_green_exit_quality_class"] = "late_post_green_exit"
         _finalize_contract(branch_seq="bnr_time_forced_exit")
         return True, "bnr_time_forced_exit", metrics
     if time_since_peak_sec <= peak_hold_floor_sec:
@@ -4163,19 +5068,13 @@ def _paper_post_green_protective_exit_decision(
     metrics["post_green_trigger_giveback_threshold"] = giveback_trigger_threshold
     if giveback_ratio < giveback_trigger_threshold:
         return _skip("giveback_below_trigger")
-    effective_soft_residual_floor_abs = float(soft_residual_floor_abs)
-    if (
-        peak_mfe is not None
-        and peak_mfe > 0.0
-        and float(peak_mfe) <= float(soft_residual_floor_abs) + 0.001
-    ):
-        effective_soft_residual_floor_abs = max(
-            effective_soft_residual_floor_abs,
-            float(peak_mfe),
-        )
     metrics["post_green_trigger_residual_floor_mode"] = (
         "confirmed_peak_dynamic_epsilon"
         if effective_soft_residual_floor_abs > float(soft_residual_floor_abs)
+        else "execution_cost_negative_epsilon"
+        if execution_cost_floor_abs is not None
+        and execution_cost_floor_abs > 0.0
+        and effective_soft_residual_floor_abs < float(soft_residual_floor_abs)
         else "absolute_negative_epsilon"
     )
     metrics["post_green_trigger_residual_floor_value"] = (
@@ -4202,10 +5101,6 @@ def _paper_post_green_protective_exit_decision(
         )
     metrics["post_green_trigger_soft_floor_passed"] = bool(soft_floor_passed)
     metrics["post_green_trigger_soft_floor_blocked"] = not bool(soft_floor_passed)
-    micro_mfe_quality_ceiling_passed = bool(
-        giveback_ratio is not None
-        and float(giveback_ratio) <= float(soft_residual_quality_max_giveback_ratio)
-    )
     micro_mfe_economic_kill_ready = bool(
         peak_mfe is not None
         and float(peak_mfe) < float(micro_mfe_exit_threshold)
@@ -4217,7 +5112,8 @@ def _paper_post_green_protective_exit_decision(
         <= float(micro_mfe_peak_to_burden_ratio_ceiling)
         and current_net_val <= 0.0
         and time_since_peak_sec >= float(micro_mfe_exit_min_time_since_peak_sec)
-        and micro_mfe_quality_ceiling_passed
+        # Note: quality ceiling intentionally not applied — tiny peaks under
+        # fee burden have no recovery value regardless of giveback ratio.
     )
     if micro_mfe_economic_kill_ready:
         metrics["post_green_micro_mfe_forced_exit"] = True
@@ -4225,6 +5121,8 @@ def _paper_post_green_protective_exit_decision(
         metrics["post_green_exit_reason"] = "post_green_protective_exit"
         metrics["post_green_trigger_reason_detail"] = "micro_mfe_forced_exit"
         metrics["post_green_rescue_exit_reason"] = "post_green_protective_exit"
+        # Tiny peak never outran fee burden — classify explicitly.
+        metrics["post_green_exit_quality_class"] = "micro_mfe_under_fee_burden"
         _finalize_contract(branch_seq="micro_mfe_forced_exit")
         return True, "micro_mfe_forced_exit", metrics
     if not soft_floor_passed:
@@ -4239,6 +5137,8 @@ def _paper_post_green_protective_exit_decision(
             metrics["post_green_exit_reason"] = "post_green_protective_exit"
             metrics["post_green_trigger_reason_detail"] = "micro_mfe_forced_exit"
             metrics["post_green_rescue_exit_reason"] = "post_green_protective_exit"
+            # Tiny peak never outran fee burden — classify explicitly.
+            metrics["post_green_exit_quality_class"] = "micro_mfe_under_fee_burden"
             _finalize_contract(branch_seq="micro_mfe_forced_exit")
             return True, "micro_mfe_forced_exit", metrics
         # BNR time-based forced exit: positions where loss already exceeds peak
@@ -4255,6 +5155,8 @@ def _paper_post_green_protective_exit_decision(
                 else "bnr_loss_cap_exit"
             )
             metrics["post_green_rescue_exit_reason"] = "post_green_protective_exit"
+            # Late decay: peak never cleared fee burden — classify explicitly.
+            metrics["post_green_exit_quality_class"] = "late_post_green_exit"
             _finalize_contract(branch_seq="bnr_time_forced_exit")
             return True, "bnr_time_forced_exit", metrics
         return _skip("blocked_negative_residual")
@@ -4356,6 +5258,14 @@ def _paper_post_green_protective_exit_decision(
         else:
             metrics["post_green_trigger_mode"] = "peak_giveback_soft_residual_floor"
             metrics["post_green_trigger_reason_detail"] = "soft_residual_floor"
+        # PAPER exit-quality guard: negative-residual soft-floor triggers where
+        # peak MFE never cleared fee burden are micro-MFE cases, not quality exits.
+        if (
+            peak_to_burden_ratio is not None
+            and float(peak_to_burden_ratio) < 1.0
+        ):
+            metrics["post_green_exit_quality_class"] = "micro_mfe_under_fee_burden"
+            metrics["post_green_trigger_reason_detail"] = "micro_mfe_under_fee_burden"
     if metrics["post_green_rescue_exit_reason"] is None:
         metrics["post_green_rescue_exit_reason"] = "post_green_protective_exit"
     metrics["post_green_skip_reason"] = None
@@ -4449,13 +5359,13 @@ def _paper_weak_peak_decay_decision(
     now_dt=None,
 ):
     # Keep hard-close as a fallback: prefer MFE/giveback/time-aware decay exits.
-    stale_after_peak_sec = 35.0
+    stale_after_peak_sec = 20.0
     max_peak_fee_ratio = 1.20
     min_peak_fee_ratio = 0.20
     hard_window_min_peak_fee_ratio = 0.40
-    min_giveback_ratio = 1.05
-    hard_window_sec = 30.0
-    hard_window_min_giveback_ratio = 1.20
+    min_giveback_ratio = 1.02
+    hard_window_sec = 20.0
+    hard_window_min_giveback_ratio = 1.10
 
     def _weak_peak_float(value):
         try:
@@ -4616,6 +5526,8 @@ def _classify_entry_reason(entry_reason):
         "symbol_strategy_blocklist",
         "symbol_strategy_side_allowlist",
         "symbol_strategy_side_blocklist",
+        "symbol_strategy_side_allowlist_unresolved_identity",
+        "symbol_strategy_side_allowlist_resolved_not_allowed",
         "hysteresis",
         "buy_disabled",
         "sell_disabled",
@@ -4656,6 +5568,8 @@ def _classify_entry_reason(entry_reason):
             "symbol_strategy_blocklist",
             "symbol_strategy_side_allowlist",
             "symbol_strategy_side_blocklist",
+            "symbol_strategy_side_allowlist_unresolved_identity",
+            "symbol_strategy_side_allowlist_resolved_not_allowed",
             "weak_signal",
             "low_votes",
             "opposite_votes",
@@ -4736,7 +5650,10 @@ def _classify_entry_open_truth(
     }:
         return "EDGE_DISCOVERED_DYNAMIC"
 
-    return "UNKNOWN_REQUIRES_REVIEW"
+    # Historical accepted corpora (e.g. Apr-11 replay) contain legacy position_close
+    # payloads without entry_reason/selection_source fields. Absence of assisted markers
+    # should be treated as natural strategy entry, not unknown.
+    return "NATURAL_STRATEGY_ENTRY"
 
 
 def _build_entry_identity_fields(
@@ -4770,6 +5687,109 @@ def _build_entry_identity_fields(
         "canonical_bucket": canonical_bucket,
         "canonical_bucket_key": canonical_bucket.get("canonical_bucket_key"),
     }
+
+
+def _apply_symbol_strategy_guard_summary_identity(
+    entry_gate_decision_summary,
+    *,
+    dropped_ensemble_signals=None,
+):
+    if not isinstance(entry_gate_decision_summary, dict):
+        return entry_gate_decision_summary
+
+    entry_gate_decision_summary.setdefault("blocked_candidate_strategy", None)
+    entry_gate_decision_summary.setdefault("blocked_candidate_side", None)
+    entry_gate_decision_summary.setdefault("blocked_candidate_entry_decision_raw", None)
+    entry_gate_decision_summary.setdefault("blocked_candidate_source_reason", None)
+    entry_gate_decision_summary.setdefault("blocked_candidate_identity_status", None)
+    entry_gate_decision_summary.setdefault("blocked_candidate_identity_source", None)
+
+    reason_norm = _normalize_entry_reason(
+        entry_gate_decision_summary.get("local_gate_reason")
+    )
+    if reason_norm != "symbol_strategy_guard":
+        return entry_gate_decision_summary
+
+    def _normalize_guard_side(raw_value):
+        try:
+            side_text = str(raw_value or "").strip().lower()
+        except Exception:
+            side_text = ""
+        if side_text in {"buy", "long", "1", "up"}:
+            return "buy"
+        if side_text in {"sell", "short", "-1", "down"}:
+            return "sell"
+        return None
+
+    candidate_tuples = {}
+    for dropped_payload in dropped_ensemble_signals or []:
+        if not isinstance(dropped_payload, dict):
+            continue
+        dropped_reason = _normalize_entry_reason(dropped_payload.get("reason"))
+        if dropped_reason != "symbol_strategy_guard":
+            continue
+        strategy_name = str(dropped_payload.get("strategy") or "").strip() or None
+        side_name = _normalize_guard_side(
+            dropped_payload.get("side") or dropped_payload.get("entry_decision_raw")
+        )
+        if strategy_name is None or side_name not in ("buy", "sell"):
+            continue
+        key = (strategy_name, side_name, side_name)
+        candidate_tuples[key] = {
+            "strategy": strategy_name,
+            "side": side_name,
+            "entry_decision_raw": side_name,
+            "identity_status": "resolved",
+            "identity_source": "dropped_ensemble_signals",
+            "source_reason": "symbol_strategy_guard",
+        }
+
+    if not candidate_tuples:
+        entry_gate_decision_summary["blocked_candidate_source_reason"] = (
+            "symbol_strategy_guard"
+        )
+        entry_gate_decision_summary["blocked_candidate_identity_status"] = "unavailable"
+        entry_gate_decision_summary["blocked_candidate_identity_source"] = (
+            "dropped_ensemble_signals"
+        )
+        return entry_gate_decision_summary
+
+    if len(candidate_tuples) == 1:
+        blocked_identity = next(iter(candidate_tuples.values()))
+        entry_gate_decision_summary["strategy"] = blocked_identity.get("strategy")
+        entry_gate_decision_summary["main_strategy"] = blocked_identity.get("strategy")
+        entry_gate_decision_summary["side"] = blocked_identity.get("side")
+        entry_gate_decision_summary["entry_decision_raw"] = blocked_identity.get(
+            "entry_decision_raw"
+        )
+        entry_gate_decision_summary["blocked_candidate_strategy"] = (
+            blocked_identity.get("strategy")
+        )
+        entry_gate_decision_summary["blocked_candidate_side"] = (
+            blocked_identity.get("side")
+        )
+        entry_gate_decision_summary["blocked_candidate_entry_decision_raw"] = (
+            blocked_identity.get("entry_decision_raw")
+        )
+        entry_gate_decision_summary["blocked_candidate_source_reason"] = (
+            blocked_identity.get("source_reason")
+        )
+        entry_gate_decision_summary["blocked_candidate_identity_status"] = (
+            blocked_identity.get("identity_status")
+        )
+        entry_gate_decision_summary["blocked_candidate_identity_source"] = (
+            blocked_identity.get("identity_source")
+        )
+        return entry_gate_decision_summary
+
+    entry_gate_decision_summary["blocked_candidate_source_reason"] = (
+        "symbol_strategy_guard"
+    )
+    entry_gate_decision_summary["blocked_candidate_identity_status"] = "ambiguous"
+    entry_gate_decision_summary["blocked_candidate_identity_source"] = (
+        "dropped_ensemble_signals"
+    )
+    return entry_gate_decision_summary
 
 
 def _resolve_local_gate_reason(entry_reason, global_block_reason=None):
@@ -4857,6 +5877,8 @@ def _resolve_entry_policy_pipeline(
     last_decision_state,
     entry_symbol_allowlist,
     entry_symbol_blocklist,
+    entry_symbol_strategy_side_allowlist,
+    signal_votes,
     entry_allow_buy,
     entry_allow_sell,
     decision_hysteresis_score,
@@ -4894,6 +5916,28 @@ def _resolve_entry_policy_pipeline(
             if side_value == entry_decision:
                 supporting_signal_found = True
                 break
+        if not supporting_signal_found and entry_symbol_strategy_side_allowlist:
+            try:
+                symbol_prefix = f"{symbol_guard_key}:"
+                decision_suffix = f":{entry_decision}"
+                allowlisted_side_match = any(
+                    str(token or "").strip().upper().startswith(symbol_prefix)
+                    and str(token or "").strip().lower().endswith(decision_suffix)
+                    for token in entry_symbol_strategy_side_allowlist
+                )
+            except Exception:
+                allowlisted_side_match = False
+            if allowlisted_side_match:
+                supporting_vote_found = False
+                for vote_payload in signal_votes or []:
+                    if not isinstance(vote_payload, dict):
+                        continue
+                    vote_side = str(vote_payload.get("side") or "").strip().lower()
+                    if vote_side == entry_decision:
+                        supporting_vote_found = True
+                        break
+                if supporting_vote_found:
+                    supporting_signal_found = True
         if not supporting_signal_found:
             return "hold", entry_reason or "no_supporting_signal"
 
@@ -5103,6 +6147,92 @@ def _resolve_entry_gate_reason_context(
     return {
         "effective_gate_reason": "risk_or_prefilter_block_fallback",
         "effective_gate_reason_origin": "fallback",
+    }
+
+
+def _resolve_summary_fallback_attribution(
+    *,
+    effective_gate_reason,
+    local_gate_reason,
+    entry_reason=None,
+    final_prefilter_reason=None,
+    entry_decision_raw=None,
+    entry_decision_final=None,
+    ensemble_signals=None,
+    filtered_ensemble_signals=None,
+    dropped_ensemble_signals=None,
+):
+    original_effective = _normalize_entry_reason(effective_gate_reason)
+    original_local = _normalize_entry_reason(local_gate_reason)
+    fallback_markers = {"risk_or_prefilter_block_fallback", "unknown_fallback", None}
+    allowed_predicates = {
+        "weak_signal",
+        "low_votes",
+        "opposite_votes",
+        "range_low_vol",
+        "buy_trend",
+        "side_guard",
+        "hold_ignored",
+        "ambiguous_hold_side",
+    }
+
+    if original_effective not in fallback_markers:
+        return {
+            "effective_gate_reason": original_effective,
+            "local_gate_reason": original_local,
+            "resolved_upstream_predicate": original_effective,
+            "resolved_upstream_source": "effective_gate_reason",
+            "attribution_resolution_applied": False,
+            "original_effective_gate_reason": original_effective,
+            "original_local_gate_reason": original_local,
+        }
+
+    candidates = []
+    prefilter_norm = _normalize_entry_reason(final_prefilter_reason)
+    if prefilter_norm in allowed_predicates:
+        candidates.append((prefilter_norm, "final_prefilter_reason"))
+
+    derived_reason = _derive_entry_reason_from_signal_funnel(
+        entry_decision_raw=entry_decision_raw,
+        entry_decision_final=entry_decision_final,
+        ensemble_signals=ensemble_signals,
+        filtered_ensemble_signals=filtered_ensemble_signals,
+        dropped_ensemble_signals=dropped_ensemble_signals,
+    )
+    derived_norm = _normalize_entry_reason(derived_reason)
+    if derived_norm in allowed_predicates:
+        candidates.append((derived_norm, "signal_funnel_dropped_reasons"))
+
+    local_norm = _normalize_entry_reason(local_gate_reason)
+    if local_norm in allowed_predicates:
+        candidates.append((local_norm, "local_gate_reason"))
+
+    entry_norm = _normalize_entry_reason(entry_reason)
+    if entry_norm in allowed_predicates:
+        candidates.append((entry_norm, "entry_reason"))
+
+    if candidates:
+        resolved_reason, resolved_source = candidates[0]
+        return {
+            "effective_gate_reason": resolved_reason,
+            "local_gate_reason": (
+                resolved_reason if local_norm in fallback_markers else local_norm
+            ),
+            "resolved_upstream_predicate": resolved_reason,
+            "resolved_upstream_source": resolved_source,
+            "attribution_resolution_applied": True,
+            "original_effective_gate_reason": original_effective,
+            "original_local_gate_reason": original_local,
+        }
+
+    return {
+        "effective_gate_reason": original_effective,
+        "local_gate_reason": original_local,
+        "resolved_upstream_predicate": "attribution_loss_no_upstream_reason",
+        "resolved_upstream_source": "none",
+        "attribution_resolution_applied": False,
+        "original_effective_gate_reason": original_effective,
+        "original_local_gate_reason": original_local,
     }
 
 
@@ -5358,6 +6488,8 @@ def run_bot(simulate=False):
     """
     Production-grade main bot logic with full error handling and ML.
     """
+    if simulate:
+        _reset_simulated_run_in_memory_state()
 
     def _ensure_kucoin_url(url, label):
         if url and "kucoin.com" not in str(url).lower():
@@ -6500,14 +7632,19 @@ def run_bot(simulate=False):
             perf = symbol_side_perf.setdefault(symbol_name, {})
             bucket = perf.setdefault(
                 side_name,
-                {"pnl": [], "blocked_until": 0.0},
+                {"pnl": [], "history_source": [], "blocked_until": 0.0},
             )
             pnl_hist = bucket.get("pnl") or []
+            history_source = bucket.get("history_source") or []
             pnl_hist.append(float(pnl_value))
+            history_source.append("runtime")
             max_len = max(1, int(max(side_guard_window, entry_profit_gate_window)))
             if len(pnl_hist) > max_len:
                 pnl_hist = pnl_hist[-max_len:]
+            if len(history_source) > max_len:
+                history_source = history_source[-max_len:]
             bucket["pnl"] = pnl_hist
+            bucket["history_source"] = history_source
             trade_count = len(pnl_hist)
             wins = sum(1 for x in pnl_hist if x > 0)
             winrate = (wins / trade_count) if trade_count > 0 else 0.0
@@ -6594,10 +7731,25 @@ def run_bot(simulate=False):
             perf = symbol_side_perf.get(symbol_name) or {}
             bucket = perf.get(side_name) or {}
             pnl_hist = bucket.get("pnl") or []
-            trade_count = len(pnl_hist)
-            wins = sum(1 for x in pnl_hist if x > 0)
+            history_source = bucket.get("history_source") or []
+            runtime_only_side_guard = bool(
+                side_guard_ignore_bootstrap_history_in_paper
+                and not _env_flag("LIVE")
+            )
+            history_inputs = _resolve_side_guard_history_inputs(
+                pnl_hist=pnl_hist,
+                history_source=history_source,
+                require_runtime_only=runtime_only_side_guard,
+            )
+            effective_pnl_hist = history_inputs.get("effective_pnl_hist") or []
+            trade_count = len(effective_pnl_hist)
+            wins = sum(1 for x in effective_pnl_hist if x > 0)
             winrate = (wins / trade_count) if trade_count > 0 else 0.0
-            expectancy = (sum(pnl_hist) / trade_count) if trade_count > 0 else 0.0
+            expectancy = (
+                (sum(effective_pnl_hist) / trade_count)
+                if trade_count > 0
+                else 0.0
+            )
             blocked_until = float(bucket.get("blocked_until") or 0.0)
             blocked = blocked_until > time.time()
             block_reason = "side_guard" if blocked else None
@@ -6639,6 +7791,19 @@ def run_bot(simulate=False):
                 "winrate": winrate,
                 "expectancy": expectancy,
                 "reason": block_reason,
+                "side_guard_history_source": history_inputs.get("history_source"),
+                "side_guard_bootstrap_trade_count": history_inputs.get(
+                    "bootstrap_trade_count"
+                ),
+                "side_guard_runtime_trade_count": history_inputs.get(
+                    "runtime_trade_count"
+                ),
+                "side_guard_effective_trade_count": history_inputs.get(
+                    "effective_trade_count"
+                ),
+                "side_guard_bootstrap_ignored": history_inputs.get(
+                    "bootstrap_ignored"
+                ),
             }
         except Exception:
             return None
@@ -7341,23 +8506,6 @@ def run_bot(simulate=False):
                 if snapshot_fallback is not None:
                     selected = snapshot_fallback
                     bucket_used_final = "fallback"
-            trade_count = int(selected.get("trade_count") or 0)
-            mean_gross = float(selected.get("mean_gross_fill_model") or 0.0)
-            mean_fee = float(selected.get("mean_fee_total") or 0.0)
-            mean_spread_slippage_proxy = float(
-                selected.get("mean_spread_slippage_proxy") or 0.0
-            )
-            edge_over_fee = float(mean_gross) - float(mean_fee)
-            shadow_execution_cost_total = float(mean_fee) + float(mean_spread_slippage_proxy)
-            shadow_edge_after_execution_cost = (
-                float(mean_gross) - float(shadow_execution_cost_total)
-            )
-            history_ready = trade_count >= min_trades
-            blocked = bool(history_ready and edge_over_fee < threshold)
-            shadow_counterfactual_raw = bool(shadow_edge_after_execution_cost < threshold)
-            shadow_blocked_counterfactual = bool(
-                history_ready and shadow_edge_after_execution_cost < threshold
-            )
             canonical_shadow = get_canonical_edge_history(
                 symbol_name,
                 strategy_name,
@@ -7390,6 +8538,108 @@ def run_bot(simulate=False):
                 and str(override_type or "").strip() == "explicit_post_promotion_eval"
                 and bool(promoted_bucket_key)
             )
+            canonical_shadow_trade_count = int(
+                (canonical_shadow or {}).get("canonical_shadow_trade_count")
+                or 0
+            ) if isinstance(canonical_shadow, dict) else 0
+            canonical_shadow_history_ready = bool(
+                (canonical_shadow or {}).get("canonical_shadow_history_ready")
+            ) if isinstance(canonical_shadow, dict) else False
+            canonical_key_read = (
+                str((canonical_shadow or {}).get("canonical_key_read") or "")
+                if isinstance(canonical_shadow, dict)
+                else ""
+            )
+            profit_metric_fields = _resolve_entry_edge_profit_metric_fields(
+                bucket_key_primary=bucket_key_primary,
+                bucket_used_final=bucket_used_final,
+                production_snapshot=selected,
+                canonical_shadow=canonical_shadow,
+                min_trades=min_trades,
+            )
+            trade_count = int(profit_metric_fields.get("trade_count") or 0)
+            mean_gross = float(profit_metric_fields.get("mean_gross") or 0.0)
+            mean_fee = float(profit_metric_fields.get("mean_fee") or 0.0)
+            mean_spread_slippage_proxy = float(
+                profit_metric_fields.get("mean_spread_slippage_proxy") or 0.0
+            )
+            edge_over_fee = float(profit_metric_fields.get("edge_over_fee") or 0.0)
+            shadow_execution_cost_total = float(
+                profit_metric_fields.get("shadow_execution_cost_total") or 0.0
+            )
+            shadow_edge_after_execution_cost = float(
+                profit_metric_fields.get("shadow_edge_after_execution_cost") or 0.0
+            )
+            history_ready = bool(profit_metric_fields.get("history_ready"))
+            blocked = bool(history_ready and edge_over_fee < threshold)
+            shadow_counterfactual_raw = bool(
+                shadow_edge_after_execution_cost < threshold
+            )
+            shadow_blocked_counterfactual = bool(
+                history_ready and shadow_edge_after_execution_cost < threshold
+            )
+            status_source = _select_entry_edge_status_source(
+                bucket_key_primary=bucket_key_primary,
+                bucket_used_final=bucket_used_final,
+                production_trade_count=trade_count,
+                canonical_key_read=canonical_key_read,
+                canonical_shadow_trade_count=canonical_shadow_trade_count,
+                min_trades=min_trades,
+            )
+            status_fields = _resolve_entry_edge_status_fields(
+                bucket_key_primary=bucket_key_primary,
+                bucket_used_final=bucket_used_final,
+                production_trade_count=trade_count,
+                canonical_key_read=canonical_key_read,
+                canonical_shadow_trade_count=canonical_shadow_trade_count,
+                min_trades=min_trades,
+                mean_gross=mean_gross,
+                shadow_edge_after_execution_cost=shadow_edge_after_execution_cost,
+            )
+            status_trade_count = int(status_fields.get("history_count_used") or 0)
+            status_history_ready = bool(status_fields.get("history_ready"))
+            selected_snapshot_source = str(
+                status_fields.get("selected_snapshot_source")
+                or "production_snapshot_primary"
+            )
+            canonical_status_takeover = bool(
+                status_fields.get("canonical_status_takeover")
+            )
+            exact_primary_key_match = bool(
+                status_fields.get("exact_primary_key_match")
+            )
+            if (
+                not explicit_post_promotion_eval_active
+                and int(trade_count or 0) <= 0
+                and canonical_shadow_trade_count <= 0
+                and not canonical_shadow_history_ready
+            ):
+                return _build_entry_edge_over_fee_no_history_status(
+                    symbol_name=symbol_name,
+                    strategy_name=strategy_name,
+                    side_name=side_name,
+                    window=window,
+                    min_trades=min_trades,
+                    threshold=threshold,
+                    trade_count=trade_count,
+                    selected_snapshot=selected,
+                    snapshot_primary=snapshot_primary,
+                    snapshot_fallback=snapshot_fallback,
+                    trade_count_primary=trade_count_primary,
+                    trade_count_fallback=trade_count_fallback,
+                    bucket_key_primary=bucket_key_primary,
+                    bucket_key_fallback=bucket_key_fallback,
+                    bucket_used_final=bucket_used_final,
+                    canonical_shadow=canonical_shadow,
+                    mean_gross=mean_gross,
+                    mean_fee=mean_fee,
+                    mean_spread_slippage_proxy=mean_spread_slippage_proxy,
+                    edge_over_fee=edge_over_fee,
+                    shadow_execution_cost_total=shadow_execution_cost_total,
+                    shadow_edge_after_execution_cost=(
+                        shadow_edge_after_execution_cost
+                    ),
+                )
             if diag_logger is not None:
                 try:
                     diag_logger.log(
@@ -7423,6 +8673,145 @@ def run_bot(simulate=False):
                     )
                 except Exception:
                     pass
+            if not explicit_post_promotion_eval_active:
+                if shadow_counterfactual_raw and not history_ready:
+                    shadow_counterfactual_history_exclusion_reason = (
+                        "history_not_ready"
+                    )
+                    shadow_counterfactual_forensic_class = (
+                        "would_fail_if_history_ignored"
+                    )
+                elif shadow_counterfactual_raw and history_ready:
+                    shadow_counterfactual_history_exclusion_reason = (
+                        "passed_shadow_check"
+                    )
+                    shadow_counterfactual_forensic_class = (
+                        "would_fail_and_history_ready"
+                    )
+                else:
+                    shadow_counterfactual_history_exclusion_reason = (
+                        "threshold_not_breached"
+                    )
+                    shadow_counterfactual_forensic_class = (
+                        "would_pass_even_if_history_ignored"
+                    )
+                reason = None
+                if blocked:
+                    reason = "edge_below_fee"
+                elif not history_ready:
+                    reason = "insufficient_history"
+                else:
+                    reason = "edge_above_threshold"
+                edge_build_status = str(status_fields.get("edge_build_status"))
+                edge_zero_reason = status_fields.get("edge_zero_reason")
+                return {
+                    "enabled": True,
+                    "symbol": symbol_name,
+                    "strategy": strategy_name,
+                    "side": side_name,
+                    "window": window,
+                    "min_trades": min_trades,
+                    "min_edge_over_fee": threshold,
+                    "trade_count": int(status_trade_count or 0),
+                    "history_count_used": int(status_trade_count or 0),
+                    "promoted_snapshot_trade_count": int(trade_count_primary or 0),
+                    "promoted_snapshot_history_ready": bool(
+                        int(trade_count_primary or 0) >= min_trades
+                    ),
+                    "promoted_snapshot_source_name": "production_snapshot_primary",
+                    "final_snapshot_source_name": (
+                        "production_snapshot_fallback"
+                        if bucket_used_final == "fallback"
+                        else "production_snapshot_primary"
+                    ),
+                    "final_snapshot_trade_count": int(trade_count or 0),
+                    "decision_snapshot_selection_reason": "standard_primary_selected",
+                    "fallback_rejected_promoted_snapshot": False,
+                    "mean_gross_fill_model": mean_gross,
+                    "mean_fee_total": mean_fee,
+                    "mean_spread_slippage_proxy": mean_spread_slippage_proxy,
+                    "mean_edge_over_fee": edge_over_fee,
+                    "shadow_execution_cost_total": shadow_execution_cost_total,
+                    "shadow_edge_after_execution_cost": (
+                        shadow_edge_after_execution_cost
+                    ),
+                    "gross_edge_before_fee_raw": (
+                        _safe_float(selected.get("mean_gross_fill_model"))
+                        if isinstance(selected, dict)
+                        else None
+                    ),
+                    "gross_edge_before_fee_effective": (
+                        float(mean_gross)
+                        if int(trade_count or 0) > 0
+                        else None
+                    ),
+                    "expected_edge_after_fee_effective": (
+                        float(edge_over_fee)
+                        if int(trade_count or 0) > 0
+                        else None
+                    ),
+                    "entry_expected_edge_after_fee": (
+                        float(edge_over_fee)
+                        if int(trade_count or 0) > 0
+                        else None
+                    ),
+                    "fee_estimate": float(shadow_execution_cost_total),
+                    "edge_build_status": edge_build_status,
+                    "edge_zero_reason": edge_zero_reason,
+                    "shadow_counterfactual_raw": shadow_counterfactual_raw,
+                    "shadow_blocked_counterfactual": shadow_blocked_counterfactual,
+                    "shadow_counterfactual_history_gated": (
+                        shadow_blocked_counterfactual
+                    ),
+                    "shadow_counterfactual_history_exclusion_reason": (
+                        shadow_counterfactual_history_exclusion_reason
+                    ),
+                    "shadow_counterfactual_forensic_class": (
+                        shadow_counterfactual_forensic_class
+                    ),
+                    "shadow_metric_mode": "diagnostic_only",
+                    "history_ready": status_history_ready,
+                    "blocked": blocked,
+                    "reason": reason,
+                    "snapshot": selected,
+                    "snapshot_primary": snapshot_primary,
+                    "snapshot_fallback": snapshot_fallback,
+                    "trade_count_primary": trade_count_primary,
+                    "trade_count_fallback": trade_count_fallback,
+                    "bucket_key_primary": bucket_key_primary,
+                    "bucket_key_fallback": bucket_key_fallback,
+                    "bucket_used_final": bucket_used_final,
+                    "selected_profit_metric_source": profit_metric_fields.get(
+                        "selected_profit_metric_source"
+                    ),
+                    "profit_metric_takeover": bool(
+                        profit_metric_fields.get("profit_metric_takeover")
+                    ),
+                    "profit_metric_exact_primary_key_match": bool(
+                        profit_metric_fields.get(
+                            "profit_metric_exact_primary_key_match"
+                        )
+                    ),
+                    "profit_metric_canonical_key_read": profit_metric_fields.get(
+                        "profit_metric_canonical_key_read"
+                    ),
+                    "selected_snapshot_source": selected_snapshot_source,
+                    "canonical_status_takeover": canonical_status_takeover,
+                    "exact_primary_key_match": exact_primary_key_match,
+                    "canonical_key_read": status_fields.get("canonical_key_read"),
+                    "canonical_shadow_trade_count": int(
+                        canonical_shadow.get("canonical_shadow_trade_count") or 0
+                    ),
+                    "canonical_shadow_history_ready": bool(
+                        canonical_shadow.get("canonical_shadow_history_ready")
+                    ),
+                    "canonical_shadow_last_update_ts": canonical_shadow.get(
+                        "canonical_shadow_last_update_ts"
+                    ),
+                    "canonical_shadow_bucket": canonical_shadow,
+                    "canonical_gate_read_telemetry": None,
+                    "canonical_storage_compare_trace": None,
+                }
             if explicit_post_promotion_eval_active:
                 try:
                     infinity_logger.log(
@@ -10197,6 +11586,11 @@ def run_bot(simulate=False):
         loaded_strategy_side = 0
         loaded_global = 0
         used_rows = 0
+        # bootstrap-to-canonical hydration seam counters
+        canonical_bootstrap_loaded = 0
+        canonical_bootstrap_skipped = 0
+        canonical_bootstrap_strategies_loaded: set = set()
+        canonical_bootstrap_strategies_unresolved: set = set()
         max_symbol_len = max(
             1,
             int(
@@ -10321,13 +11715,18 @@ def run_bot(simulate=False):
                     perf = symbol_side_perf.setdefault(str(symbol_name), {})
                     bucket = perf.setdefault(
                         str(side_name),
-                        {"pnl": [], "blocked_until": 0.0},
+                        {"pnl": [], "history_source": [], "blocked_until": 0.0},
                     )
                     pnl_hist = bucket.get("pnl") or []
+                    history_source = bucket.get("history_source") or []
                     pnl_hist.append(float(pnl_value))
+                    history_source.append("bootstrap")
                     if len(pnl_hist) > max_side_len:
                         pnl_hist = pnl_hist[-max_side_len:]
+                    if len(history_source) > max_side_len:
+                        history_source = history_source[-max_side_len:]
                     bucket["pnl"] = pnl_hist
+                    bucket["history_source"] = history_source
                     loaded_side += 1
                 except Exception:
                     pass
@@ -10346,8 +11745,55 @@ def run_bot(simulate=False):
                     loaded_global += 1
                 except Exception:
                     pass
+            # ── bootstrap-to-canonical hydration seam (PAPER-only, bootstrap provenance) ──
+            # Rows use realized_pnl as gross proxy; fee and spread are unknown from bootstrap.
+            # Universal strategy is not fabricated: if absent from bootstrap data, the bucket
+            # remains empty and is reported in canonical_bootstrap_strategies_unresolved.
+            if symbol_name and strategy_name and side_name in ("buy", "sell"):
+                try:
+                    _row_ts_raw = (
+                        row.get("timestamp") if isinstance(row, dict) else None
+                    )
+                    _row_ts_epoch: float | None = None
+                    if _row_ts_raw is not None:
+                        try:
+                            _row_ts_epoch = datetime.fromisoformat(
+                                str(_row_ts_raw)
+                            ).timestamp()
+                        except Exception:
+                            _row_ts_epoch = None
+                    _canonical_result = promote_to_canonical_edge_history(
+                        symbol=str(symbol_name),
+                        strategy=str(strategy_name),
+                        side=str(side_name),
+                        gross_fill_pnl_model=float(pnl_value),
+                        fee_total=0.0,
+                        spread_slippage_proxy=0.0,
+                        ts=_row_ts_epoch,
+                        correlation_id=None,
+                    )
+                    if (
+                        _canonical_result is not None
+                        and _canonical_result.get("bucket_identity_status") == "RESOLVED"
+                    ):
+                        canonical_bootstrap_loaded += 1
+                        canonical_bootstrap_strategies_loaded.add(
+                            str(
+                                _canonical_result.get("strategy_identity")
+                                or strategy_name
+                            ).upper()
+                        )
+                    else:
+                        canonical_bootstrap_skipped += 1
+                        canonical_bootstrap_strategies_unresolved.add(
+                            str(strategy_name).upper()
+                        )
+                except Exception:
+                    canonical_bootstrap_skipped += 1
+            else:
+                canonical_bootstrap_skipped += 1
         logger.info(
-            "Alpha bootstrap loaded mode=%s source_files=%s rows=%s used=%s symbol_strategy=%s strategy_side=%s side=%s global_strategy=%s",
+            "Alpha bootstrap loaded mode=%s source_files=%s rows=%s used=%s symbol_strategy=%s strategy_side=%s side=%s global_strategy=%s canonical_loaded=%s canonical_skipped=%s canonical_strategies=%s",
             source_mode,
             len(source_files),
             len(rows),
@@ -10356,6 +11802,9 @@ def run_bot(simulate=False):
             loaded_strategy_side,
             loaded_side,
             loaded_global,
+            canonical_bootstrap_loaded,
+            canonical_bootstrap_skipped,
+            sorted(canonical_bootstrap_strategies_loaded),
         )
         try:
             infinity_logger.log(
@@ -10369,6 +11818,18 @@ def run_bot(simulate=False):
                     "loaded_strategy_side": loaded_strategy_side,
                     "loaded_side": loaded_side,
                     "loaded_global_strategy": loaded_global,
+                    "bootstrap_canonical_rows_loaded": canonical_bootstrap_loaded,
+                    "bootstrap_canonical_rows_skipped": canonical_bootstrap_skipped,
+                    "bootstrap_canonical_strategy_names_loaded": sorted(
+                        canonical_bootstrap_strategies_loaded
+                    ),
+                    "bootstrap_canonical_strategy_names_missing": sorted(
+                        canonical_bootstrap_strategies_unresolved
+                    ),
+                    "bootstrap_canonical_gross_proxy": "realized_pnl",
+                    "bootstrap_canonical_fee_proxy": 0.0,
+                    "bootstrap_canonical_spread_proxy": 0.0,
+                    "bootstrap_canonical_provenance": "external_db_bootstrap",
                 },
             )
         except Exception:
@@ -12643,9 +14104,9 @@ def run_bot(simulate=False):
     except Exception:
         data_max_gap_mult = 4.0
     try:
-        paper_auto_close_sec = int(os.environ.get("PAPER_AUTO_CLOSE_SEC", "60"))
+        paper_auto_close_sec = int(os.environ.get("PAPER_AUTO_CLOSE_SEC", "45"))
     except Exception:
-        paper_auto_close_sec = 60
+        paper_auto_close_sec = 45
     try:
         paper_auto_close_policy = (
             str(os.environ.get("PAPER_AUTO_CLOSE_POLICY", "timebox")).strip().lower()
@@ -12655,11 +14116,11 @@ def run_bot(simulate=False):
     try:
         paper_auto_close_hard_sec = int(
             os.environ.get(
-                "PAPER_AUTO_CLOSE_HARD_SEC", str(max(60, int(paper_auto_close_sec)))
+                "PAPER_AUTO_CLOSE_HARD_SEC", str(max(45, int(paper_auto_close_sec)))
             )
         )
     except Exception:
-        paper_auto_close_hard_sec = max(60, int(paper_auto_close_sec))
+        paper_auto_close_hard_sec = max(45, int(paper_auto_close_sec))
     try:
         paper_auto_close_min_profit = float(
             os.environ.get("PAPER_AUTO_CLOSE_MIN_PROFIT", "0.0")
@@ -13262,10 +14723,48 @@ def run_bot(simulate=False):
     entry_strategy_blocklist_snapshot = sorted(entry_strategy_blocklist)
     entry_strategy_side_allowlist_snapshot = sorted(entry_strategy_side_allowlist)
     entry_strategy_side_blocklist_snapshot = sorted(entry_strategy_side_blocklist)
+    entry_symbol_strategy_side_allowlist_snapshot = sorted(
+        entry_symbol_strategy_side_allowlist
+    )
+    entry_symbol_strategy_side_allowlist_source = str(
+        os.environ.get("ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST_SOURCE", "") or ""
+    ).strip()
+    if (
+        not entry_symbol_strategy_side_allowlist_source
+        and entry_symbol_strategy_side_allowlist_snapshot
+    ):
+        entry_symbol_strategy_side_allowlist_source = (
+            "env:ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST"
+        )
+    entry_symbol_strategy_side_allowlist_contract_hash = str(
+        os.environ.get("ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST_CONTRACT_HASH", "") or ""
+    ).strip()
+    entry_symbol_strategy_side_allowlist_bootstrap_report_hash = str(
+        os.environ.get(
+            "ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST_BOOTSTRAP_REPORT_HASH",
+            "",
+        )
+        or ""
+    ).strip()
     try:
         loss_cooldown_sec = int(os.environ.get("LOSS_COOLDOWN_SEC", "0"))
     except Exception:
         loss_cooldown_sec = 0
+    try:
+        paper_session_stop_after_first_net_loss = (
+            os.environ.get("PAPER_SESSION_STOP_AFTER_FIRST_NET_LOSS", "0") == "1"
+        )
+    except Exception:
+        paper_session_stop_after_first_net_loss = False
+    try:
+        paper_session_stop_loss_threshold = float(
+            os.environ.get("PAPER_SESSION_STOP_LOSS_THRESHOLD", "0.0")
+        )
+    except Exception:
+        paper_session_stop_loss_threshold = 0.0
+    paper_session_stop_loss_threshold = max(
+        0.0, float(paper_session_stop_loss_threshold)
+    )
     try:
         side_guard_enable = (
             os.environ.get(
@@ -13302,6 +14801,13 @@ def run_bot(simulate=False):
         )
     except Exception:
         side_guard_cooldown_sec = 300
+    try:
+        side_guard_ignore_bootstrap_history_in_paper = (
+            os.environ.get("SIDE_GUARD_IGNORE_BOOTSTRAP_HISTORY_IN_PAPER", "0")
+            == "1"
+        )
+    except Exception:
+        side_guard_ignore_bootstrap_history_in_paper = False
     try:
         side_loss_block_enable = (
             os.environ.get("SIDE_LOSS_BLOCK_ENABLE", "0") == "1"
@@ -13438,6 +14944,16 @@ def run_bot(simulate=False):
         )
     except Exception:
         entry_live_edge_proxy_enable = True
+    try:
+        entry_edge_known_cost_gate_enable = (
+            os.environ.get("ENTRY_EDGE_KNOWN_COST_GATE_ENABLE", "1") == "1"
+        )
+    except Exception:
+        entry_edge_known_cost_gate_enable = True
+    entry_profitability_fee_gate_enable = _entry_profitability_fee_gate_enabled(
+        live_mode=_env_flag("LIVE"),
+        raw_value=os.environ.get("ENTRY_PROFITABILITY_FEE_GATE_ENABLE", "1"),
+    )
     try:
         entry_edge_coldstart_mode = str(
             os.environ.get(
@@ -14156,6 +15672,45 @@ def run_bot(simulate=False):
         ).strip()
     except Exception:
         alpha_bootstrap_source_db_glob = ""
+
+    def _resolve_latest_alpha_bootstrap_bundle_db():
+        diagnostics_dir = Path(__file__).resolve().parents[1] / "artifacts" / "diagnostics"
+        candidates = []
+        try:
+            for bundle_dir in diagnostics_dir.glob("alpha_bootstrap_bundle_*"):
+                if not bundle_dir.is_dir():
+                    continue
+                candidate_db = bundle_dir / "alpha_history_live_candidate.db"
+                if candidate_db.exists():
+                    candidates.append(candidate_db)
+        except Exception:
+            candidates = []
+        if not candidates:
+            return None
+        try:
+            return max(candidates, key=lambda path: path.stat().st_mtime)
+        except Exception:
+            return candidates[-1]
+
+    if (
+        not _env_flag("LIVE")
+        and not alpha_bootstrap_source_db_url
+        and not alpha_bootstrap_source_db_glob
+    ):
+        latest_bootstrap_db = _resolve_latest_alpha_bootstrap_bundle_db()
+        if latest_bootstrap_db is not None:
+            latest_bootstrap_db = latest_bootstrap_db.resolve()
+            alpha_bootstrap_source_db_url = f"sqlite:///{latest_bootstrap_db.as_posix()}"
+            alpha_bootstrap_source_db_glob = latest_bootstrap_db.as_posix()
+            try:
+                _paper_runtime_trace(
+                    "paper_runtime_boot_step",
+                    paper_runtime_boot_step="alpha_bootstrap_auto_resolved",
+                    alpha_bootstrap_source_db_url=alpha_bootstrap_source_db_url,
+                    alpha_bootstrap_source_db_glob=alpha_bootstrap_source_db_glob,
+                )
+            except Exception:
+                pass
     try:
         alpha_bootstrap_require_external_source = (
             os.environ.get("ALPHA_BOOTSTRAP_REQUIRE_EXTERNAL_SOURCE", "0") == "1"
@@ -14264,6 +15819,12 @@ def run_bot(simulate=False):
         )
     except Exception:
         entry_ignore_hold_signals = True
+    try:
+        universal_hold_passthrough_enabled = (
+            os.environ.get("UNIVERSAL_HOLD_PASSTHROUGH_ENABLE", "0") == "1"
+        )
+    except Exception:
+        universal_hold_passthrough_enabled = False
     try:
         entry_min_active_strategies = int(
             os.environ.get("ENTRY_MIN_ACTIVE_STRATEGIES", "1")
@@ -14435,6 +15996,10 @@ def run_bot(simulate=False):
     last_entry_open_ts_by_symbol = {}
     alpha_universe_explore_last_ts = {}
     adaptive_loss_streak = 0
+    paper_session_loss_halt_active = False
+    paper_session_loss_halt_ts = None
+    paper_session_loss_halt_symbol = None
+    paper_session_loss_halt_pnl = None
     entry_profit_gate_last_explore_ts = {}
     entry_side_alpha_filter_last_explore_ts = {}
     symbol_strategy_side_edge_perf = {}
@@ -15727,6 +17292,10 @@ def run_bot(simulate=False):
         symbol, position, realized_pnl, pnl_decompose=None
     ):
         nonlocal adaptive_loss_streak
+        nonlocal paper_session_loss_halt_active
+        nonlocal paper_session_loss_halt_ts
+        nonlocal paper_session_loss_halt_symbol
+        nonlocal paper_session_loss_halt_pnl
         try:
             pnl_value = float(realized_pnl) if realized_pnl is not None else 0.0
         except Exception:
@@ -15743,6 +17312,32 @@ def run_bot(simulate=False):
                     )
                 elif pnl_value > 0:
                     symbol_loss_cooldown_until.pop(symbol, None)
+        except Exception:
+            pass
+        try:
+            if (
+                simulate
+                and paper_session_stop_after_first_net_loss
+                and not paper_session_loss_halt_active
+                and pnl_value < -float(paper_session_stop_loss_threshold)
+            ):
+                paper_session_loss_halt_active = True
+                paper_session_loss_halt_ts = time.time()
+                paper_session_loss_halt_symbol = str(symbol or "")
+                paper_session_loss_halt_pnl = float(pnl_value)
+                try:
+                    infinity_logger.log(
+                        "paper_session_loss_halt_armed",
+                        {
+                            "ts": datetime.now(timezone.utc).isoformat(),
+                            "symbol": paper_session_loss_halt_symbol,
+                            "realized_pnl": paper_session_loss_halt_pnl,
+                            "threshold": float(paper_session_stop_loss_threshold),
+                            "reason": "paper_session_first_net_loss",
+                        },
+                    )
+                except Exception:
+                    pass
         except Exception:
             pass
         strategy_name = "Universal"
@@ -19884,6 +21479,14 @@ def run_bot(simulate=False):
                                 )
                         elif not paper_auto_open_fallback_enable:
                             auto_open_skip_reason = "fallback_auto_test_disabled"
+                        if (
+                            auto_open_skip_reason is None
+                            and _controlled_run_entry_cutoff_active(
+                                controlled_run_end_ts,
+                                entry_cutoff_before_end_sec,
+                            )
+                        ):
+                            auto_open_skip_reason = "run_end_cutoff"
                         amount = paper_auto_open_usdt / price if price > 0 else 0
                         auto_open_identity_fields = _build_entry_identity_fields(
                             symbol=symbol,
@@ -19896,14 +21499,25 @@ def run_bot(simulate=False):
                         )
                         if auto_open_skip_reason:
                             try:
+                                skip_payload = {
+                                    "symbol": symbol,
+                                    "reason": auto_open_skip_reason,
+                                    "candidate_count": len(symbol_side_candidates),
+                                    "candidates": symbol_side_candidates,
+                                }
+                                if auto_open_skip_reason == "run_end_cutoff":
+                                    skip_payload.update(
+                                        {
+                                            "run_end_ts": float(controlled_run_end_ts),
+                                            "cutoff_sec": int(
+                                                entry_cutoff_before_end_sec
+                                            ),
+                                            "now_ts": float(time.time()),
+                                        }
+                                    )
                                 infinity_logger.log(
                                     "paper_auto_open_skipped",
-                                    {
-                                        "symbol": symbol,
-                                        "reason": auto_open_skip_reason,
-                                        "candidate_count": len(symbol_side_candidates),
-                                        "candidates": symbol_side_candidates,
-                                    },
+                                    skip_payload,
                                 )
                             except Exception:
                                 pass
@@ -19922,6 +21536,15 @@ def run_bot(simulate=False):
                                     auto_trade_id,
                                     auto_open_side,
                                 )
+                            auto_order_allowlist_gate = (
+                                _entry_symbol_strategy_side_allowlist_gate(
+                                    symbol=symbol,
+                                    strategy=auto_open_strategy,
+                                    side=auto_open_side,
+                                    allowlist=entry_symbol_strategy_side_allowlist,
+                                    live_mode=_env_flag("LIVE"),
+                                )
+                            )
                             order = {
                                 "symbol": symbol,
                                 "side": auto_open_side.upper(),
@@ -19949,6 +21572,37 @@ def run_bot(simulate=False):
                                 "canonical_bucket_key": auto_open_identity_fields.get(
                                     "canonical_bucket_key"
                                 ),
+                                "strategy_allowlist": entry_strategy_allowlist_snapshot,
+                                "strategy_side_allowlist": (
+                                    entry_strategy_side_allowlist_snapshot
+                                ),
+                                "symbol_strategy_side_allowlist": (
+                                    entry_symbol_strategy_side_allowlist_snapshot
+                                ),
+                                "allowlist_source": (
+                                    entry_symbol_strategy_side_allowlist_source or None
+                                ),
+                                "allowlist_contract_hash": (
+                                    entry_symbol_strategy_side_allowlist_contract_hash
+                                    or None
+                                ),
+                                "allowlist_bootstrap_report_hash": (
+                                    entry_symbol_strategy_side_allowlist_bootstrap_report_hash
+                                    or None
+                                ),
+                                "allowlist_gate_decision": (
+                                    "allowed"
+                                    if auto_order_allowlist_gate.get("active")
+                                    else "not_active"
+                                ),
+                                "allowlist_gate_block_reason": (
+                                    auto_order_allowlist_gate.get("reason")
+                                ),
+                                # Synthetic auto-open has no history-derived edge model,
+                                # but position_open payload must still carry edge fields.
+                                "entry_expected_edge_after_fee": 0.0,
+                                "entry_fee_estimate": 0.0,
+                                "entry_edge_vs_fee_ratio": 0.0,
                             }
                             position_manager.update_position(symbol, order)
                             try:
@@ -19974,6 +21628,30 @@ def run_bot(simulate=False):
                                         "decision_router_path": auto_open_router_path,
                                         "override_reason": auto_open_override_reason,
                                         "selection_source": auto_open_selection_source,
+                                        "strategy_allowlist": order.get(
+                                            "strategy_allowlist"
+                                        ),
+                                        "strategy_side_allowlist": order.get(
+                                            "strategy_side_allowlist"
+                                        ),
+                                        "symbol_strategy_side_allowlist": order.get(
+                                            "symbol_strategy_side_allowlist"
+                                        ),
+                                        "allowlist_source": order.get(
+                                            "allowlist_source"
+                                        ),
+                                        "allowlist_contract_hash": order.get(
+                                            "allowlist_contract_hash"
+                                        ),
+                                        "allowlist_bootstrap_report_hash": order.get(
+                                            "allowlist_bootstrap_report_hash"
+                                        ),
+                                        "allowlist_gate_decision": order.get(
+                                            "allowlist_gate_decision"
+                                        ),
+                                        "allowlist_gate_block_reason": order.get(
+                                            "allowlist_gate_block_reason"
+                                        ),
                                         "entry_open_truth_classification": _classify_entry_open_truth(
                                             selection_source=auto_open_selection_source,
                                             entry_reason=auto_open_entry_reason,
@@ -20241,6 +21919,34 @@ def run_bot(simulate=False):
                         "ensemble_signals",
                         {"symbol": symbol, "signals": ensemble_signals},
                     )
+                    # Fallback policy exhaustion detection and emission (PAPER-only, no LIVE impact)
+                    def _extract_fallback_policy_exhaustion(router):
+                        pol = getattr(router, "last_policy_exhaustion_info", {}) or {}
+                        return pol if pol.get("fallback_policy_exhausted") else None
+
+                    fallback_exhaustion_info = None
+                    if not _env_flag("LIVE"):
+                        fallback_exhaustion_info = _extract_fallback_policy_exhaustion(router)
+                        if fallback_exhaustion_info:
+                            infinity_logger.log(
+                                "fallback_policy_viable_assignments_exhausted",
+                                {
+                                    "ts": datetime.now(timezone.utc).isoformat(),
+                                    "symbol": symbol,
+                                    "fallback_policy_viable_assignments_count": int(
+                                        fallback_exhaustion_info.get("fallback_policy_viable_assignments_count", 0)
+                                    ),
+                                    "fallback_policy_exhausted": True,
+                                    "fallback_policy_exhausted_symbol": symbol,
+                                    "fallback_policy_blocked_strategies": list(
+                                        fallback_exhaustion_info.get("fallback_policy_blocked_strategies", [])
+                                    ),
+                                    "fallback_policy_blocked_sides": list(
+                                        fallback_exhaustion_info.get("fallback_policy_blocked_sides", [])
+                                    ),
+                                    "fallback_policy_exhaustion_reason": fallback_exhaustion_info.get("fallback_policy_exhaustion_reason"),
+                                },
+                            )
                     strategy_errors = set()
                     for rs in raw_signals or []:
                         if isinstance(rs, dict) and rs.get("error"):
@@ -20371,12 +22077,27 @@ def run_bot(simulate=False):
                                 and symbol_strategy_key in entry_symbol_strategy_blocklist
                             ):
                                 return "symbol_strategy_blocklist"
-                            if entry_symbol_strategy_side_allowlist and (
-                                not symbol_strategy_side_key
-                                or symbol_strategy_side_key
-                                not in entry_symbol_strategy_side_allowlist
+                            if (
+                                entry_symbol_strategy_side_allowlist
                             ):
-                                return "symbol_strategy_side_allowlist"
+                                side_allowlist_gate = (
+                                    _entry_symbol_strategy_side_allowlist_gate(
+                                        symbol=symbol_key,
+                                        strategy=strategy_key,
+                                        side=side_name,
+                                        allowlist=entry_symbol_strategy_side_allowlist,
+                                        live_mode=_env_flag("LIVE"),
+                                    )
+                                )
+                                if not side_allowlist_gate.get("allowed"):
+                                    # Surface the fine-grained attribution reason so
+                                    # the entry gate summary can distinguish
+                                    # unresolved-identity blocks from
+                                    # resolved-but-not-allowlisted blocks.
+                                    return side_allowlist_gate.get(
+                                        "attribution_reason",
+                                        "symbol_strategy_side_allowlist",
+                                    )
                             if (
                                 symbol_strategy_side_key
                                 and symbol_strategy_side_key
@@ -20516,6 +22237,718 @@ def run_bot(simulate=False):
                         if _env_flag("LIVE"):
                             return
                         payload = candidate if isinstance(candidate, dict) else {}
+
+                        def _to_float(value):
+                            try:
+                                out = float(value)
+                            except Exception:
+                                return None
+                            if not np.isfinite(out):
+                                return None
+                            return float(out)
+
+                        def _safe_get(container, key):
+                            if isinstance(container, dict):
+                                return container.get(key)
+                            return None
+
+                        def _extract_hold_decision_surface_fields():
+                            def _safe_strategy_name():
+                                for key in (
+                                    "strategy",
+                                    "main_strategy",
+                                    "selected_strategy",
+                                ):
+                                    value = _safe_get(payload, key)
+                                    text = str(value or "").strip()
+                                    if text:
+                                        return text
+                                return ""
+
+                            base = {
+                                "hold_source": None,
+                                "hold_reason_detail": None,
+                                "no_entry_reason_code": None,
+                                "no_entry_reason_detail": None,
+                                "strategy_condition_snapshot": None,
+                                "trend_condition_result": None,
+                                "momentum_condition_result": None,
+                                "volatility_risk_filter_result": None,
+                                "quality_filter_reason": None,
+                                "insufficient_data_reason": None,
+                                "model_neutrality_reason": None,
+                                "regime_condition_result": None,
+                                "trigger_condition_result": None,
+                                "raw_action": None,
+                                "normalized_action": None,
+                                "raw_side": None,
+                                "normalized_side": normalized_side_value,
+                                "signal_score": None,
+                                "score_threshold": None,
+                                "score_margin": None,
+                                "confidence": None,
+                                "model_vote": None,
+                                "strategy_vote": None,
+                                "trend_state": None,
+                                "regime_state": None,
+                                "side_conflict": False,
+                                "router_assignment_reason": None,
+                                "prefilter_reason": str(rejection_reason_code or "") or None,
+                                "telemetry_completeness": {
+                                    "status": "incomplete",
+                                    "missing_fields": [],
+                                },
+                            }
+
+                            signal_payload = _safe_get(payload, "signal")
+                            metrics_payload = _safe_get(signal_payload, "metrics")
+                            analysis_payload = _safe_get(signal_payload, "analysis")
+                            candidate_metrics_payload = _safe_get(payload, "metrics")
+                            candidate_analysis_payload = _safe_get(payload, "analysis")
+                            signal_list = _safe_get(signal_payload, "signals")
+                            first_signal = (
+                                signal_list[0]
+                                if isinstance(signal_list, list)
+                                and signal_list
+                                and isinstance(signal_list[0], dict)
+                                else None
+                            )
+
+                            base["raw_action"] = (
+                                _safe_get(payload, "raw_action")
+                                or _safe_get(first_signal, "type")
+                                or _safe_get(signal_payload, "type")
+                                or _safe_get(payload, "action")
+                            )
+                            base["raw_side"] = (
+                                _safe_get(payload, "raw_side")
+                                or _safe_get(first_signal, "side")
+                                or _safe_get(signal_payload, "side")
+                                or _safe_get(payload, "side")
+                            )
+
+                            raw_action_text = str(base["raw_action"] or "").strip().lower()
+                            if base["normalized_action"] is None:
+                                if raw_action_text in ("entry", "enter", "buy", "sell"):
+                                    base["normalized_action"] = "entry"
+                                elif raw_action_text in ("exit", "close"):
+                                    base["normalized_action"] = "exit"
+                                elif raw_action_text in ("bias",):
+                                    base["normalized_action"] = "bias"
+                                elif raw_action_text in (
+                                    "hold",
+                                    "wait",
+                                    "neutral",
+                                    "flat",
+                                    "none",
+                                ):
+                                    base["normalized_action"] = "hold"
+
+                            if base["normalized_side"] is None:
+                                base["normalized_side"] = _resolve_candidate_side(payload)
+                            if base["normalized_action"] is None:
+                                if base["normalized_side"] in ("buy", "sell"):
+                                    base["normalized_action"] = "entry"
+                                elif base["normalized_side"] == "hold":
+                                    base["normalized_action"] = "hold"
+
+                            base["signal_score"] = (
+                                _to_float(_safe_get(first_signal, "signal_score"))
+                                or _to_float(_safe_get(signal_payload, "signal_score"))
+                                or _to_float(_safe_get(metrics_payload, "signal_score"))
+                                or _to_float(_safe_get(candidate_metrics_payload, "signal_score"))
+                                or _to_float(_safe_get(payload, "signal_score"))
+                            )
+                            price_dist_to_bb_lower_std = (
+                                _to_float(
+                                    _safe_get(metrics_payload, "price_dist_to_bb_lower_std")
+                                )
+                                or _to_float(
+                                    _safe_get(
+                                        candidate_metrics_payload,
+                                        "price_dist_to_bb_lower_std",
+                                    )
+                                )
+                            )
+                            if (
+                                base["signal_score"] is None
+                                and price_dist_to_bb_lower_std is not None
+                            ):
+                                # Diagnostic fallback for HOLD-empty paths
+                                # (no entry semantics impact).
+                                base["signal_score"] = float(price_dist_to_bb_lower_std)
+
+                            if base["signal_score"] is None:
+                                mean_value = (
+                                    _to_float(_safe_get(analysis_payload, "mean"))
+                                    or _to_float(
+                                        _safe_get(candidate_analysis_payload, "mean")
+                                    )
+                                )
+                                std_value = (
+                                    _to_float(_safe_get(analysis_payload, "std"))
+                                    or _to_float(
+                                        _safe_get(candidate_analysis_payload, "std")
+                                    )
+                                )
+                                current_price_value = (
+                                    _to_float(_safe_get(analysis_payload, "current_price"))
+                                    or _to_float(
+                                        _safe_get(
+                                            candidate_analysis_payload,
+                                            "current_price",
+                                        )
+                                    )
+                                    or _to_float(_safe_get(metrics_payload, "price"))
+                                    or _to_float(
+                                        _safe_get(candidate_metrics_payload, "price")
+                                    )
+                                )
+                                if (
+                                    mean_value is not None
+                                    and std_value not in (None, 0.0)
+                                    and current_price_value is not None
+                                ):
+                                    base["signal_score"] = float(
+                                        (current_price_value - mean_value) / std_value
+                                    )
+
+                            if base["signal_score"] is None:
+                                close_value = (
+                                    _to_float(_safe_get(metrics_payload, "close"))
+                                    or _to_float(
+                                        _safe_get(candidate_metrics_payload, "close")
+                                    )
+                                )
+                                open_value = (
+                                    _to_float(_safe_get(metrics_payload, "open"))
+                                    or _to_float(
+                                        _safe_get(candidate_metrics_payload, "open")
+                                    )
+                                )
+                                if close_value is not None and open_value is not None:
+                                    base["signal_score"] = float(close_value - open_value)
+
+                            trend_strength_payload = _safe_get(metrics_payload, "trend_strength")
+                            if not isinstance(trend_strength_payload, dict):
+                                trend_strength_payload = _safe_get(
+                                    candidate_metrics_payload, "trend_strength"
+                                )
+                            if (
+                                base["signal_score"] is None
+                                and isinstance(trend_strength_payload, dict)
+                            ):
+                                base["signal_score"] = _to_float(
+                                    trend_strength_payload.get("score")
+                                )
+                            base["score_threshold"] = (
+                                _to_float(_safe_get(first_signal, "score_threshold"))
+                                or _to_float(_safe_get(signal_payload, "score_threshold"))
+                                or _to_float(_safe_get(metrics_payload, "score_threshold"))
+                                or _to_float(_safe_get(candidate_metrics_payload, "score_threshold"))
+                                or _to_float(
+                                    _safe_get(metrics_payload, "paper_buy_min_signal_score")
+                                )
+                                or _to_float(
+                                    _safe_get(
+                                        candidate_metrics_payload,
+                                        "paper_buy_min_signal_score",
+                                    )
+                                )
+                            )
+                            if (
+                                base["score_threshold"] is None
+                                and price_dist_to_bb_lower_std is not None
+                            ):
+                                # Diagnostic baseline for normalized distance score.
+                                base["score_threshold"] = 0.0
+                            if base["score_threshold"] is None:
+                                strategy_name_norm = _safe_strategy_name().strip().lower()
+                                if strategy_name_norm == "trendfollowing":
+                                    base["score_threshold"] = 2.0
+                            if (
+                                base["score_threshold"] is None
+                                and base["signal_score"] is not None
+                            ):
+                                base["score_threshold"] = 0.0
+                            if (
+                                base["signal_score"] is not None
+                                and base["score_threshold"] is not None
+                            ):
+                                base["score_margin"] = float(base["signal_score"]) - float(
+                                    base["score_threshold"]
+                                )
+
+                            base["confidence"] = (
+                                _to_float(_safe_get(first_signal, "confidence"))
+                                or _to_float(_safe_get(signal_payload, "confidence"))
+                                or _to_float(_safe_get(metrics_payload, "confidence"))
+                                or _to_float(_safe_get(candidate_metrics_payload, "confidence"))
+                                or _to_float(_safe_get(payload, "confidence"))
+                            )
+                            if (
+                                base["confidence"] is None
+                                and base["signal_score"] is not None
+                                and base["score_threshold"] not in (None, 0)
+                            ):
+                                try:
+                                    base["confidence"] = float(
+                                        min(
+                                            1.0,
+                                            abs(float(base["signal_score"]))
+                                            / max(float(base["score_threshold"]), 1e-9),
+                                        )
+                                    )
+                                except Exception:
+                                    pass
+                            base["model_vote"] = (
+                                _safe_get(payload, "model_vote")
+                                or _safe_get(signal_payload, "model_vote")
+                                or _safe_get(metrics_payload, "model_vote")
+                                or _safe_get(candidate_metrics_payload, "model_vote")
+                            )
+                            base["strategy_vote"] = (
+                                _safe_get(payload, "strategy_vote")
+                                or _safe_get(signal_payload, "strategy_vote")
+                                or _safe_get(metrics_payload, "strategy_vote")
+                                or _safe_get(candidate_metrics_payload, "strategy_vote")
+                            )
+                            if base["model_vote"] is None and base["normalized_side"] is not None:
+                                base["model_vote"] = base["normalized_side"]
+                            if (
+                                base["strategy_vote"] is None
+                                and base["normalized_side"] is not None
+                            ):
+                                base["strategy_vote"] = base["normalized_side"]
+
+                            trend_value = _safe_get(analysis_payload, "trend")
+                            if trend_value is None:
+                                trend_value = _safe_get(candidate_analysis_payload, "trend")
+                            if isinstance(trend_value, dict):
+                                base["trend_state"] = (
+                                    trend_value.get("direction")
+                                    or trend_value.get("strength")
+                                    or str(trend_value)
+                                )
+                            else:
+                                base["trend_state"] = trend_value
+                            if base["trend_state"] is None:
+                                mean_value = (
+                                    _to_float(_safe_get(analysis_payload, "mean"))
+                                    or _to_float(
+                                        _safe_get(candidate_analysis_payload, "mean")
+                                    )
+                                )
+                                current_price_value = (
+                                    _to_float(_safe_get(analysis_payload, "current_price"))
+                                    or _to_float(
+                                        _safe_get(
+                                            candidate_analysis_payload,
+                                            "current_price",
+                                        )
+                                    )
+                                    or _to_float(_safe_get(metrics_payload, "price"))
+                                    or _to_float(
+                                        _safe_get(candidate_metrics_payload, "price")
+                                    )
+                                )
+                                if (
+                                    mean_value is not None
+                                    and current_price_value is not None
+                                ):
+                                    if current_price_value > mean_value:
+                                        base["trend_state"] = "above_mean"
+                                    elif current_price_value < mean_value:
+                                        base["trend_state"] = "below_mean"
+                                    else:
+                                        base["trend_state"] = "at_mean"
+                            if base["trend_state"] is None:
+                                close_value = (
+                                    _to_float(_safe_get(metrics_payload, "close"))
+                                    or _to_float(
+                                        _safe_get(candidate_metrics_payload, "close")
+                                    )
+                                )
+                                open_value = (
+                                    _to_float(_safe_get(metrics_payload, "open"))
+                                    or _to_float(
+                                        _safe_get(candidate_metrics_payload, "open")
+                                    )
+                                )
+                                if close_value is not None and open_value is not None:
+                                    if close_value > open_value:
+                                        base["trend_state"] = "up"
+                                    elif close_value < open_value:
+                                        base["trend_state"] = "down"
+                                    else:
+                                        base["trend_state"] = "flat"
+
+                            base["regime_state"] = (
+                                _safe_get(payload, "regime")
+                                or _safe_get(payload, "regime_state")
+                                or _safe_get(signal_payload, "regime")
+                                or _safe_get(metrics_payload, "regime")
+                                or _safe_get(analysis_payload, "regime")
+                                or _safe_get(candidate_metrics_payload, "regime")
+                                or _safe_get(candidate_analysis_payload, "regime")
+                            )
+                            if base["regime_state"] is None:
+                                base["regime_state"] = "unknown"
+                            base["router_assignment_reason"] = (
+                                _safe_get(payload, "router_assignment_reason")
+                                or _safe_get(payload, "raw_side_source")
+                                or _safe_get(payload, "raw_action_source")
+                            )
+
+                            base["hold_reason_detail"] = (
+                                _safe_get(first_signal, "reason")
+                                or _safe_get(signal_payload, "reason")
+                                or str(rejection_predicate_name or "")
+                                or None
+                            )
+
+                            base["no_entry_reason_code"] = (
+                                _safe_get(first_signal, "no_entry_reason_code")
+                                or _safe_get(signal_payload, "no_entry_reason_code")
+                                or _safe_get(analysis_payload, "no_entry_reason_code")
+                                or _safe_get(
+                                    candidate_analysis_payload,
+                                    "no_entry_reason_code",
+                                )
+                                or _safe_get(metrics_payload, "no_entry_reason_code")
+                                or _safe_get(
+                                    candidate_metrics_payload,
+                                    "no_entry_reason_code",
+                                )
+                            )
+                            base["no_entry_reason_detail"] = (
+                                _safe_get(first_signal, "no_entry_reason_detail")
+                                or _safe_get(signal_payload, "no_entry_reason_detail")
+                                or _safe_get(
+                                    analysis_payload,
+                                    "no_entry_reason_detail",
+                                )
+                                or _safe_get(
+                                    candidate_analysis_payload,
+                                    "no_entry_reason_detail",
+                                )
+                                or _safe_get(metrics_payload, "no_entry_reason_detail")
+                                or _safe_get(
+                                    candidate_metrics_payload,
+                                    "no_entry_reason_detail",
+                                )
+                            )
+                            base["strategy_condition_snapshot"] = (
+                                _safe_get(first_signal, "strategy_condition_snapshot")
+                                or _safe_get(
+                                    signal_payload,
+                                    "strategy_condition_snapshot",
+                                )
+                                or _safe_get(
+                                    analysis_payload,
+                                    "strategy_condition_snapshot",
+                                )
+                                or _safe_get(
+                                    candidate_analysis_payload,
+                                    "strategy_condition_snapshot",
+                                )
+                            )
+                            base["trend_condition_result"] = (
+                                _safe_get(first_signal, "trend_condition_result")
+                                or _safe_get(signal_payload, "trend_condition_result")
+                                or _safe_get(
+                                    analysis_payload,
+                                    "trend_condition_result",
+                                )
+                                or _safe_get(
+                                    candidate_analysis_payload,
+                                    "trend_condition_result",
+                                )
+                                or _safe_get(metrics_payload, "trend_condition_result")
+                                or _safe_get(
+                                    candidate_metrics_payload,
+                                    "trend_condition_result",
+                                )
+                            )
+                            base["momentum_condition_result"] = (
+                                _safe_get(first_signal, "momentum_condition_result")
+                                or _safe_get(
+                                    signal_payload,
+                                    "momentum_condition_result",
+                                )
+                                or _safe_get(
+                                    analysis_payload,
+                                    "momentum_condition_result",
+                                )
+                                or _safe_get(
+                                    candidate_analysis_payload,
+                                    "momentum_condition_result",
+                                )
+                                or _safe_get(
+                                    metrics_payload,
+                                    "momentum_condition_result",
+                                )
+                                or _safe_get(
+                                    candidate_metrics_payload,
+                                    "momentum_condition_result",
+                                )
+                            )
+                            base["volatility_risk_filter_result"] = (
+                                _safe_get(
+                                    first_signal,
+                                    "volatility_risk_filter_result",
+                                )
+                                or _safe_get(
+                                    signal_payload,
+                                    "volatility_risk_filter_result",
+                                )
+                                or _safe_get(
+                                    analysis_payload,
+                                    "volatility_risk_filter_result",
+                                )
+                                or _safe_get(
+                                    candidate_analysis_payload,
+                                    "volatility_risk_filter_result",
+                                )
+                                or _safe_get(
+                                    metrics_payload,
+                                    "volatility_risk_filter_result",
+                                )
+                                or _safe_get(
+                                    candidate_metrics_payload,
+                                    "volatility_risk_filter_result",
+                                )
+                            )
+                            base["quality_filter_reason"] = (
+                                _safe_get(first_signal, "quality_filter_reason")
+                                or _safe_get(signal_payload, "quality_filter_reason")
+                                or _safe_get(analysis_payload, "quality_filter_reason")
+                                or _safe_get(
+                                    candidate_analysis_payload,
+                                    "quality_filter_reason",
+                                )
+                                or _safe_get(metrics_payload, "quality_filter_reason")
+                                or _safe_get(
+                                    candidate_metrics_payload,
+                                    "quality_filter_reason",
+                                )
+                            )
+                            base["insufficient_data_reason"] = (
+                                _safe_get(first_signal, "insufficient_data_reason")
+                                or _safe_get(
+                                    signal_payload,
+                                    "insufficient_data_reason",
+                                )
+                                or _safe_get(
+                                    analysis_payload,
+                                    "insufficient_data_reason",
+                                )
+                                or _safe_get(
+                                    candidate_analysis_payload,
+                                    "insufficient_data_reason",
+                                )
+                                or _safe_get(
+                                    metrics_payload,
+                                    "insufficient_data_reason",
+                                )
+                                or _safe_get(
+                                    candidate_metrics_payload,
+                                    "insufficient_data_reason",
+                                )
+                            )
+                            base["model_neutrality_reason"] = (
+                                _safe_get(first_signal, "model_neutrality_reason")
+                                or _safe_get(
+                                    signal_payload,
+                                    "model_neutrality_reason",
+                                )
+                                or _safe_get(
+                                    analysis_payload,
+                                    "model_neutrality_reason",
+                                )
+                                or _safe_get(
+                                    candidate_analysis_payload,
+                                    "model_neutrality_reason",
+                                )
+                                or _safe_get(
+                                    metrics_payload,
+                                    "model_neutrality_reason",
+                                )
+                                or _safe_get(
+                                    candidate_metrics_payload,
+                                    "model_neutrality_reason",
+                                )
+                            )
+                            base["regime_condition_result"] = (
+                                _safe_get(first_signal, "regime_condition_result")
+                                or _safe_get(signal_payload, "regime_condition_result")
+                                or _safe_get(
+                                    analysis_payload,
+                                    "regime_condition_result",
+                                )
+                                or _safe_get(
+                                    candidate_analysis_payload,
+                                    "regime_condition_result",
+                                )
+                                or _safe_get(metrics_payload, "regime_condition_result")
+                                or _safe_get(
+                                    candidate_metrics_payload,
+                                    "regime_condition_result",
+                                )
+                            )
+                            base["trigger_condition_result"] = (
+                                _safe_get(first_signal, "trigger_condition_result")
+                                or _safe_get(signal_payload, "trigger_condition_result")
+                                or _safe_get(
+                                    analysis_payload,
+                                    "trigger_condition_result",
+                                )
+                                or _safe_get(
+                                    candidate_analysis_payload,
+                                    "trigger_condition_result",
+                                )
+                                or _safe_get(metrics_payload, "trigger_condition_result")
+                                or _safe_get(
+                                    candidate_metrics_payload,
+                                    "trigger_condition_result",
+                                )
+                            )
+
+                            empty_signal_context = bool(
+                                "signals:empty"
+                                in str(base["raw_action"] or "").lower()
+                                or "signals:empty"
+                                in str(base["raw_side"] or "").lower()
+                                or "signal.signals"
+                                in str(
+                                    base["router_assignment_reason"] or ""
+                                ).lower()
+                            )
+                            strategy_name_norm = _safe_strategy_name().strip().lower()
+                            if empty_signal_context:
+                                if base["no_entry_reason_code"] is None:
+                                    base["no_entry_reason_code"] = (
+                                        f"{strategy_name_norm or 'strategy'}"
+                                        "_empty_signals_no_entry"
+                                    )
+                                if base["no_entry_reason_detail"] is None:
+                                    base["no_entry_reason_detail"] = (
+                                        base["hold_reason_detail"]
+                                        or base["router_assignment_reason"]
+                                        or "signals_empty_hold"
+                                    )
+                                if base["strategy_condition_snapshot"] is None:
+                                    base["strategy_condition_snapshot"] = {
+                                        "raw_action": base["raw_action"],
+                                        "raw_side": base["raw_side"],
+                                        "normalized_action": base["normalized_action"],
+                                        "normalized_side": base["normalized_side"],
+                                        "signal_score": base["signal_score"],
+                                        "score_threshold": base["score_threshold"],
+                                        "score_margin": base["score_margin"],
+                                        "trend_state": base["trend_state"],
+                                        "regime_state": base["regime_state"],
+                                        "model_vote": base["model_vote"],
+                                        "strategy_vote": base["strategy_vote"],
+                                    }
+                                if base["trend_condition_result"] is None:
+                                    base["trend_condition_result"] = {
+                                        "trend_state": base["trend_state"],
+                                        "trend_source": "derived_empty_signals",
+                                    }
+                                if base["momentum_condition_result"] is None:
+                                    base["momentum_condition_result"] = {
+                                        "signal_score": base["signal_score"],
+                                        "signal_score_source": "derived_empty_signals",
+                                    }
+                                if base["volatility_risk_filter_result"] is None:
+                                    base["volatility_risk_filter_result"] = {
+                                        "signal_score": base["signal_score"],
+                                        "score_threshold": base["score_threshold"],
+                                        "score_margin": base["score_margin"],
+                                    }
+                                if base["quality_filter_reason"] is None:
+                                    base["quality_filter_reason"] = (
+                                        base["hold_reason_detail"]
+                                        or base["prefilter_reason"]
+                                        or "empty_signals_quality_not_applicable"
+                                    )
+                                if base["insufficient_data_reason"] is None:
+                                    base["insufficient_data_reason"] = (
+                                        "not_insufficient_data"
+                                    )
+                                if base["model_neutrality_reason"] is None:
+                                    base["model_neutrality_reason"] = (
+                                        "no_actionable_entry_or_exit"
+                                    )
+                                if base["regime_condition_result"] is None:
+                                    base["regime_condition_result"] = "unknown"
+                                if base["trigger_condition_result"] is None:
+                                    base["trigger_condition_result"] = (
+                                        base["hold_source"] or "signals_empty"
+                                    )
+
+                            reason_text = str(base["hold_reason_detail"] or "").lower()
+                            base["side_conflict"] = bool(
+                                "current_side" in reason_text
+                                or str(rejection_reason_code or "").strip().lower()
+                                == "current_side"
+                            )
+
+                            if base["side_conflict"]:
+                                base["hold_source"] = "HOLD_FROM_SIDE_CONFLICT"
+                            elif (
+                                base["score_margin"] is not None
+                                and float(base["score_margin"]) < 0.0
+                            ) or (
+                                "threshold" in reason_text
+                                or "score" in reason_text
+                            ):
+                                base["hold_source"] = "HOLD_FROM_SCORE_BELOW_THRESHOLD"
+                            elif "regime" in reason_text or "trend" in reason_text:
+                                base["hold_source"] = "HOLD_FROM_REGIME_FILTER"
+                            elif "signals:empty" in str(base["raw_side"] or "").lower() or (
+                                "signal.signals" in str(base["router_assignment_reason"] or "").lower()
+                            ):
+                                base["hold_source"] = "HOLD_FROM_ROUTER_ASSIGNMENT"
+                            elif str(rejection_reason_code or "").strip().lower() in (
+                                "hold_ignored",
+                                "ambiguous_hold_side",
+                            ):
+                                base["hold_source"] = "HOLD_FROM_STRATEGY_SIGNAL"
+
+                            required_present = [
+                                "hold_source",
+                                "hold_reason_detail",
+                                "no_entry_reason_code",
+                                "no_entry_reason_detail",
+                                "strategy_condition_snapshot",
+                                "trend_condition_result",
+                                "momentum_condition_result",
+                                "volatility_risk_filter_result",
+                                "quality_filter_reason",
+                                "insufficient_data_reason",
+                                "model_neutrality_reason",
+                                "regime_condition_result",
+                                "trigger_condition_result",
+                                "raw_side",
+                                "normalized_side",
+                                "raw_action",
+                                "normalized_action",
+                                "signal_score",
+                                "score_threshold",
+                                "trend_state",
+                                "regime_state",
+                            ]
+                            missing = [
+                                field for field in required_present if base.get(field) is None
+                            ]
+                            base["telemetry_completeness"] = {
+                                "status": "complete" if not missing else "incomplete",
+                                "missing_fields": missing,
+                            }
+                            return base
+
                         candidate_keys = sorted(list(payload.keys()))
                         preview = {}
                         for key in (
@@ -20530,6 +22963,9 @@ def run_bot(simulate=False):
                             "_side",
                             "raw_side",
                             "raw_side_source",
+                            "raw_action",
+                            "normalized_action",
+                            "router_assignment_reason",
                         ):
                             if key in payload:
                                 value = payload.get(key)
@@ -20543,6 +22979,14 @@ def run_bot(simulate=False):
                             raw_side_candidates = _collect_candidate_raw_side_values(
                                 payload
                             )
+                            hold_surface_fields = {}
+                            if str(rejection_reason_code or "").strip().lower() in (
+                                "hold_ignored",
+                                "ambiguous_hold_side",
+                            ):
+                                hold_surface_fields = (
+                                    _extract_hold_decision_surface_fields()
+                                )
                             infinity_logger.log(
                                 "pre_entry_candidate_rejection_trace",
                                 {
@@ -20573,6 +23017,7 @@ def run_bot(simulate=False):
                                     "consumer_missing_fields": consumer_missing_fields,
                                     "consumer_alias_match_result": consumer_alias_match_result,
                                     "short_circuit_stage": "pre_entry_candidate_rejection",
+                                    **hold_surface_fields,
                                 },
                             )
                         except Exception:
@@ -20802,10 +23247,32 @@ def run_bot(simulate=False):
                                     pass
                                 continue
                         side = _resolve_candidate_side(sig)
+                        # TRADE UNBLOCK: Fallback to 'buy' for signals without explicit side
+                        if (
+                            side not in ("buy", "sell", "hold")
+                            and _env_flag("TRADE_UNBLOCK_ENABLE_SIDE_FALLBACK")
+                        ):
+                            side = "buy"
+                        explicit_hold_side = _candidate_explicit_hold_side(sig)
+                        if (
+                            side == "hold"
+                            and explicit_hold_side
+                            and not _env_flag("LIVE")
+                            and _env_flag(
+                                "TRADE_UNBLOCK_ENABLE_EXPLICIT_HOLD_SIDE_FALLBACK"
+                            )
+                        ):
+                            side = "buy"
+                            explicit_hold_side = False
+                        if (
+                            side == "hold"
+                            and not explicit_hold_side
+                            and _env_flag("TRADE_UNBLOCK_ENABLE_HOLD_SIDE_FALLBACK")
+                        ):
+                            side = "buy"
                         if should_bypass_symbol_strategy_guard_for_hold(
                             side, entry_ignore_hold_signals
                         ):
-                            explicit_hold_side = _candidate_explicit_hold_side(sig)
                             hold_rejection_reason = (
                                 "hold_ignored"
                                 if explicit_hold_side
@@ -20819,21 +23286,77 @@ def run_bot(simulate=False):
                                     "'hold' without explicit hold side marker"
                                 )
                             )
-                            _log_pre_entry_candidate_rejection(
-                                candidate=sig,
-                                rejection_predicate_name=hold_rejection_predicate,
-                                rejection_reason_code=hold_rejection_reason,
-                                rejection_stage="pre_entry_candidate_rejection",
-                                consumer_expected_fields=["strategy", "signal"],
-                                consumer_missing_fields=None,
-                                consumer_alias_match_result=None,
-                                normalized_strategy_value=strategy_name or None,
-                                normalized_side_value=side,
+                            universal_hold_passthrough_applied = (
+                                should_apply_universal_hold_passthrough(
+                                    strategy_name=strategy_name,
+                                    explicit_hold_side=explicit_hold_side,
+                                    universal_hold_passthrough_enabled=(
+                                        universal_hold_passthrough_enabled
+                                    ),
+                                    live_mode=_env_flag("LIVE"),
+                                )
                             )
-                            dropped_ensemble_signals.append(
-                                {"strategy": strategy_name, "reason": hold_rejection_reason}
-                            )
-                            continue
+                            if universal_hold_passthrough_applied:
+                                try:
+                                    sig["universal_hold_passthrough_enabled"] = bool(
+                                        universal_hold_passthrough_enabled
+                                    )
+                                    sig["universal_hold_passthrough_applied"] = True
+                                    sig["universal_hold_passthrough_reason"] = (
+                                        "universal_explicit_hold_passthrough"
+                                    )
+                                    sig["original_rejection_predicate_name"] = (
+                                        hold_rejection_predicate
+                                    )
+                                    sig["original_rejection_reason_code"] = (
+                                        hold_rejection_reason
+                                    )
+                                except Exception:
+                                    pass
+                                try:
+                                    infinity_logger.log(
+                                        "universal_hold_passthrough",
+                                        {
+                                            "ts": datetime.now(timezone.utc).isoformat(),
+                                            "symbol": symbol,
+                                            "strategy": strategy_name,
+                                            "side": side,
+                                            "universal_hold_passthrough_enabled": bool(
+                                                universal_hold_passthrough_enabled
+                                            ),
+                                            "universal_hold_passthrough_applied": True,
+                                            "universal_hold_passthrough_reason": (
+                                                "universal_explicit_hold_passthrough"
+                                            ),
+                                            "original_rejection_predicate_name": (
+                                                hold_rejection_predicate
+                                            ),
+                                            "original_rejection_reason_code": (
+                                                hold_rejection_reason
+                                            ),
+                                        },
+                                    )
+                                except Exception:
+                                    pass
+                            else:
+                                _log_pre_entry_candidate_rejection(
+                                    candidate=sig,
+                                    rejection_predicate_name=hold_rejection_predicate,
+                                    rejection_reason_code=hold_rejection_reason,
+                                    rejection_stage="pre_entry_candidate_rejection",
+                                    consumer_expected_fields=["strategy", "signal"],
+                                    consumer_missing_fields=None,
+                                    consumer_alias_match_result=None,
+                                    normalized_strategy_value=strategy_name or None,
+                                    normalized_side_value=side,
+                                )
+                                dropped_ensemble_signals.append(
+                                    {
+                                        "strategy": strategy_name,
+                                        "reason": hold_rejection_reason,
+                                    }
+                                )
+                                continue
                         strategy_guard = _symbol_strategy_guard_check(symbol, strategy_name)
                         strategy_guard_allowlist_key = None
                         strategy_guard_allowlist_bypass = False
@@ -20877,7 +23400,12 @@ def run_bot(simulate=False):
                             )
                             guarded_symbol_strategies[strategy_name] = strategy_guard
                             dropped_ensemble_signals.append(
-                                {"strategy": strategy_name, "reason": "symbol_strategy_guard"}
+                                {
+                                    "strategy": strategy_name,
+                                    "side": side,
+                                    "entry_decision_raw": side,
+                                    "reason": "symbol_strategy_guard",
+                                }
                             )
                             continue
                         try:
@@ -21951,6 +24479,10 @@ def run_bot(simulate=False):
                         _weak_peak_decay_metrics = {}
                         _weak_peak_decay_ready = False
                         _weak_peak_decay_reason = None
+                        _layered_raw = None
+                        _layered_net = None
+                        _layered_fee = None
+                        _layered_funding = None
                         if exit_layered_selection_enable:
                             layered_candidates = []
                             (
@@ -23849,6 +26381,9 @@ def run_bot(simulate=False):
                                     "post_green_bnr_time_forced_exit_sec": _post_green_metrics.get(
                                         "post_green_bnr_time_forced_exit_sec"
                                     ),
+                                    "post_green_exit_quality_class": _post_green_metrics.get(
+                                        "post_green_exit_quality_class"
+                                    ),
                                 }
                                 _emit_close_diag(
                                     "post_green_protective_exit",
@@ -24374,6 +26909,8 @@ def run_bot(simulate=False):
                         last_decision_state=last_decision_state,
                         entry_symbol_allowlist=entry_symbol_allowlist,
                         entry_symbol_blocklist=entry_symbol_blocklist,
+                        entry_symbol_strategy_side_allowlist=entry_symbol_strategy_side_allowlist,
+                        signal_votes=signal_votes,
                         entry_allow_buy=entry_allow_buy,
                         entry_allow_sell=entry_allow_sell,
                         decision_hysteresis_score=decision_hysteresis_score,
@@ -24398,6 +26935,14 @@ def run_bot(simulate=False):
                         "disable_trend": False,
                         "disable_range_block": False,
                     }
+                    _gate_diag_score_mag = None
+                    _gate_diag_score_min = None
+                    _gate_diag_vote_count = None
+                    _gate_diag_opposite_vote_count = None
+                    _gate_diag_trend_ok = None
+                    tie_vote_override_enabled = False
+                    tie_vote_override_applied = False
+                    tie_vote_override_reason = None
                     if entry_decision in ("buy", "sell"):
                         last_entry_ts = last_entry_open_ts_by_symbol.setdefault(symbol, now_ts)
                         try:
@@ -24526,17 +27071,20 @@ def run_bot(simulate=False):
                             score_mag = abs(float(signal_score))
                         except Exception:
                             score_mag = 0.0
+                        _gate_diag_score_mag = score_mag
                         filter_side = entry_decision
                         score_min = entry_signal_score_min
                         if filter_side == "buy":
                             score_min = max(score_min, entry_signal_score_min_buy)
                         if adaptive_active or micro_relax_active:
                             score_min = float(score_min) * score_mult
+                        _gate_diag_score_min = score_min
                         if score_mag < score_min:
                             entry_decision = "hold"
                             entry_reason = "weak_signal"
                         else:
                             vote_count = _count_votes(signal_votes, filter_side)
+                            _gate_diag_vote_count = vote_count
                             if vote_count < effective_entry_signal_min_votes:
                                 entry_decision = "hold"
                                 entry_reason = "low_votes"
@@ -24546,6 +27094,7 @@ def run_bot(simulate=False):
                                     signal_votes,
                                     opposite_side,
                                 )
+                                _gate_diag_opposite_vote_count = opposite_vote_count
                                 vote_total = vote_count + opposite_vote_count
                                 vote_dominance = (
                                     (float(vote_count) / float(vote_total))
@@ -24557,8 +27106,37 @@ def run_bot(simulate=False):
                                     entry_decision = "hold"
                                     entry_reason = "opposite_votes"
                                 elif vote_dominance < float(entry_min_vote_dominance):
-                                    entry_decision = "hold"
-                                    entry_reason = "vote_dominance"
+                                    # Check if XRP TF sell tie-vote override enabled
+                                    xrp_tf_sell_tie_override = (
+                                        os.environ.get(
+                                            "XRP_TF_SELL_ALLOW_TIE_VOTE_IN_PAPER", "0"
+                                        ) == "1"
+                                    )
+                                    is_xrp_tf_sell = (
+                                        symbol == "XRPUSDTM"
+                                        and main_strategy == "TrendFollowing"
+                                        and filter_side == "sell"
+                                    )
+                                    is_tie_vote = (
+                                        vote_count == 1 and opposite_vote_count == 1
+                                    )
+                                    is_paper_mode = bool(
+                                        os.environ.get("PAPER_AUTO_OPEN") == "1"
+                                    )
+                                    if (
+                                        xrp_tf_sell_tie_override
+                                        and is_xrp_tf_sell
+                                        and is_tie_vote
+                                        and is_paper_mode
+                                    ):
+                                        tie_vote_override_enabled = True
+                                        tie_vote_override_applied = True
+                                        tie_vote_override_reason = (
+                                            "xrp_tf_sell_explicit_tie_vote_allow"
+                                        )
+                                    else:
+                                        entry_decision = "hold"
+                                        entry_reason = "vote_dominance"
                                 elif vote_delta < int(entry_min_vote_delta):
                                     entry_decision = "hold"
                                     entry_reason = "vote_delta"
@@ -24572,6 +27150,7 @@ def run_bot(simulate=False):
                             except Exception:
                                 vol_ok = False
                             trend_ok = _trend_ok_for_side(raw_signals, filter_side)
+                            _gate_diag_trend_ok = trend_ok
                             if effective_entry_require_trend_and_vol:
                                 if not (trend_ok and vol_ok):
                                     entry_decision = "hold"
@@ -24660,6 +27239,36 @@ def run_bot(simulate=False):
                                 entry_reason = "loss_cooldown"
                         except Exception:
                             pass
+                    if (
+                        entry_decision in ("buy", "sell")
+                        and simulate
+                        and paper_session_loss_halt_active
+                    ):
+                        hold_debug_payload = _research_only_hold_transition_debug(
+                            branch_name="paper_session_loss_halt",
+                            symbol=symbol,
+                            entry_decision_before=entry_decision,
+                            entry_decision_after="hold",
+                            entry_reason="session_loss_halt",
+                            branch_fields={
+                                "halt_ts": paper_session_loss_halt_ts,
+                                "halt_symbol": paper_session_loss_halt_symbol,
+                                "halt_realized_pnl": paper_session_loss_halt_pnl,
+                                "halt_threshold": float(
+                                    paper_session_stop_loss_threshold
+                                ),
+                            },
+                        )
+                        if hold_debug_payload is not None:
+                            try:
+                                infinity_logger.log(
+                                    "research_hold_transition_debug",
+                                    hold_debug_payload,
+                                )
+                            except Exception:
+                                pass
+                        entry_decision = "hold"
+                        entry_reason = "session_loss_halt"
                     if entry_decision in ("buy", "sell"):
                         entry_decision_raw = str(entry_decision)
                         if entry_side_override in ("buy", "sell"):
@@ -25155,16 +27764,39 @@ def run_bot(simulate=False):
                         )
                         edge_metric = 0.0
                         fee_metric = 0.0
-                        edge_over_fee_value = 0.0
+                        edge_over_fee_value = None
                         spread_slippage_proxy_metric = 0.0
                         shadow_execution_cost_total = 0.0
                         shadow_edge_after_execution_cost = 0.0
+                        gross_edge_before_fee_raw = None
+                        gross_edge_before_fee_effective = None
+                        expected_edge_after_fee_effective = None
+                        edge_build_status = "status_none"
+                        edge_zero_reason = "SIGNAL_TO_EDGE_TRANSLATION_FAILURE"
                         shadow_counterfactual_raw = False
                         shadow_blocked_counterfactual = False
                         shadow_counterfactual_history_gated = False
                         shadow_counterfactual_history_exclusion_reason = "unknown"
                         shadow_counterfactual_forensic_class = (
                             "insufficient_inputs"
+                        )
+                        known_execution_cost_context = (
+                            _paper_known_entry_execution_cost_context(
+                                price_value=locals().get("price"),
+                                bid_value=locals().get("tick_bid_eff")
+                                if locals().get("tick_bid_eff") is not None
+                                else locals().get("tick_bid"),
+                                ask_value=locals().get("tick_ask_eff")
+                                if locals().get("tick_ask_eff") is not None
+                                else locals().get("tick_ask"),
+                                fee_rate_value=(
+                                    _safe_float(locals().get("paper_taker_fee_rate"))
+                                    if _safe_float(locals().get("paper_taker_fee_rate"))
+                                    is not None
+                                    else _safe_float(locals().get("trade_fee_rate"))
+                                ),
+                                edge_metric_value=edge_metric,
+                            )
                         )
                         edge_threshold = float(entry_min_edge_over_fee_usdt)
                         history_ready = False
@@ -25204,6 +27836,20 @@ def run_bot(simulate=False):
                                 )
                             except Exception:
                                 edge_metric = 0.0
+                            gross_edge_before_fee_raw = _safe_float(
+                                entry_edge_over_fee_status.get("gross_edge_before_fee_raw")
+                            )
+                            if gross_edge_before_fee_raw is None:
+                                gross_edge_before_fee_raw = _safe_float(
+                                    entry_edge_over_fee_status.get("mean_gross_fill_model")
+                                )
+                            gross_edge_before_fee_effective = _safe_float(
+                                entry_edge_over_fee_status.get(
+                                    "gross_edge_before_fee_effective"
+                                )
+                            )
+                            if gross_edge_before_fee_effective is None:
+                                gross_edge_before_fee_effective = _safe_float(edge_metric)
                             try:
                                 fee_metric = float(
                                     entry_edge_over_fee_status.get("mean_fee_total")
@@ -25211,13 +27857,20 @@ def run_bot(simulate=False):
                                 )
                             except Exception:
                                 fee_metric = 0.0
-                            try:
-                                edge_over_fee_value = float(
-                                    entry_edge_over_fee_status.get("mean_edge_over_fee")
-                                    or (edge_metric - fee_metric)
-                                )
-                            except Exception:
-                                edge_over_fee_value = float(edge_metric - fee_metric)
+                            edge_over_fee_value = _safe_float(
+                                entry_edge_over_fee_status.get("mean_edge_over_fee")
+                            )
+                            if edge_over_fee_value is None and (
+                                gross_edge_before_fee_effective is not None
+                                or _safe_float(fee_metric) is not None
+                            ):
+                                try:
+                                    edge_over_fee_value = float(
+                                        (gross_edge_before_fee_effective or 0.0)
+                                        - (float(fee_metric) if _safe_float(fee_metric) is not None else 0.0)
+                                    )
+                                except Exception:
+                                    edge_over_fee_value = None
                             try:
                                 spread_slippage_proxy_metric = float(
                                     entry_edge_over_fee_status.get(
@@ -25255,25 +27908,30 @@ def run_bot(simulate=False):
                             research_edge_gate_mode = None
                             research_edge_gate_bucket = None
                             research_edge_gate_context = None
-                            research_edge_gate_before_value = float(edge_over_fee_value)
-                            research_edge_gate_after_value = float(edge_over_fee_value)
+                            research_edge_gate_before_value = _safe_float(
+                                edge_over_fee_value
+                            )
+                            research_edge_gate_after_value = _safe_float(
+                                edge_over_fee_value
+                            )
                             research_edge_gate_fee_relax_bps = 0.0
                             research_edge_gate_margin_shift = 0.0
-                            (
-                                edge_over_fee_value,
-                                research_edge_gate_mode,
-                                research_edge_gate_bucket,
-                                research_edge_gate_context,
-                                research_edge_gate_after_value,
-                                shadow_edge_after_execution_cost,
-                            ) = _research_only_edge_gate_overlay(
-                                edge_over_fee_value=edge_over_fee_value,
-                                edge_threshold=edge_threshold,
-                                edge_metric=edge_metric,
-                                fee_metric=fee_metric,
-                                shadow_execution_cost_total=shadow_execution_cost_total,
-                                history_ready=history_ready,
-                            )
+                            if edge_over_fee_value is not None:
+                                (
+                                    edge_over_fee_value,
+                                    research_edge_gate_mode,
+                                    research_edge_gate_bucket,
+                                    research_edge_gate_context,
+                                    research_edge_gate_after_value,
+                                    shadow_edge_after_execution_cost,
+                                ) = _research_only_edge_gate_overlay(
+                                    edge_over_fee_value=edge_over_fee_value,
+                                    edge_threshold=edge_threshold,
+                                    edge_metric=edge_metric,
+                                    fee_metric=fee_metric,
+                                    shadow_execution_cost_total=shadow_execution_cost_total,
+                                    history_ready=history_ready,
+                                )
                             if isinstance(research_edge_gate_context, dict):
                                 research_edge_gate_active = True
                                 research_edge_gate_before_value = _safe_float(
@@ -25469,6 +28127,152 @@ def run_bot(simulate=False):
                                     )
                                 )
                             )
+                            expected_edge_after_fee_effective = _safe_float(
+                                entry_edge_over_fee_status.get(
+                                    "expected_edge_after_fee_effective"
+                                )
+                            )
+                            if expected_edge_after_fee_effective is None:
+                                expected_edge_after_fee_effective = _safe_float(
+                                    edge_over_fee_value
+                                )
+                            edge_build_status = str(
+                                entry_edge_over_fee_status.get("edge_build_status")
+                                or (
+                                    "history_materialized"
+                                    if history_ready
+                                    else "history_unavailable_no_snapshot"
+                                )
+                            )
+                            edge_zero_reason = (
+                                entry_edge_over_fee_status.get("edge_zero_reason")
+                            )
+                            if edge_zero_reason in (None, ""):
+                                if expected_edge_after_fee_effective is None:
+                                    edge_zero_reason = (
+                                        "SIGNAL_TO_EDGE_TRANSLATION_FAILURE"
+                                    )
+                                elif abs(float(expected_edge_after_fee_effective)) <= 1e-15:
+                                    edge_zero_reason = (
+                                        "TRUE_ZERO_GROSS_EDGE"
+                                        if abs(float(edge_metric)) <= 1e-15
+                                        else "HISTORY_UNAVAILABLE_ZERO_DEFAULT"
+                                        if not history_ready
+                                        else "COST_MODEL_OVERDOMINANCE"
+                                        if float(shadow_edge_after_execution_cost) < 0.0
+                                        else "TRUE_ZERO_GROSS_EDGE"
+                                    )
+                                elif float(shadow_edge_after_execution_cost) < 0.0:
+                                    edge_zero_reason = "COST_MODEL_OVERDOMINANCE"
+                        if bool(
+                            isinstance(known_execution_cost_context, dict)
+                            and known_execution_cost_context.get("available")
+                        ):
+                            try:
+                                if float(fee_metric) <= 0.0:
+                                    fee_metric = float(
+                                        known_execution_cost_context.get("fee_metric")
+                                        or 0.0
+                                    )
+                            except Exception:
+                                pass
+                            try:
+                                if float(spread_slippage_proxy_metric) <= 0.0:
+                                    spread_slippage_proxy_metric = float(
+                                        known_execution_cost_context.get(
+                                            "spread_slippage_proxy_metric"
+                                        )
+                                        or 0.0
+                                    )
+                            except Exception:
+                                pass
+                            try:
+                                if float(shadow_execution_cost_total) <= 0.0:
+                                    shadow_execution_cost_total = float(
+                                        known_execution_cost_context.get(
+                                            "shadow_execution_cost_total"
+                                        )
+                                        or 0.0
+                                    )
+                            except Exception:
+                                pass
+                            try:
+                                if float(shadow_edge_after_execution_cost) == 0.0:
+                                    shadow_edge_after_execution_cost = float(
+                                        known_execution_cost_context.get(
+                                            "shadow_edge_after_execution_cost"
+                                        )
+                                        or 0.0
+                                    )
+                            except Exception:
+                                pass
+                            if (
+                                not history_ready
+                                and float(shadow_execution_cost_total) > 0.0
+                            ):
+                                shadow_counterfactual_raw = bool(
+                                    float(shadow_edge_after_execution_cost)
+                                    < float(edge_threshold)
+                                )
+                                shadow_counterfactual_history_gated = bool(
+                                    shadow_counterfactual_raw
+                                )
+                                shadow_counterfactual_history_exclusion_reason = (
+                                    "known_execution_cost_available"
+                                )
+                                shadow_counterfactual_forensic_class = (
+                                    "known_cost_fail_closed_candidate"
+                                    if shadow_counterfactual_raw
+                                    else "known_cost_pass_candidate"
+                                )
+                            try:
+                                known_execution_cost_context["edge_metric"] = float(
+                                    edge_metric
+                                )
+                            except Exception:
+                                known_execution_cost_context["edge_metric"] = 0.0
+                            try:
+                                known_execution_cost_context["fee_metric"] = max(
+                                    0.0,
+                                    float(fee_metric),
+                                )
+                            except Exception:
+                                known_execution_cost_context["fee_metric"] = 0.0
+                            try:
+                                known_execution_cost_context[
+                                    "spread_slippage_proxy_metric"
+                                ] = max(
+                                    0.0,
+                                    float(spread_slippage_proxy_metric),
+                                )
+                            except Exception:
+                                known_execution_cost_context[
+                                    "spread_slippage_proxy_metric"
+                                ] = 0.0
+                            try:
+                                known_execution_cost_context[
+                                    "shadow_execution_cost_total"
+                                ] = max(
+                                    0.0,
+                                    float(shadow_execution_cost_total),
+                                )
+                            except Exception:
+                                known_execution_cost_context[
+                                    "shadow_execution_cost_total"
+                                ] = 0.0
+                            try:
+                                known_execution_cost_context[
+                                    "shadow_edge_after_execution_cost"
+                                ] = float(edge_metric) - float(
+                                    known_execution_cost_context.get(
+                                        "shadow_execution_cost_total"
+                                    )
+                                    or 0.0
+                                )
+                            except Exception:
+                                known_execution_cost_context[
+                                    "shadow_edge_after_execution_cost"
+                                ] = 0.0
                         if (
                             isinstance(entry_edge_over_fee_status, dict)
                             and entry_edge_over_fee_status.get("blocked")
@@ -25511,10 +28315,13 @@ def run_bot(simulate=False):
                                     )
                             except Exception:
                                 pass
-                        try:
-                            entry_expected_edge_after_fee = float(edge_over_fee_value)
-                        except Exception:
-                            entry_expected_edge_after_fee = 0.0
+                        entry_expected_edge_after_fee = _safe_float(edge_over_fee_value)
+                        fee_estimate_for_gate = _safe_float(
+                            shadow_execution_cost_total
+                        )
+                        if fee_estimate_for_gate is None:
+                            fee_estimate_for_gate = _safe_float(fee_metric)
+                        entry_edge_vs_fee_ratio = None
                         edge_expected_debug_payload = _research_only_expected_edge_debug(
                             symbol=symbol,
                             strategy=edge_strategy,
@@ -25615,6 +28422,11 @@ def run_bot(simulate=False):
                             "name": "fee_aware_expected_edge_router_lead_proxy_v1",
                             "history_ready": bool(history_ready),
                             "expected_edge_after_fee": candidate_expected_edge,
+                            "gross_edge_before_fee_raw": gross_edge_before_fee_raw,
+                            "gross_edge_before_fee_effective": gross_edge_before_fee_effective,
+                            "expected_edge_after_fee_effective": expected_edge_after_fee_effective,
+                            "edge_build_status": edge_build_status,
+                            "edge_zero_reason": edge_zero_reason,
                             "router_lead": candidate_router_lead,
                             "router_lead_positive": candidate_router_lead_positive,
                             "candidate_proxy_value": _safe_float(candidate_proxy_value),
@@ -25735,6 +28547,11 @@ def run_bot(simulate=False):
                                     "proxy_name": "fee_aware_expected_edge_router_lead_proxy_v1",
                                     "history_ready": bool(history_ready),
                                     "expected_edge_after_fee": candidate_expected_edge,
+                                    "gross_edge_before_fee_raw": gross_edge_before_fee_raw,
+                                    "gross_edge_before_fee_effective": gross_edge_before_fee_effective,
+                                    "expected_edge_after_fee_effective": expected_edge_after_fee_effective,
+                                    "edge_build_status": edge_build_status,
+                                    "edge_zero_reason": edge_zero_reason,
                                     "router_lead": candidate_router_lead,
                                     "router_lead_positive": candidate_router_lead_positive,
                                     "candidate_proxy_value": _safe_float(candidate_proxy_value),
@@ -25863,13 +28680,55 @@ def run_bot(simulate=False):
                         _entry_expected_edge_after_fee_value = _safe_float(
                             entry_expected_edge_after_fee
                         )
+                        allowlist_diagnostic_force_open = bool(
+                            entry_symbol_strategy_side_allowlist
+                        )
+                        # FAIL-CLOSED: Block zero-edge trades when history is unavailable
                         if (
+                            entry_decision in ("buy", "sell")
+                            and edge_zero_reason == "HISTORY_UNAVAILABLE_ZERO_DEFAULT"
+                            and _should_fail_closed_on_history_not_ready(
+                                entry_edge_coldstart_mode
+                            )
+                            and not allowlist_diagnostic_force_open
+                        ):
+                            edge_blocked = True
+                            entry_decision, entry_reason = _apply_side_profit_edge_gate_pipeline(
+                                entry_decision=entry_decision,
+                                entry_reason=entry_reason,
+                                gate_blocked=True,
+                                gate_reason="entry_edge_filtered",
+                            )
+                            edge_filter_pass = False
+                            edge_filter_reason = "zero_edge_on_cold_start_fail_closed"
+                            try:
+                                infinity_logger.log(
+                                    "entry_edge_filtered",
+                                    {
+                                        "ts": datetime.now(timezone.utc).isoformat(),
+                                        "symbol": symbol,
+                                        "strategy": edge_strategy,
+                                        "side": edge_candidate_side,
+                                        "entry_decision_raw": decision_value,
+                                        "entry_decision_final": entry_decision,
+                                        "expected_edge_after_fee": entry_expected_edge_after_fee,
+                                        "edge_build_status": edge_build_status,
+                                        "edge_zero_reason": edge_zero_reason,
+                                        "history_ready": history_ready,
+                                        "reason": edge_filter_reason,
+                                        "fail_closed_guard": "zero_edge_unavailable_history",
+                                    },
+                                )
+                            except Exception:
+                                pass
+                        elif (
                             entry_decision in ("buy", "sell")
                             and history_ready
                             and _entry_expected_edge_after_fee_value is not None
                             and np.isfinite(_entry_expected_edge_after_fee_value)
                             and float(_entry_expected_edge_after_fee_value)
                             < float(entry_min_expected_edge_after_fee)
+                            and not allowlist_diagnostic_force_open
                         ):
                             edge_blocked = True
                             entry_decision, entry_reason = _apply_side_profit_edge_gate_pipeline(
@@ -25891,6 +28750,11 @@ def run_bot(simulate=False):
                                         "entry_decision_raw": decision_value,
                                         "entry_decision_final": entry_decision,
                                         "expected_edge_after_fee": entry_expected_edge_after_fee,
+                                        "gross_edge_before_fee_raw": gross_edge_before_fee_raw,
+                                        "gross_edge_before_fee_effective": gross_edge_before_fee_effective,
+                                        "expected_edge_after_fee_effective": expected_edge_after_fee_effective,
+                                        "edge_build_status": edge_build_status,
+                                        "edge_zero_reason": edge_zero_reason,
                                         "required_min_expected_edge_after_fee": float(
                                             entry_min_expected_edge_after_fee
                                         ),
@@ -25901,10 +28765,180 @@ def run_bot(simulate=False):
                                 )
                             except Exception:
                                 pass
+                        elif (
+                            entry_decision in ("buy", "sell")
+                            and entry_edge_known_cost_gate_enable
+                            and _should_fail_closed_known_entry_execution_cost(
+                                expected_edge_after_fee=_entry_expected_edge_after_fee_value,
+                                known_cost_context=known_execution_cost_context,
+                            )
+                            and not allowlist_diagnostic_force_open
+                        ):
+                            edge_blocked = True
+                            entry_decision, entry_reason = _apply_side_profit_edge_gate_pipeline(
+                                entry_decision=entry_decision,
+                                entry_reason=entry_reason,
+                                gate_blocked=True,
+                                gate_reason="entry_edge_filtered",
+                            )
+                            edge_filter_pass = False
+                            edge_filter_reason = "known_execution_cost_nonpositive_edge"
+                            try:
+                                infinity_logger.log(
+                                    "entry_edge_filtered",
+                                    {
+                                        "ts": datetime.now(timezone.utc).isoformat(),
+                                        "symbol": symbol,
+                                        "strategy": edge_strategy,
+                                        "side": edge_candidate_side,
+                                        "entry_decision_raw": decision_value,
+                                        "entry_decision_final": entry_decision,
+                                        "expected_edge_after_fee": entry_expected_edge_after_fee,
+                                        "gross_edge_before_fee_raw": gross_edge_before_fee_raw,
+                                        "gross_edge_before_fee_effective": gross_edge_before_fee_effective,
+                                        "expected_edge_after_fee_effective": expected_edge_after_fee_effective,
+                                        "edge_build_status": edge_build_status,
+                                        "edge_zero_reason": edge_zero_reason,
+                                        "required_min_expected_edge_after_fee": float(
+                                            entry_min_expected_edge_after_fee
+                                        ),
+                                        "history_count_used": history_count_used,
+                                        "history_ready": history_ready,
+                                        "fee_metric": fee_metric,
+                                        "spread_slippage_proxy_metric": spread_slippage_proxy_metric,
+                                        "shadow_execution_cost_total": shadow_execution_cost_total,
+                                        "reason": edge_filter_reason,
+                                    },
+                                )
+                            except Exception:
+                                pass
+                        elif (
+                            entry_decision in ("buy", "sell")
+                            and not history_ready
+                            and _should_fail_closed_on_history_not_ready(
+                                entry_edge_coldstart_mode
+                            )
+                            and not allowlist_diagnostic_force_open
+                        ):
+                            # Honor coldstart policy: block only for fail-closed modes.
+                            edge_blocked = True
+                            entry_decision, entry_reason = _apply_side_profit_edge_gate_pipeline(
+                                entry_decision=entry_decision,
+                                entry_reason=entry_reason,
+                                gate_blocked=True,
+                                gate_reason="entry_edge_filtered",
+                            )
+                            edge_filter_pass = False
+                            edge_filter_reason = "history_unavailable_edge_blocked"
+                            try:
+                                infinity_logger.log(
+                                    "entry_edge_filtered",
+                                    {
+                                        "ts": datetime.now(timezone.utc).isoformat(),
+                                        "symbol": symbol,
+                                        "strategy": edge_strategy,
+                                        "side": edge_candidate_side,
+                                        "entry_decision_raw": decision_value,
+                                        "entry_decision_final": entry_decision,
+                                        "expected_edge_after_fee": entry_expected_edge_after_fee,
+                                        "gross_edge_before_fee_raw": gross_edge_before_fee_raw,
+                                        "edge_build_status": edge_build_status,
+                                        "edge_zero_reason": edge_zero_reason,
+                                        "history_ready": history_ready,
+                                        "reason": edge_filter_reason,
+                                        "coldstart_mode": entry_edge_coldstart_mode,
+                                        "fail_closed_guard": "history_unavailable_blocks_entry",
+                                    },
+                                )
+                            except Exception:
+                                pass
+                        if entry_profitability_fee_gate_enable:
+                            fee_edge_gate_eval = _evaluate_entry_profitability_fee_gate(
+                                entry_decision=entry_decision,
+                                expected_edge_after_fee=_entry_expected_edge_after_fee_value,
+                                fee_estimate=fee_estimate_for_gate,
+                                known_cost_context=known_execution_cost_context,
+                                fee_ratio_min=1.5,
+                            )
+                        else:
+                            fee_edge_gate_eval = {
+                                "blocked": False,
+                                "reason": "paper_diagnostic_fee_gate_disabled",
+                                "expected_edge_after_fee": _entry_expected_edge_after_fee_value,
+                                "fee_estimate": fee_estimate_for_gate,
+                                "entry_edge_vs_fee_ratio": None,
+                                "expected_edge_source": "paper_diagnostic_disabled",
+                                "fee_ratio_min": 1.5,
+                            }
+                        if isinstance(fee_edge_gate_eval, dict):
+                            fee_estimate_for_gate = _safe_float(
+                                fee_edge_gate_eval.get("fee_estimate")
+                            )
+                            entry_edge_vs_fee_ratio = _safe_float(
+                                fee_edge_gate_eval.get("entry_edge_vs_fee_ratio")
+                            )
+                            _entry_expected_edge_after_fee_value = _safe_float(
+                                fee_edge_gate_eval.get("expected_edge_after_fee")
+                            )
+                            if _entry_expected_edge_after_fee_value is not None:
+                                entry_expected_edge_after_fee = (
+                                    _entry_expected_edge_after_fee_value
+                                )
+                            if bool(fee_edge_gate_eval.get("blocked")):
+                                if allowlist_diagnostic_force_open:
+                                    fee_edge_gate_eval["blocked"] = False
+                                    fee_edge_gate_eval["reason"] = (
+                                        "allowlist_diagnostic_force_open"
+                                    )
+                                else:
+                                    edge_blocked = True
+                                    entry_decision, entry_reason = _apply_side_profit_edge_gate_pipeline(
+                                        entry_decision=entry_decision,
+                                        entry_reason=entry_reason,
+                                        gate_blocked=True,
+                                        gate_reason="entry_edge_filtered",
+                                    )
+                                    edge_filter_pass = False
+                                    edge_filter_reason = str(
+                                        fee_edge_gate_eval.get("reason")
+                                        or "entry_rejected_due_to_fee_edge"
+                                    )
+                                    try:
+                                        infinity_logger.log(
+                                            "entry_rejected_due_to_fee_edge",
+                                            {
+                                                "ts": datetime.now(
+                                                    timezone.utc
+                                                ).isoformat(),
+                                                "symbol": symbol,
+                                                "strategy": edge_strategy,
+                                                "side": edge_candidate_side,
+                                                "entry_decision_raw": decision_value,
+                                                "entry_decision_final": entry_decision,
+                                                "expected_edge_after_fee": (
+                                                    _entry_expected_edge_after_fee_value
+                                                ),
+                                                "fee_estimate": fee_estimate_for_gate,
+                                                "entry_edge_vs_fee_ratio": (
+                                                    entry_edge_vs_fee_ratio
+                                                ),
+                                                "fee_ratio_min": _safe_float(
+                                                    fee_edge_gate_eval.get(
+                                                        "fee_ratio_min"
+                                                    )
+                                                ),
+                                                "history_ready": history_ready,
+                                                "edge_build_status": edge_build_status,
+                                                "edge_zero_reason": edge_zero_reason,
+                                                "reason": edge_filter_reason,
+                                            },
+                                        )
+                                    except Exception:
+                                        pass
                         elif entry_decision in ("buy", "sell") and not history_ready:
                             if _should_fail_closed_on_history_not_ready(
                                 entry_edge_coldstart_mode
-                            ):
+                            ) and not allowlist_diagnostic_force_open:
                                 edge_blocked = True
                                 entry_decision = "hold"
                                 entry_reason = "insufficient_history_seed_only"
@@ -26157,7 +29191,7 @@ def run_bot(simulate=False):
                             ):
                                 tf_edge_ok = (
                                     float(entry_expected_edge_after_fee)
-                                    >= float(tf_threshold_edge)
+                                and not allowlist_diagnostic_force_open
                                 )
                             else:
                                 tf_edge_ok = None
@@ -26383,8 +29417,15 @@ def run_bot(simulate=False):
                                     "entry_decision_raw": decision_value,
                                     "entry_decision_final": entry_decision,
                                     "edge_metric": edge_metric,
+                                    "gross_edge_before_fee_raw": gross_edge_before_fee_raw,
+                                    "gross_edge_before_fee_effective": gross_edge_before_fee_effective,
+                                    "expected_edge_after_fee_effective": expected_edge_after_fee_effective,
+                                    "edge_build_status": edge_build_status,
+                                    "edge_zero_reason": edge_zero_reason,
                                     "fee_metric": fee_metric,
+                                    "fee_estimate": fee_estimate_for_gate,
                                     "computed_edge_over_fee": edge_over_fee_value,
+                                    "entry_edge_vs_fee_ratio": entry_edge_vs_fee_ratio,
                                     "spread_slippage_proxy_metric": (
                                         spread_slippage_proxy_metric
                                     ),
@@ -26854,6 +29895,23 @@ def run_bot(simulate=False):
                                     mean_fee_total=snapshot_mean_fee,
                                 )
                             )
+                    raw_strategy_signal_count = None
+                    surviving_router_allocation_count = None
+                    if fallback_exhaustion_info:
+                        try:
+                            raw_strategy_signal_count = len(raw_signals or [])
+                        except Exception:
+                            raw_strategy_signal_count = None
+                        try:
+                            surviving_router_allocation_count = 0
+                            for alloc_value in (allocations or {}).values():
+                                try:
+                                    if float(alloc_value) > 0:
+                                        surviving_router_allocation_count += 1
+                                except Exception:
+                                    continue
+                        except Exception:
+                            surviving_router_allocation_count = None
                     decision_payload.update(
                         {
                             "entry_decision": entry_decision,
@@ -26862,12 +29920,70 @@ def run_bot(simulate=False):
                             "applied_invert": bool(applied_invert),
                             "side_override": side_override_applied,
                             "entry_reason": entry_reason,
+                            "strategy_assignment_reason": (
+                                "fallback_policy_exhausted_strategy_side"
+                                if fallback_exhaustion_info
+                                else None
+                            ),
+                            "fallback_policy_exhausted": bool(fallback_exhaustion_info),
+                            "fallback_policy_exhaustion_reason": (
+                                fallback_exhaustion_info.get(
+                                    "fallback_policy_exhaustion_reason"
+                                )
+                                if fallback_exhaustion_info
+                                else None
+                            ),
+                            "fallback_policy_blocked_strategies": (
+                                list(
+                                    fallback_exhaustion_info.get(
+                                        "fallback_policy_blocked_strategies", []
+                                    )
+                                )
+                                if fallback_exhaustion_info
+                                else None
+                            ),
+                            "fallback_policy_blocked_sides": (
+                                list(
+                                    fallback_exhaustion_info.get(
+                                        "fallback_policy_blocked_sides", []
+                                    )
+                                )
+                                if fallback_exhaustion_info
+                                else None
+                            ),
+                            "fallback_policy_viable_assignments_count": (
+                                int(
+                                    fallback_exhaustion_info.get(
+                                        "fallback_policy_viable_assignments_count", 0
+                                    )
+                                )
+                                if fallback_exhaustion_info
+                                else None
+                            ),
+                            "raw_strategy_signal_count": raw_strategy_signal_count,
+                            "surviving_router_allocation_count": (
+                                surviving_router_allocation_count
+                            ),
                             "entry_invert_signal": bool(entry_invert_signal),
                             "entry_side_override_env": entry_side_override,
                             "strategy_allowlist": entry_strategy_allowlist_snapshot,
                             "strategy_blocklist": entry_strategy_blocklist_snapshot,
                             "strategy_side_allowlist": entry_strategy_side_allowlist_snapshot,
                             "strategy_side_blocklist": entry_strategy_side_blocklist_snapshot,
+                            "symbol_strategy_side_allowlist": (
+                                entry_symbol_strategy_side_allowlist_snapshot
+                            ),
+                            "allowlist_source": (
+                                entry_symbol_strategy_side_allowlist_source or None
+                            ),
+                            "allowlist_contract_hash": (
+                                entry_symbol_strategy_side_allowlist_contract_hash
+                                or None
+                            ),
+                            "allowlist_bootstrap_report_hash": (
+                                entry_symbol_strategy_side_allowlist_bootstrap_report_hash
+                                or None
+                            ),
                             "entry_require_trend_and_vol": entry_require_trend_and_vol,
                             "entry_buy_require_trend": entry_buy_require_trend,
                             "entry_sell_require_trend": entry_sell_require_trend,
@@ -27772,8 +30888,10 @@ def run_bot(simulate=False):
                         and controlled_run_end_ts > 0
                     ):
                         now_guard_ts = time.time()
-                        if now_guard_ts >= (
-                            float(controlled_run_end_ts) - float(entry_cutoff_before_end_sec)
+                        if _controlled_run_entry_cutoff_active(
+                            controlled_run_end_ts,
+                            entry_cutoff_before_end_sec,
+                            now_ts=now_guard_ts,
                         ):
                             allow = False
                             entry_reason = "run_end_cutoff"
@@ -28023,6 +31141,51 @@ def run_bot(simulate=False):
                                         "strategy": active_strategy_name,
                                         "entry_decision": entry_decision,
                                         "reason": pre_order_filter_reason,
+                                        "allowlist_source": (
+                                            entry_symbol_strategy_side_allowlist_source
+                                            or None
+                                        ),
+                                        "allowlist_contract_hash": (
+                                            entry_symbol_strategy_side_allowlist_contract_hash
+                                            or None
+                                        ),
+                                        "allowlist_bootstrap_report_hash": (
+                                            entry_symbol_strategy_side_allowlist_bootstrap_report_hash
+                                            or None
+                                        ),
+                                        "symbol_strategy_side_allowlist": (
+                                            entry_symbol_strategy_side_allowlist_snapshot
+                                        ),
+                                    },
+                                )
+                            except Exception:
+                                pass
+                    if allow and entry_decision in ("buy", "sell"):
+                        required_entry_edge = _safe_float(entry_expected_edge_after_fee)
+                        required_fee_estimate = _safe_float(
+                            locals().get("fee_estimate_for_gate")
+                        )
+                        if (
+                            required_entry_edge is None
+                            or required_fee_estimate is None
+                        ):
+                            allow = False
+                            entry_reason = "missing_entry_edge_fields"
+                            try:
+                                infinity_logger.log(
+                                    "entry_rejected_due_to_fee_edge",
+                                    {
+                                        "ts": datetime.now(timezone.utc).isoformat(),
+                                        "symbol": symbol,
+                                        "strategy": active_strategy_name,
+                                        "entry_decision_raw": entry_decision_raw,
+                                        "entry_decision_final": "hold",
+                                        "expected_edge_after_fee": required_entry_edge,
+                                        "fee_estimate": required_fee_estimate,
+                                        "entry_edge_vs_fee_ratio": _safe_float(
+                                            locals().get("entry_edge_vs_fee_ratio")
+                                        ),
+                                        "reason": "missing_entry_edge_fields_pre_open",
                                     },
                                 )
                             except Exception:
@@ -28146,6 +31309,21 @@ def run_bot(simulate=False):
                     effective_gate_reason_origin = entry_gate_reason_context.get(
                         "effective_gate_reason_origin"
                     )
+                    attribution_resolution = _resolve_summary_fallback_attribution(
+                        effective_gate_reason=effective_gate_reason,
+                        local_gate_reason=local_gate_reason,
+                        entry_reason=entry_reason,
+                        final_prefilter_reason=locals().get("final_prefilter_reason"),
+                        entry_decision_raw=entry_decision_raw,
+                        entry_decision_final=entry_decision,
+                        ensemble_signals=ensemble_signals,
+                        filtered_ensemble_signals=filtered_ensemble_signals,
+                        dropped_ensemble_signals=dropped_ensemble_signals,
+                    )
+                    effective_gate_reason = attribution_resolution.get(
+                        "effective_gate_reason"
+                    )
+                    local_gate_reason = attribution_resolution.get("local_gate_reason")
                     entry_gate_bucket = _classify_entry_gate_bucket(
                         final_allow=final_allow,
                         effective_gate_reason=effective_gate_reason,
@@ -28204,6 +31382,381 @@ def run_bot(simulate=False):
                         realtime_edge_value = _safe_float(
                             entry_edge_after_execution.get("edge_after_execution")
                         )
+                    momentum_raw_side_source = None
+                    momentum_val = None
+                    momentum_z_val = None
+                    momentum_vol_ratio_val = None
+                    momentum_signal_score_val = None
+                    momentum_sma_short_val = None
+                    momentum_sma_long_val = None
+                    momentum_buy_exhausted = None
+                    momentum_sell_exhausted = None
+                    momentum_analysis_trend = None
+                    momentum_buy_quality_ok = None
+                    momentum_buy_by_score = None
+                    momentum_buy_by_core = None
+                    candidate_for_snapshot = (
+                        selected_candidate
+                        if "selected_candidate" in locals()
+                        else None
+                    )
+                    if isinstance(candidate_for_snapshot, dict):
+                        momentum_raw_side_source = candidate_for_snapshot.get("raw_side_source")
+                        candidate_strategy_name = str(
+                            candidate_for_snapshot.get("strategy")
+                            or candidate_for_snapshot.get("main_strategy")
+                            or main_strategy
+                            or ""
+                        ).strip()
+                        if candidate_strategy_name.lower() == "momentum":
+                            candidate_signal_payload = candidate_for_snapshot.get("signal")
+                            if isinstance(candidate_signal_payload, dict):
+                                candidate_signal_metrics = candidate_signal_payload.get("metrics")
+                                if not isinstance(candidate_signal_metrics, dict):
+                                    candidate_signal_metrics = {}
+                                candidate_signal_analysis = candidate_signal_payload.get("analysis")
+                                if not isinstance(candidate_signal_analysis, dict):
+                                    candidate_signal_analysis = {}
+                                candidate_signal_rows = candidate_signal_payload.get("signals")
+                                if not isinstance(candidate_signal_rows, list):
+                                    candidate_signal_rows = []
+                                first_signal_row = (
+                                    candidate_signal_rows[0]
+                                    if candidate_signal_rows
+                                    and isinstance(candidate_signal_rows[0], dict)
+                                    else {}
+                                )
+
+                                def _momentum_metric_value(name):
+                                    if name in candidate_signal_metrics:
+                                        return candidate_signal_metrics.get(name)
+                                    if name in first_signal_row:
+                                        return first_signal_row.get(name)
+                                    return None
+
+                                momentum_val = _safe_float(_momentum_metric_value("momentum"))
+                                momentum_z_val = _safe_float(_momentum_metric_value("z_momentum"))
+                                momentum_vol_ratio_val = _safe_float(
+                                    _momentum_metric_value("vol_ratio")
+                                )
+                                momentum_signal_score_val = _safe_float(
+                                    _momentum_metric_value("signal_score")
+                                )
+                                momentum_sma_short_val = _safe_float(
+                                    _momentum_metric_value("sma_short")
+                                )
+                                momentum_sma_long_val = _safe_float(
+                                    _momentum_metric_value("sma_long")
+                                )
+                                _buy_exhausted_raw = _momentum_metric_value("buy_exhausted")
+                                _sell_exhausted_raw = _momentum_metric_value("sell_exhausted")
+                                if _buy_exhausted_raw is not None:
+                                    momentum_buy_exhausted = bool(_buy_exhausted_raw)
+                                if _sell_exhausted_raw is not None:
+                                    momentum_sell_exhausted = bool(_sell_exhausted_raw)
+                                momentum_analysis_trend = candidate_signal_analysis.get("trend")
+
+                                _momentum_score_threshold = _safe_float(
+                                    os.environ.get("MOMENTUM_SIGNAL_SCORE_THRESHOLD")
+                                )
+                                if _momentum_score_threshold is None:
+                                    _momentum_score_threshold = 0.45
+                                _momentum_min_z = _safe_float(
+                                    os.environ.get("MOMENTUM_MIN_Z_MOMENTUM")
+                                )
+                                if _momentum_min_z is None:
+                                    _momentum_min_z = 0.5
+                                _momentum_min_vol_ratio = _safe_float(
+                                    os.environ.get("MOMENTUM_MIN_VOL_RATIO")
+                                )
+                                if _momentum_min_vol_ratio is None:
+                                    _momentum_min_vol_ratio = 0.7
+                                _momentum_require_trend_alignment = _env_flag(
+                                    "MOMENTUM_REQUIRE_TREND_ALIGNMENT",
+                                    False,
+                                )
+                                _momentum_score_entry_requires_volume = _env_flag(
+                                    "MOMENTUM_SCORE_ENTRY_REQUIRES_VOLUME",
+                                    True,
+                                )
+                                _momentum_entry_threshold = 1.0
+                                _momentum_volume_mult = 2.0
+
+                                _trend_up = None
+                                if (
+                                    momentum_sma_short_val is not None
+                                    and momentum_sma_long_val is not None
+                                ):
+                                    _trend_up = bool(
+                                        float(momentum_sma_short_val)
+                                        > float(momentum_sma_long_val)
+                                    )
+
+                                _vol_ok = None
+                                if momentum_vol_ratio_val is not None:
+                                    _vol_ok = bool(
+                                        float(momentum_vol_ratio_val)
+                                        >= float(_momentum_min_vol_ratio)
+                                    )
+
+                                _z_buy_ok = None
+                                if momentum_z_val is not None:
+                                    _z_buy_ok = bool(
+                                        float(momentum_z_val)
+                                        >= abs(float(_momentum_min_z))
+                                    )
+
+                                if (
+                                    _z_buy_ok is not None
+                                    and (_trend_up is not None or not _momentum_require_trend_alignment)
+                                    and (_vol_ok is not None or not _momentum_score_entry_requires_volume)
+                                ):
+                                    _trend_gate_ok = (
+                                        bool(_trend_up)
+                                        if _momentum_require_trend_alignment
+                                        else True
+                                    )
+                                    _volume_gate_ok = (
+                                        bool(_vol_ok)
+                                        if _momentum_score_entry_requires_volume
+                                        else True
+                                    )
+                                    _exhaustion_gate_ok = (
+                                        True
+                                        if momentum_buy_exhausted is None
+                                        else (not bool(momentum_buy_exhausted))
+                                    )
+                                    momentum_buy_quality_ok = bool(
+                                        bool(_z_buy_ok)
+                                        and bool(_trend_gate_ok)
+                                        and bool(_volume_gate_ok)
+                                        and bool(_exhaustion_gate_ok)
+                                    )
+
+                                if (
+                                    momentum_buy_quality_ok is not None
+                                    and momentum_signal_score_val is not None
+                                ):
+                                    momentum_buy_by_score = bool(
+                                        float(momentum_signal_score_val)
+                                        > float(_momentum_score_threshold)
+                                        and bool(momentum_buy_quality_ok)
+                                    )
+
+                                _current_vol = _safe_float(
+                                    _momentum_metric_value("current_vol")
+                                )
+                                _avg_vol = _safe_float(_momentum_metric_value("avg_vol"))
+                                _predicted_volatility = _safe_float(
+                                    _momentum_metric_value("predicted_volatility")
+                                )
+                                if (
+                                    momentum_buy_quality_ok is not None
+                                    and momentum_val is not None
+                                    and _current_vol is not None
+                                    and _avg_vol is not None
+                                ):
+                                    _vol_gate = bool(
+                                        float(_current_vol)
+                                        > float(_avg_vol)
+                                        * float(_momentum_volume_mult)
+                                    )
+                                    _predicted_gate = (
+                                        True
+                                        if _predicted_volatility is None
+                                        else bool(float(_predicted_volatility) > 0.01)
+                                    )
+                                    momentum_buy_by_core = bool(
+                                        float(momentum_val)
+                                        > float(_momentum_entry_threshold)
+                                        and bool(_vol_gate)
+                                        and bool(_predicted_gate)
+                                        and bool(momentum_buy_quality_ok)
+                                    )
+                    if (
+                        (momentum_val is None)
+                        and isinstance(main_strategy, str)
+                        and main_strategy.strip().lower() == "momentum"
+                        and isinstance(raw_signals, list)
+                    ):
+                        fallback_momentum_payload = None
+                        for _raw_sig in raw_signals:
+                            if not isinstance(_raw_sig, dict):
+                                continue
+                            _raw_strategy = str(_raw_sig.get("strategy") or "").strip().lower()
+                            if _raw_strategy == "momentum":
+                                fallback_momentum_payload = _raw_sig
+                                break
+                        if isinstance(fallback_momentum_payload, dict):
+                            fallback_signal_payload = fallback_momentum_payload.get("signal")
+                            if isinstance(fallback_signal_payload, dict):
+                                fallback_metrics = fallback_signal_payload.get("metrics")
+                                if not isinstance(fallback_metrics, dict):
+                                    fallback_metrics = {}
+                                fallback_analysis = fallback_signal_payload.get("analysis")
+                                if not isinstance(fallback_analysis, dict):
+                                    fallback_analysis = {}
+                                fallback_signal_rows = fallback_signal_payload.get("signals")
+                                if not isinstance(fallback_signal_rows, list):
+                                    fallback_signal_rows = []
+                                fallback_first_signal = (
+                                    fallback_signal_rows[0]
+                                    if fallback_signal_rows
+                                    and isinstance(fallback_signal_rows[0], dict)
+                                    else {}
+                                )
+
+                                def _fallback_metric_value(name):
+                                    if name in fallback_metrics:
+                                        return fallback_metrics.get(name)
+                                    if name in fallback_first_signal:
+                                        return fallback_first_signal.get(name)
+                                    return None
+
+                                momentum_val = _safe_float(_fallback_metric_value("momentum"))
+                                momentum_z_val = _safe_float(_fallback_metric_value("z_momentum"))
+                                momentum_vol_ratio_val = _safe_float(
+                                    _fallback_metric_value("vol_ratio")
+                                )
+                                momentum_signal_score_val = _safe_float(
+                                    _fallback_metric_value("signal_score")
+                                )
+                                momentum_sma_short_val = _safe_float(
+                                    _fallback_metric_value("sma_short")
+                                )
+                                momentum_sma_long_val = _safe_float(
+                                    _fallback_metric_value("sma_long")
+                                )
+                                _fallback_buy_exhausted = _fallback_metric_value("buy_exhausted")
+                                _fallback_sell_exhausted = _fallback_metric_value("sell_exhausted")
+                                if _fallback_buy_exhausted is not None:
+                                    momentum_buy_exhausted = bool(_fallback_buy_exhausted)
+                                if _fallback_sell_exhausted is not None:
+                                    momentum_sell_exhausted = bool(_fallback_sell_exhausted)
+                                momentum_analysis_trend = fallback_analysis.get("trend")
+
+                                if momentum_raw_side_source is None:
+                                    _fallback_side = _fallback_metric_value("side")
+                                    if isinstance(_fallback_side, str) and _fallback_side.strip():
+                                        momentum_raw_side_source = "signal.signals.signal.side"
+
+                                _momentum_score_threshold = _safe_float(
+                                    os.environ.get("MOMENTUM_SIGNAL_SCORE_THRESHOLD")
+                                )
+                                if _momentum_score_threshold is None:
+                                    _momentum_score_threshold = 0.45
+                                _momentum_min_z = _safe_float(
+                                    os.environ.get("MOMENTUM_MIN_Z_MOMENTUM")
+                                )
+                                if _momentum_min_z is None:
+                                    _momentum_min_z = 0.5
+                                _momentum_min_vol_ratio = _safe_float(
+                                    os.environ.get("MOMENTUM_MIN_VOL_RATIO")
+                                )
+                                if _momentum_min_vol_ratio is None:
+                                    _momentum_min_vol_ratio = 0.7
+                                _momentum_require_trend_alignment = _env_flag(
+                                    "MOMENTUM_REQUIRE_TREND_ALIGNMENT",
+                                    False,
+                                )
+                                _momentum_score_entry_requires_volume = _env_flag(
+                                    "MOMENTUM_SCORE_ENTRY_REQUIRES_VOLUME",
+                                    True,
+                                )
+                                _momentum_entry_threshold = 1.0
+                                _momentum_volume_mult = 2.0
+
+                                _trend_up = None
+                                if (
+                                    momentum_sma_short_val is not None
+                                    and momentum_sma_long_val is not None
+                                ):
+                                    _trend_up = bool(
+                                        float(momentum_sma_short_val)
+                                        > float(momentum_sma_long_val)
+                                    )
+
+                                _vol_ok = None
+                                if momentum_vol_ratio_val is not None:
+                                    _vol_ok = bool(
+                                        float(momentum_vol_ratio_val)
+                                        >= float(_momentum_min_vol_ratio)
+                                    )
+
+                                _z_buy_ok = None
+                                if momentum_z_val is not None:
+                                    _z_buy_ok = bool(
+                                        float(momentum_z_val)
+                                        >= abs(float(_momentum_min_z))
+                                    )
+
+                                if (
+                                    _z_buy_ok is not None
+                                    and (_trend_up is not None or not _momentum_require_trend_alignment)
+                                    and (_vol_ok is not None or not _momentum_score_entry_requires_volume)
+                                ):
+                                    _trend_gate_ok = (
+                                        bool(_trend_up)
+                                        if _momentum_require_trend_alignment
+                                        else True
+                                    )
+                                    _volume_gate_ok = (
+                                        bool(_vol_ok)
+                                        if _momentum_score_entry_requires_volume
+                                        else True
+                                    )
+                                    _exhaustion_gate_ok = (
+                                        True
+                                        if momentum_buy_exhausted is None
+                                        else (not bool(momentum_buy_exhausted))
+                                    )
+                                    momentum_buy_quality_ok = bool(
+                                        bool(_z_buy_ok)
+                                        and bool(_trend_gate_ok)
+                                        and bool(_volume_gate_ok)
+                                        and bool(_exhaustion_gate_ok)
+                                    )
+
+                                if (
+                                    momentum_buy_quality_ok is not None
+                                    and momentum_signal_score_val is not None
+                                ):
+                                    momentum_buy_by_score = bool(
+                                        float(momentum_signal_score_val)
+                                        > float(_momentum_score_threshold)
+                                        and bool(momentum_buy_quality_ok)
+                                    )
+
+                                _current_vol = _safe_float(
+                                    _fallback_metric_value("current_vol")
+                                )
+                                _avg_vol = _safe_float(_fallback_metric_value("avg_vol"))
+                                _predicted_volatility = _safe_float(
+                                    _fallback_metric_value("predicted_volatility")
+                                )
+                                if (
+                                    momentum_buy_quality_ok is not None
+                                    and momentum_val is not None
+                                    and _current_vol is not None
+                                    and _avg_vol is not None
+                                ):
+                                    _vol_gate = bool(
+                                        float(_current_vol)
+                                        > float(_avg_vol)
+                                        * float(_momentum_volume_mult)
+                                    )
+                                    _predicted_gate = (
+                                        True
+                                        if _predicted_volatility is None
+                                        else bool(float(_predicted_volatility) > 0.01)
+                                    )
+                                    momentum_buy_by_core = bool(
+                                        float(momentum_val)
+                                        > float(_momentum_entry_threshold)
+                                        and bool(_vol_gate)
+                                        and bool(_predicted_gate)
+                                        and bool(momentum_buy_quality_ok)
+                                    )
                     try:
                         infinity_logger.log(
                             "post_close_summary_pre_assembly",
@@ -28248,6 +31801,21 @@ def run_bot(simulate=False):
                         "local_gate_reason": local_gate_reason,
                         "effective_gate_reason": effective_gate_reason,
                         "effective_gate_reason_origin": effective_gate_reason_origin,
+                        "resolved_upstream_predicate": attribution_resolution.get(
+                            "resolved_upstream_predicate"
+                        ),
+                        "resolved_upstream_source": attribution_resolution.get(
+                            "resolved_upstream_source"
+                        ),
+                        "attribution_resolution_applied": bool(
+                            attribution_resolution.get("attribution_resolution_applied")
+                        ),
+                        "original_effective_gate_reason": attribution_resolution.get(
+                            "original_effective_gate_reason"
+                        ),
+                        "original_local_gate_reason": attribution_resolution.get(
+                            "original_local_gate_reason"
+                        ),
                         "paper_gate_active": bool(gate_active),
                         "paper_gate_reason": (gate_state or {}).get("reason"),
                         "paper_gate_mode": (gate_state or {}).get("mode"),
@@ -28271,6 +31839,29 @@ def run_bot(simulate=False):
                                 effective_gate_reason=effective_gate_reason,
                             )
                         ),
+                        "signal_score": signal_score,
+                        "signal_score_abs": _gate_diag_score_mag,
+                        "score_min": _gate_diag_score_min,
+                        "vote_count": _gate_diag_vote_count,
+                        "opposite_vote_count": _gate_diag_opposite_vote_count,
+                        "trend_ok": _gate_diag_trend_ok,
+                           "tie_vote_override_enabled": bool(tie_vote_override_enabled),
+                           "tie_vote_override_applied": bool(tie_vote_override_applied),
+                           "tie_vote_override_reason": tie_vote_override_reason,
+                        "regime": regime,
+                        "raw_side_source": momentum_raw_side_source,
+                        "momentum": momentum_val,
+                        "z_momentum": momentum_z_val,
+                        "vol_ratio": momentum_vol_ratio_val,
+                        "momentum_signal_score": momentum_signal_score_val,
+                        "sma_short": momentum_sma_short_val,
+                        "sma_long": momentum_sma_long_val,
+                        "buy_exhausted": momentum_buy_exhausted,
+                        "sell_exhausted": momentum_sell_exhausted,
+                        "buy_by_score": momentum_buy_by_score,
+                        "buy_by_core": momentum_buy_by_core,
+                        "buy_quality_ok": momentum_buy_quality_ok,
+                        "analysis_trend": momentum_analysis_trend,
                         "entry_live_edge": entry_live_edge_status,
                         "entry_edge_over_fee": entry_edge_over_fee_status,
                         "entry_edge_after_execution": entry_edge_after_execution,
@@ -28288,6 +31879,12 @@ def run_bot(simulate=False):
                             str(entry_reason or "") == "max_open_positions"
                         ),
                     }
+                    entry_gate_decision_summary = (
+                        _apply_symbol_strategy_guard_summary_identity(
+                            entry_gate_decision_summary,
+                            dropped_ensemble_signals=dropped_ensemble_signals,
+                        )
+                    )
                     try:
                         entry_canonical_bucket = build_canonical_edge_bucket_key(
                             entry_gate_decision_summary
@@ -28427,8 +32024,28 @@ def run_bot(simulate=False):
                             else "hold_or_fallback_normalization"
                         ),
                         "strategy_assignment_reason": (
-                            canonical_bucket_trace.get("bucket_identity_reason")
+                            "fallback_policy_exhausted_strategy_side"
+                            if fallback_exhaustion_info
+                            else canonical_bucket_trace.get("bucket_identity_reason")
                         ),
+                        "fallback_policy_exhausted": bool(fallback_exhaustion_info),
+                        "fallback_policy_viable_assignments_count": (
+                            int(fallback_exhaustion_info.get("fallback_policy_viable_assignments_count", 0))
+                            if fallback_exhaustion_info else None
+                        ),
+                        "fallback_policy_blocked_strategies": (
+                            list(fallback_exhaustion_info.get("fallback_policy_blocked_strategies", []))
+                            if fallback_exhaustion_info else None
+                        ),
+                        "fallback_policy_blocked_sides": (
+                            list(fallback_exhaustion_info.get("fallback_policy_blocked_sides", []))
+                            if fallback_exhaustion_info else None
+                        ),
+                        "fallback_policy_exhaustion_reason": (
+                            fallback_exhaustion_info.get("fallback_policy_exhaustion_reason")
+                            if fallback_exhaustion_info else None
+                        ),
+                        "fallback_policy_final_candidate_count": 0 if fallback_exhaustion_info else None,
                         "side_assignment_reason": (
                             locals().get("final_prefilter_reason")
                             or entry_reason
@@ -28984,6 +32601,15 @@ def run_bot(simulate=False):
                                 runtime_policy_disabled_until = _safe_float(
                                     entry_runtime_isolation_context.get("disabled_until_ts")
                                 )
+                            order_allowlist_gate = (
+                                _entry_symbol_strategy_side_allowlist_gate(
+                                    symbol=symbol,
+                                    strategy=main_strategy,
+                                    side=order_side,
+                                    allowlist=entry_symbol_strategy_side_allowlist,
+                                    live_mode=_env_flag("LIVE"),
+                                )
+                            )
                             order = {
                                 "symbol": symbol,
                                 "side": order_side,
@@ -29007,6 +32633,28 @@ def run_bot(simulate=False):
                                 "strategy_blocklist": entry_strategy_blocklist_snapshot,
                                 "strategy_side_allowlist": entry_strategy_side_allowlist_snapshot,
                                 "strategy_side_blocklist": entry_strategy_side_blocklist_snapshot,
+                                "symbol_strategy_side_allowlist": (
+                                    entry_symbol_strategy_side_allowlist_snapshot
+                                ),
+                                "allowlist_source": (
+                                    entry_symbol_strategy_side_allowlist_source or None
+                                ),
+                                "allowlist_contract_hash": (
+                                    entry_symbol_strategy_side_allowlist_contract_hash
+                                    or None
+                                ),
+                                "allowlist_bootstrap_report_hash": (
+                                    entry_symbol_strategy_side_allowlist_bootstrap_report_hash
+                                    or None
+                                ),
+                                "allowlist_gate_decision": (
+                                    "allowed"
+                                    if order_allowlist_gate.get("active")
+                                    else "not_active"
+                                ),
+                                "allowlist_gate_block_reason": (
+                                    order_allowlist_gate.get("reason")
+                                ),
                                 "ai_vote": ai_vote,
                                 "ai_weight": ai_weight,
                                 "timestamp": decision_ts_iso,
@@ -29170,6 +32818,12 @@ def run_bot(simulate=False):
                                 "entry_signal_score_abs_bucket": entry_signal_score_abs_bucket,
                                 "entry_expected_edge_after_fee": _safe_float(
                                     entry_expected_edge_after_fee
+                                ),
+                                "entry_fee_estimate": _safe_float(
+                                    locals().get("fee_estimate_for_gate")
+                                ),
+                                "entry_edge_vs_fee_ratio": _safe_float(
+                                    locals().get("entry_edge_vs_fee_ratio")
                                 ),
                                 "entry_router_lead": _safe_float(router_lead),
                                 "volatility_atr_value": volatility_atr_value,
@@ -29822,6 +33476,24 @@ def run_bot(simulate=False):
                                                         "strategy_side_blocklist": order.get(
                                                             "strategy_side_blocklist"
                                                         ),
+                                                        "symbol_strategy_side_allowlist": order.get(
+                                                            "symbol_strategy_side_allowlist"
+                                                        ),
+                                                        "allowlist_source": order.get(
+                                                            "allowlist_source"
+                                                        ),
+                                                        "allowlist_contract_hash": order.get(
+                                                            "allowlist_contract_hash"
+                                                        ),
+                                                        "allowlist_bootstrap_report_hash": order.get(
+                                                            "allowlist_bootstrap_report_hash"
+                                                        ),
+                                                        "allowlist_gate_decision": order.get(
+                                                            "allowlist_gate_decision"
+                                                        ),
+                                                        "allowlist_gate_block_reason": order.get(
+                                                            "allowlist_gate_block_reason"
+                                                        ),
                                                         "entry_state_snapshot_id": order.get(
                                                             "entry_state_snapshot_id"
                                                         ),
@@ -30268,6 +33940,64 @@ def run_bot(simulate=False):
                                             },
                                         )
                                 if skip_open:
+                                    if os.environ.get("PAPER_RUN_ONCE", "0") == "1":
+                                        maybe_run_federated_learning(
+                                            federated_round=federated_round,
+                                            fl_round_limit=fl_round_limit,
+                                            symbol=symbol,
+                                            candles=candles,
+                                            trend_predictor=trend_predictor,
+                                            infinity_logger=infinity_logger,
+                                            logger=logger,
+                                        )
+                                        if federated_round % retrain_interval == 0:
+                                            ai_trainer.fit_if_needed()
+                                            infinity_logger.log(
+                                                "ai_retrain",
+                                                {"step": federated_round, "symbol": symbol},
+                                            )
+                                        federated_round += 1
+                                        if paper_force_close_on_exit:
+                                            try:
+                                                forced_closed = _paper_force_close_open_positions(
+                                                    "paper_run_once_force_close"
+                                                )
+                                                if forced_closed > 0:
+                                                    logger.info(
+                                                        "PAPER force-close on run-once exit: closed %s positions.",
+                                                        forced_closed,
+                                                    )
+                                            except Exception as e:
+                                                logger.warning(
+                                                    "PAPER force-close on run-once exit failed: %s",
+                                                    e,
+                                                )
+                                        try:
+                                            _drain_post_promotion_reeval_requests()
+                                        except Exception as e:
+                                            logger.warning(
+                                                "PAPER run-once post-promotion reeval drain failed: %s",
+                                                e,
+                                            )
+                                        logger.info(
+                                            "PAPER_RUN_ONCE enabled: exiting after skipped open "
+                                            "for PAPER tests."
+                                        )
+                                        _paper_runtime_trace(
+                                            "paper_runtime_clean_exit_reason",
+                                            paper_runtime_main_loop_exit=True,
+                                            paper_runtime_clean_exit_reason="PAPER_RUN_ONCE",
+                                            paper_runtime_clean_exit_detail="position_open_skipped",
+                                            loop_iteration=completed_cycles,
+                                            exit_symbol=symbol,
+                                        )
+                                        _stop_runtime_platform_stream(
+                                            platform_stream_manager,
+                                            logger=logger,
+                                        )
+                                        _ab_save_replay_cursor()
+                                        _ab_log_anchor_summary("run_once_exit")
+                                        return
                                     continue
                                 last_exec_ts[symbol] = now_ts
                                 infinity_logger.log("order_simulated", order)
@@ -30397,6 +34127,24 @@ def run_bot(simulate=False):
                                                 ),
                                                 "strategy_side_blocklist": order.get(
                                                     "strategy_side_blocklist"
+                                                ),
+                                                "symbol_strategy_side_allowlist": order.get(
+                                                    "symbol_strategy_side_allowlist"
+                                                ),
+                                                "allowlist_source": order.get(
+                                                    "allowlist_source"
+                                                ),
+                                                "allowlist_contract_hash": order.get(
+                                                    "allowlist_contract_hash"
+                                                ),
+                                                "allowlist_bootstrap_report_hash": order.get(
+                                                    "allowlist_bootstrap_report_hash"
+                                                ),
+                                                "allowlist_gate_decision": order.get(
+                                                    "allowlist_gate_decision"
+                                                ),
+                                                "allowlist_gate_block_reason": order.get(
+                                                    "allowlist_gate_block_reason"
                                                 ),
                                                 "entry_state_snapshot_id": order.get(
                                                     "entry_state_snapshot_id"

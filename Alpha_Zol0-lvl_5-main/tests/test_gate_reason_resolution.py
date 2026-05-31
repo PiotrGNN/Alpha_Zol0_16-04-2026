@@ -233,6 +233,8 @@ def test_entry_policy_pipeline_requires_supporting_signal_for_decision_side():
         last_decision_state={},
         entry_symbol_allowlist=set(),
         entry_symbol_blocklist=set(),
+        entry_symbol_strategy_side_allowlist=set(),
+        signal_votes=[],
         entry_allow_buy=True,
         entry_allow_sell=True,
         decision_hysteresis_score=0.1,
@@ -259,6 +261,8 @@ def test_entry_policy_pipeline_updates_last_state_from_supporting_basket():
         last_decision_state=last_state,
         entry_symbol_allowlist=set(),
         entry_symbol_blocklist=set(),
+        entry_symbol_strategy_side_allowlist=set(),
+        signal_votes=[],
         entry_allow_buy=True,
         entry_allow_sell=True,
         decision_hysteresis_score=0.1,
@@ -617,7 +621,7 @@ def test_entry_open_truth_classification_maps_auto_open_sources():
             decision_router_path=None,
             override_reason=None,
         )
-        == "UNKNOWN_REQUIRES_REVIEW"
+        == "NATURAL_STRATEGY_ENTRY"
     )
 
     bucket = _classify_entry_gate_bucket(
