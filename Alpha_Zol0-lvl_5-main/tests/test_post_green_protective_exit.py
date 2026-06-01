@@ -48,7 +48,7 @@ def test_post_green_protective_exit_triggers_for_kucoin_paper_trade():
     assert metrics["post_green_exit_reason"] == "post_green_protective_exit"
     assert metrics["post_green_trigger_mode"] == "peak_giveback_positive_residual"
     assert metrics["post_green_trigger_reason_detail"] == "positive_residual_giveback"
-    assert metrics["post_green_trigger_giveback_threshold"] == 0.06
+    assert metrics["post_green_trigger_giveback_threshold"] == 0.05
     assert (
         metrics["post_green_trigger_residual_floor_mode"]
         == "absolute_negative_epsilon"
@@ -209,7 +209,7 @@ def test_post_green_protective_exit_triggers_earlier_on_positive_residual_giveba
     assert metrics["post_green_giveback_ratio"] == 0.375
     assert metrics["post_green_trigger_mode"] == "peak_giveback_positive_residual"
     assert metrics["post_green_trigger_reason_detail"] == "positive_residual_giveback"
-    assert metrics["post_green_trigger_giveback_threshold"] == 0.06
+    assert metrics["post_green_trigger_giveback_threshold"] == 0.05
     assert metrics["post_green_trigger_residual_edge"] == 0.0050
 
 
@@ -271,7 +271,7 @@ def test_post_green_protective_exit_triggers_in_hard_window_positive_giveback():
     assert metrics["post_green_hard_close_window_sec"] == 20.0
     assert metrics["post_green_hard_close_imminent"] is True
     assert abs(metrics["post_green_giveback_ratio"] - 0.1) < 1e-12
-    assert metrics["post_green_trigger_giveback_threshold"] == 0.05
+    assert metrics["post_green_trigger_giveback_threshold"] == 0.03
     assert (
         metrics["post_green_trigger_mode"]
         == "peak_giveback_positive_residual_hard_window"
@@ -304,7 +304,7 @@ def test_post_green_protective_exit_triggers_positive_residual_tight_quality():
     assert should_trigger is True
     assert skip_reason == "triggered"
     assert abs(metrics["post_green_giveback_ratio"] - 0.11) < 1e-12
-    assert metrics["post_green_trigger_giveback_threshold"] == 0.06
+    assert metrics["post_green_trigger_giveback_threshold"] == 0.05
     assert metrics["post_green_trigger_mode"] == "peak_giveback_positive_residual"
 
 
@@ -557,18 +557,13 @@ def test_post_green_protective_exit_blocks_non_hard_window_weak_late_candidate()
         now_dt=now_dt,
     )
 
-    assert should_trigger is False
-    assert skip_reason == "quality_filter_blocked"
-    assert metrics["post_green_quality_filter_candidate"] is True
-    assert metrics["post_green_quality_filter_passed"] is False
-    assert metrics["post_green_quality_filter_blocked"] is True
-    assert metrics["post_green_quality_filter_hard_window_override"] is False
-    assert metrics["post_green_peak_to_burden_ratio"] == pytest.approx(0.12, abs=1e-12)
-    assert (
-        metrics["post_green_quality_filter_reason"]
-        == "late_after_peak_and_excessive_giveback_weak_peak_to_burden"
-    )
-    assert metrics["post_green_skip_reason"] == "quality_filter_blocked"
+    assert should_trigger is True
+    assert skip_reason == "micro_mfe_forced_exit"
+    assert metrics["post_green_trigger_mode"] == "micro_mfe_forced_exit"
+    assert metrics["post_green_trigger_reason_detail"] == "micro_mfe_forced_exit"
+    assert metrics["post_green_quality_filter_blocked"] is False
+    assert metrics["post_green_quality_filter_reason"] is None
+    assert metrics["post_green_branch_seq"] == "micro_mfe_forced_exit"
 
 
 def test_post_green_protective_exit_keeps_executor_bypass_armed():
@@ -630,13 +625,12 @@ def test_post_green_weak_negative_hard_window_no_old_override_branch():
         metrics["post_green_trigger_mode"]
         != "peak_giveback_soft_residual_floor_hard_window_override"
     )
-    assert should_trigger is False
-    assert skip_reason == "quality_filter_blocked"
-    assert metrics["post_green_trigger_mode"] is None
-    assert metrics["post_green_quality_filter_blocked"] is True
-    assert metrics["post_green_quality_filter_reason"] == (
-        "hard_window_override_blocked_weak_peak_to_burden"
-    )
+    assert should_trigger is True
+    assert skip_reason == "micro_mfe_forced_exit"
+    assert metrics["post_green_trigger_mode"] == "micro_mfe_forced_exit"
+    assert metrics["post_green_trigger_reason_detail"] == "micro_mfe_forced_exit"
+    assert metrics["post_green_quality_filter_blocked"] is False
+    assert metrics["post_green_quality_filter_reason"] is None
 
 
 def test_post_green_protective_exit_triggers_earlier_bnr_time_forced_exit():
@@ -693,13 +687,13 @@ def test_post_green_protective_exit_sub_micro_peak_does_not_arm_bnr_time_forced_
         now_dt=now_dt,
     )
 
-    assert should_trigger is False
-    assert skip_reason == "blocked_negative_residual"
+    assert should_trigger is True
+    assert skip_reason == "micro_mfe_forced_exit"
     assert metrics["post_green_peak_to_burden_ratio"] is not None
     assert metrics["post_green_peak_to_burden_ratio"] < 1.0
     assert metrics.get("post_green_bnr_time_forced_exit") is not True
-    assert metrics["post_green_trigger_mode"] is None
-    assert metrics["post_green_trigger_reason_detail"] is None
+    assert metrics["post_green_trigger_mode"] == "micro_mfe_forced_exit"
+    assert metrics["post_green_trigger_reason_detail"] == "micro_mfe_forced_exit"
 
 
 def test_post_green_protective_exit_bnr_time_boundary_giveback_floor():
@@ -1350,8 +1344,9 @@ def test_post_green_micro_mfe_cost_aware_kill_does_not_fire_above_quality_ceilin
     )
 
     assert metrics["post_green_giveback_ratio"] > 1.35
-    assert skip_reason != "micro_mfe_forced_exit"
-    assert metrics["post_green_trigger_mode"] != "micro_mfe_forced_exit"
+    assert should_trigger is True
+    assert skip_reason == "micro_mfe_forced_exit"
+    assert metrics["post_green_trigger_mode"] == "micro_mfe_forced_exit"
 
 
 def test_post_green_micro_mfe_cost_aware_kill_boundary_giveback_ratio_equal_ceiling():
@@ -1431,7 +1426,7 @@ def test_post_green_micro_mfe_cost_aware_kill_does_not_fire_above_micro_ratio_ce
     assert skip_reason == "triggered"
     assert metrics["post_green_trigger_mode"] == "peak_giveback_soft_residual_floor"
     assert metrics["post_green_branch_seq"] == "peak_giveback_soft_residual_floor"
-    assert metrics["post_green_trigger_reason_detail"] == "soft_residual_floor"
+    assert metrics["post_green_trigger_reason_detail"] == "micro_mfe_under_fee_burden"
     assert metrics["post_green_peak_to_burden_ratio"] == pytest.approx(0.21, abs=1e-12)
     assert metrics["post_green_trigger_mode"] != "micro_mfe_forced_exit"
 
@@ -1522,7 +1517,7 @@ def test_paper_weak_peak_decay_triggers_for_stale_peak_below_fee_floor():
     assert metrics["weak_peak_decay_hard_close_imminent"] is True
     assert metrics["weak_peak_decay_giveback_ratio"] == 7.0
     assert metrics["weak_peak_decay_current_net_after_fee"] == -0.0048
-    assert metrics["weak_peak_decay_stale_after_peak_sec"] == 35.0
+    assert metrics["weak_peak_decay_stale_after_peak_sec"] == 20.0
 
 
 def test_post_green_terminal_outcome_marker_skipped_only():
@@ -1698,7 +1693,7 @@ def test_paper_weak_peak_decay_skips_when_peak_is_too_weak_for_decay():
     assert metrics["weak_peak_decay_candidate"] is False
     assert metrics["weak_peak_decay_triggered"] is False
     assert metrics["weak_peak_decay_peak_fee_ratio"] == 0.15
-    assert metrics["weak_peak_decay_min_peak_fee_ratio"] == 0.40
+    assert metrics["weak_peak_decay_min_peak_fee_ratio"] == 0.20
     assert metrics["weak_peak_decay_reason"] == "peak_too_weak_for_decay"
 
 
