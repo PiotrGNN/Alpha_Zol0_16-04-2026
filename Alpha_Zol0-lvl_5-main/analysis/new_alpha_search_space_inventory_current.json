@@ -1,0 +1,137 @@
+{
+  "candidate_families": [
+    {
+      "classification": "NEW_ALPHA_CANDIDATE_FOUND_FOR_PAPER_VALIDATION",
+      "evidence_artifact": "analysis/new_alpha_research_validation_current.json",
+      "family": "fresh_ex_current_symbol_trendfollowing",
+      "symbols": [
+        "DOTUSDTM",
+        "BNBUSDTM",
+        "AVAXUSDTM"
+      ]
+    },
+    {
+      "classification": "NO_NEW_ALPHA_CANDIDATE_FOUND",
+      "family": "fresh_ex_current_symbol_momentum",
+      "reason": "public-kline research produced rejected/top momentum rows but no selected candidate above full-cost floor",
+      "symbols": [
+        "DOTUSDTM",
+        "BNBUSDTM"
+      ]
+    },
+    {
+      "classification": "CURRENT_SEARCH_SPACE_CLOSED",
+      "family": "legacy_current_space_btc_sol_xrp_micro_edge",
+      "reason": "loop-breaker verdict frozen and economic discovery qualified_candidate_count=0",
+      "symbols": [
+        "BTCUSDTM",
+        "SOLUSDTM",
+        "XRPUSDTM"
+      ]
+    }
+  ],
+  "classification": "NEW_ALPHA_INVENTORY_BUILT",
+  "generated_at_utc": "2026-06-03T12:15:52.785708+00:00",
+  "next_paper_validation_scope": {
+    "entry_symbol_strategy_side_allowlist": [
+      "DOTUSDTM:TrendFollowingV2:sell"
+    ],
+    "mode": "PAPER_ONLY_NO_SEED_NO_FALLBACK_NO_DIAGNOSTIC_FORCE_OPEN",
+    "required_floor": "expected_net_after_full_cost >= 0.08",
+    "run_symbols": [
+      "DOTUSDTM"
+    ]
+  },
+  "observed_current_space": {
+    "closed_current_space_reason": "recent DB evidence did not contain any candidate with expected_net_after_full_cost >= 0.08",
+    "latest_20_db_symbols_observed": [
+      "BTCUSDTM",
+      "SOLUSDTM",
+      "XRPUSDTM"
+    ],
+    "max_observed_expected_net_after_full_cost": 0.05114894112391108
+  },
+  "read_only_sources": [
+    {
+      "path": "core/runtime_v2/runner.py",
+      "surface": "_parse_symbols, ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST, runtime_v2 telemetry loop"
+    },
+    {
+      "path": "core/runtime_v2/strategy_stack.py",
+      "surface": "TrendFollowingV2, MomentumV2, MeanReversionV2, UniversalV2"
+    },
+    {
+      "path": "core/runtime_v2/decision_engine.py",
+      "surface": "expected_net_after_cost and probability gates"
+    },
+    {
+      "path": "core/runtime_v2/risk_engine.py",
+      "surface": "expected_net_after_full_cost sizing and ENTRY_MIN_NET_USDT guard"
+    },
+    {
+      "path": "scripts/autonomous_paper_profit_campaign.py",
+      "surface": "candidate symbol universe, exploratory allowlist, campaign floor 0.08"
+    },
+    {
+      "path": "scripts/discover_new_alpha_search_space.py",
+      "surface": "fresh public KuCoin kline research-only pre-runtime validation"
+    }
+  ],
+  "scope": {
+    "kucoin_only": true,
+    "live": 0,
+    "min_expected_net_usdt": 0.08,
+    "paper_only": true,
+    "use_mock": 0
+  },
+  "selected_hypotheses": [
+    {
+      "candidate_key": "DOTUSDTM:TrendFollowingV2:sell",
+      "classification": "NEW_ALPHA_CANDIDATE_FOUND_FOR_PAPER_VALIDATION",
+      "confidence": 1.0,
+      "expected_net_after_full_cost": 0.11373500855615154,
+      "final_notional_usdt": 20.07,
+      "probability_of_profit": 0.9999999934813502,
+      "side": "sell",
+      "source_artifact": "analysis/new_alpha_research_validation_current.json",
+      "strategy": "TrendFollowingV2",
+      "symbol": "DOTUSDTM"
+    },
+    {
+      "candidate_key": "BNBUSDTM:TrendFollowingV2:buy",
+      "classification": "NEW_ALPHA_CANDIDATE_FOUND_FOR_PAPER_VALIDATION",
+      "confidence": 1.0,
+      "expected_net_after_full_cost": 0.08144557636074735,
+      "final_notional_usdt": 19.343999999999998,
+      "probability_of_profit": 0.9999999542792811,
+      "side": "buy",
+      "source_artifact": "analysis/new_alpha_research_validation_current.json",
+      "strategy": "TrendFollowingV2",
+      "symbol": "BNBUSDTM"
+    },
+    {
+      "candidate_key": "AVAXUSDTM:TrendFollowingV2:sell",
+      "classification": "NEW_ALPHA_CANDIDATE_FOUND_FOR_PAPER_VALIDATION",
+      "confidence": 1.0,
+      "expected_net_after_full_cost": 0.08137487663914103,
+      "final_notional_usdt": 23.3016,
+      "probability_of_profit": 0.9999998320920496,
+      "side": "sell",
+      "source_artifact": "analysis/new_alpha_research_validation_current.json",
+      "strategy": "TrendFollowingV2",
+      "symbol": "AVAXUSDTM"
+    }
+  ],
+  "single_best_hypothesis": {
+    "candidate_key": "DOTUSDTM:TrendFollowingV2:sell",
+    "classification": "NEW_ALPHA_CANDIDATE_FOUND_FOR_PAPER_VALIDATION",
+    "confidence": 1.0,
+    "expected_net_after_full_cost": 0.11373500855615154,
+    "final_notional_usdt": 20.07,
+    "probability_of_profit": 0.9999999934813502,
+    "side": "sell",
+    "source_artifact": "analysis/new_alpha_research_validation_current.json",
+    "strategy": "TrendFollowingV2",
+    "symbol": "DOTUSDTM"
+  }
+}
