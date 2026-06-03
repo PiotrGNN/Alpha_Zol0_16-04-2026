@@ -1,0 +1,296 @@
+{
+  "generated_at_utc": "2026-06-03T11:59:59.831Z",
+  "final_verdict": "NO_CLEAN_PROFITABLE_PROFILE_FOUND_IN_CURRENT_SEARCH_SPACE",
+  "scope": {
+    "kucoin_only": true,
+    "paper_only": true,
+    "live": 0,
+    "use_mock": 0,
+    "no_seed": true,
+    "no_fallback": true,
+    "no_diagnostic_force_open": true
+  },
+  "locked_facts": {
+    "head": "496a14cbd27b12cfb2fc35c0dbe5f0252f82bfd6",
+    "dirty_state": "dirty worktree with many pre-existing modified/untracked files; no git add performed",
+    "profitability_evidence_generated_at_utc": "2026-06-03T11:58:21.850635+00:00",
+    "latest_result_json": "results/controlled_kpi_20260603_112131.json",
+    "latest_process_returncode": 0,
+    "latest_shutdown_classification": "close_flush_done_pending_positions_zero",
+    "latest_pending_positions": 0,
+    "latest_seed_fallback_opens": 0,
+    "latest_mock_quotes": 0,
+    "latest_forced_cycle_exits": 0
+  },
+  "clean_evidence_status": {
+    "latest_5_economic_runs": [
+      {
+        "run_id": "20260602_213756",
+        "trade_count": 2,
+        "net_pnl": -0.029809829999996526,
+        "profit_factor": 0,
+        "economic_eligible": true,
+        "classification": "ECONOMIC_PAPER",
+        "rejection_class": "VALID_CLEAN_ECONOMIC_RUN"
+      },
+      {
+        "run_id": "20260602_220321",
+        "trade_count": 0,
+        "net_pnl": 0,
+        "profit_factor": 0,
+        "economic_eligible": true,
+        "classification": "ECONOMIC_PAPER",
+        "rejection_class": "VALID_CLEAN_ECONOMIC_RUN"
+      },
+      {
+        "run_id": "20260602_222423",
+        "trade_count": 2,
+        "net_pnl": -0.03725010999998836,
+        "profit_factor": 0,
+        "economic_eligible": true,
+        "classification": "ECONOMIC_PAPER",
+        "rejection_class": "VALID_CLEAN_ECONOMIC_RUN"
+      },
+      {
+        "run_id": "20260603_105249",
+        "trade_count": 0,
+        "net_pnl": 0,
+        "profit_factor": 0,
+        "economic_eligible": true,
+        "classification": "ECONOMIC_PAPER",
+        "rejection_class": "VALID_CLEAN_ECONOMIC_RUN"
+      },
+      {
+        "run_id": "20260603_112131",
+        "trade_count": 0,
+        "net_pnl": 0,
+        "profit_factor": 0,
+        "economic_eligible": true,
+        "classification": "ECONOMIC_PAPER",
+        "rejection_class": "VALID_CLEAN_ECONOMIC_RUN"
+      }
+    ],
+    "rejection_class_counts": {
+      "VALID_CLEAN_ECONOMIC_RUN": 5,
+      "REJECTED_DIAGNOSTIC_FORCE_OPEN": 0,
+      "REJECTED_SEED_OR_FALLBACK": 0,
+      "REJECTED_MOCK_PATH": 0,
+      "REJECTED_FORCED_CYCLE_EXIT": 0,
+      "REJECTED_DIRTY_SHUTDOWN": 0,
+      "REJECTED_PENDING_POSITION": 0,
+      "REJECTED_LINKAGE_UNPROVEN": 0,
+      "REJECTED_STALE_BOOTSTRAP": 0
+    },
+    "clean_sample_size": 0,
+    "sample_requirement_met": false,
+    "profitability_confirmed": false,
+    "reason": "No runtime-admissible/economic candidates and no accepted clean natural trades in latest campaign."
+  },
+  "current_profitability": {
+    "run_level_summary": {
+      "run_count": 5,
+      "economic_run_count": 5,
+      "diagnostic_run_count": 0,
+      "profitable_run_count": 0,
+      "economic_profitable_run_count": 0,
+      "total_net_pnl": -0.06705993999998489,
+      "total_trade_count": 4,
+      "economic_total_net_pnl": -0.06705993999998489,
+      "economic_total_trade_count": 4,
+      "run_level_status": "ECONOMIC_RUN_LEVEL_PROFITABILITY_NOT_ACHIEVED",
+      "stability_status": "ECONOMIC_PORTFOLIO_STABLE_PROFITABILITY_NOT_ACHIEVED"
+    },
+    "history_summary": {
+      "run_count": 1850,
+      "economic_run_count": 1144,
+      "diagnostic_run_count": 706,
+      "profitable_run_count": 102,
+      "economic_profitable_run_count": 102,
+      "total_net_pnl": -16.914781548954366,
+      "total_trade_count": 3117,
+      "economic_total_net_pnl": -12.557047685457533,
+      "economic_total_trade_count": 1912,
+      "diagnostic_total_net_pnl": -4.357733863496834,
+      "diagnostic_total_trade_count": 1205
+    },
+    "campaign": {
+      "classification": "NO_RUNTIME_ADMISSIBLE_CANDIDATES_COLLECT_FRESH_HISTORY",
+      "cycles_launched": 1,
+      "accepted_cycles": 0,
+      "rejected_cycles": 1,
+      "no_trade_cycles": 1,
+      "natural_trade_count": 0,
+      "cumulative_net_pnl": 0,
+      "forced_cycle_exit_count": 0,
+      "seed_open_count": 0,
+      "fallback_open_count": 0,
+      "mock_quote_count": 0,
+      "runtime_admissible_candidate_count": 0,
+      "no_trade_reason_distribution": {
+        "NO_TRADE_VALID_NO_EDGE": 1
+      },
+      "rejection_reason_distribution": {}
+    }
+  },
+  "candidate_discovery": {
+    "artifact_json": "analysis/v2_economic_candidate_discovery_current.json",
+    "artifact_md": "analysis/v2_economic_candidate_discovery_current.md",
+    "classification": "NO_ECONOMIC_CANDIDATES_OBSERVED",
+    "db_count": 20,
+    "record_count": 2025,
+    "records_with_expected_count": 179,
+    "qualified_event_count": 0,
+    "qualified_candidate_count": 0,
+    "max_observed_expected_net_after_full_cost": 0.05114894112391108,
+    "required_notional_multiplier_at_best_observed": 1.5640597486895313,
+    "top_candidates": [
+      {
+        "candidate_key": "SOLUSDTM:TrendFollowingV2:buy",
+        "event_count": 81,
+        "qualified_event_count": 0,
+        "max_expected_net_after_full_cost": 0.05114894112391108,
+        "mean_expected_net_after_full_cost": 0.012301592434019508,
+        "reason_counts": {
+          "entry_min_net_guard": 37,
+          "decision_passed": 44
+        }
+      },
+      {
+        "candidate_key": "SOLUSDTM:TrendFollowingV2:sell",
+        "event_count": 7,
+        "qualified_event_count": 0,
+        "max_expected_net_after_full_cost": 0.022013484209223458,
+        "mean_expected_net_after_full_cost": 0.00973577871391933,
+        "reason_counts": {
+          "entry_min_net_guard": 7
+        }
+      },
+      {
+        "candidate_key": "BTCUSDTM:TrendFollowingV2:buy",
+        "event_count": 4,
+        "qualified_event_count": 0,
+        "max_expected_net_after_full_cost": 0.016127573472552358,
+        "mean_expected_net_after_full_cost": 0.012656825327535742,
+        "reason_counts": {
+          "decision_passed": 4
+        }
+      },
+      {
+        "candidate_key": "XRPUSDTM:TrendFollowingV2:buy",
+        "event_count": 10,
+        "qualified_event_count": 0,
+        "max_expected_net_after_full_cost": 0.015057195014676075,
+        "mean_expected_net_after_full_cost": 0.005908996864041948,
+        "reason_counts": {
+          "entry_min_net_guard": 6,
+          "decision_passed": 4
+        }
+      },
+      {
+        "candidate_key": "XRPUSDTM:TrendFollowingV2:sell",
+        "event_count": 9,
+        "qualified_event_count": 0,
+        "max_expected_net_after_full_cost": 0.013699084346069068,
+        "mean_expected_net_after_full_cost": 0.007648570068339712,
+        "reason_counts": {
+          "entry_min_net_guard": 9
+        }
+      },
+      {
+        "candidate_key": "XRPUSDTM:MomentumV2:sell",
+        "event_count": 5,
+        "qualified_event_count": 0,
+        "max_expected_net_after_full_cost": 0.010554720597791629,
+        "mean_expected_net_after_full_cost": 0.006253972326695795,
+        "reason_counts": {
+          "entry_min_net_guard": 5
+        }
+      },
+      {
+        "candidate_key": "SOLUSDTM:MomentumV2:buy",
+        "event_count": 4,
+        "qualified_event_count": 0,
+        "max_expected_net_after_full_cost": 0.009429568893748214,
+        "mean_expected_net_after_full_cost": 0.007086213429012582,
+        "reason_counts": {
+          "entry_min_net_guard": 4
+        }
+      },
+      {
+        "candidate_key": "SOLUSDTM:MomentumV2:sell",
+        "event_count": 3,
+        "qualified_event_count": 0,
+        "max_expected_net_after_full_cost": 0.006313213388137266,
+        "mean_expected_net_after_full_cost": 0.004663511478058516,
+        "reason_counts": {
+          "entry_min_net_guard": 3
+        }
+      },
+      {
+        "candidate_key": "XRPUSDTM:MomentumV2:buy",
+        "event_count": 6,
+        "qualified_event_count": 0,
+        "max_expected_net_after_full_cost": 0.00577240597621938,
+        "mean_expected_net_after_full_cost": 0.0034330183184676914,
+        "reason_counts": {
+          "entry_min_net_guard": 4,
+          "decision_passed": 2
+        }
+      },
+      {
+        "candidate_key": "XRPUSDTM:DiagnosticForceOpenV2:buy",
+        "event_count": 50,
+        "qualified_event_count": 0,
+        "max_expected_net_after_full_cost": 0.0022653435,
+        "mean_expected_net_after_full_cost": 0.0022644125800000002,
+        "reason_counts": {
+          "decision_passed": 50
+        }
+      }
+    ]
+  },
+  "dominant_blocker_attribution": {
+    "blocker_class": "NO_EDGE_FOUND",
+    "basis": "Candidate discovery found 0 events and 0 candidates meeting expected_net_after_full_cost >= 0.08 across 20 latest PAPER DBs. Anti-loop patch prerequisites are not met: clean_sample_size < 30 and no dominant loss carrier from a sufficient clean sample.",
+    "patch_allowed": false
+  },
+  "patch_decision": {
+    "decision": "NO_PATCH",
+    "reason": "Anti-loop rule blocks further patching without >=30 clean completed natural trades, a >=60% dominant loss carrier, closest causal component, and A/B baseline."
+  },
+  "validation_commands": [
+    {
+      "command": "git status --short",
+      "output_summary": "dirty worktree; many existing modified/untracked files; no git staging performed"
+    },
+    {
+      "command": "git rev-parse HEAD",
+      "output": "496a14cbd27b12cfb2fc35c0dbe5f0252f82bfd6"
+    },
+    {
+      "command": "python -m py_compile core\\runtime_v2\\risk_engine.py scripts\\autonomous_paper_profit_campaign.py scripts\\discover_v2_economic_candidates.py scripts\\generate_v2_profitability_evidence_current.py tests\\test_runtime_v2_risk_engine.py tests\\test_campaign_bootstrap_watchdog_guards.py tests\\test_discover_v2_economic_candidates.py tests\\test_generate_v2_profitability_evidence_current.py",
+      "output": "exit 0; no stderr/stdout"
+    },
+    {
+      "command": "python -m pytest tests\\test_discover_v2_economic_candidates.py tests\\test_campaign_bootstrap_watchdog_guards.py tests\\test_runtime_v2_risk_engine.py tests\\test_generate_v2_profitability_evidence_current.py tests\\test_v2_admitted_edge_quality_audit.py tests\\test_v2_expected_move_calibration_autopsy.py -q",
+      "output": "21 passed in 2.38s"
+    },
+    {
+      "command": "python scripts\\generate_v2_profitability_evidence_current.py",
+      "output": "analysis/v2_profitability_evidence_current.json; analysis/v2_profitability_evidence_current.md"
+    },
+    {
+      "command": "python scripts\\discover_v2_economic_candidates.py --db-glob controlled_kpi_after_*.db --max-dbs 20 --min-expected-net-usdt 0.08",
+      "output": "CLASSIFICATION=NO_ECONOMIC_CANDIDATES_OBSERVED"
+    },
+    {
+      "command": "python -m pytest tests\\test_discover_v2_economic_candidates.py tests\\test_campaign_bootstrap_watchdog_guards.py tests\\test_select_kucoin_micro_breakout_profile.py tests\\test_kucoin_micro_breakout_strategy.py::TestKuCoinMicroBreakoutCollector tests\\test_generate_v2_profitability_evidence_current.py tests\\test_autonomous_profit_optimizer_retune.py tests\\test_v2_admitted_edge_quality_audit.py tests\\test_v2_expected_move_calibration_autopsy.py tests\\test_runtime_v2_risk_engine.py -q",
+      "output": "48 passed in 3.69s"
+    }
+  ],
+  "risks_limits": [
+    "Current conclusion is bounded to the current searched runtime telemetry and latest 20 PAPER DBs.",
+    "No clean profitable profile is found in current search space; this is not proof that no strategy can ever be profitable.",
+    "Historical evidence remains negative and latest campaign has 0 accepted clean natural trades."
+  ]
+}
