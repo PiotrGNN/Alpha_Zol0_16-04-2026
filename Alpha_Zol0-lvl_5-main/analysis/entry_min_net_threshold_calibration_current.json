@@ -1,0 +1,763 @@
+{
+  "bucket_level_economics": {
+    "0.03-0.05": {
+      "accepted_clean_trade_count": 2,
+      "average_fee": 0.004631395000000001,
+      "average_spread_or_cost_burden": 0.0002807086026153893,
+      "candidate_count": 2,
+      "completed_trade_count": 2,
+      "cumulative_net_pnl": -0.025588109999997784,
+      "dominant_rejection_reasons": {
+        "decision_passed": 2,
+        "entry_min_net_guard": 2
+      },
+      "exit_reason_distribution": {
+        "time_decay_exit": 2
+      },
+      "expectancy": -0.012794054999998892,
+      "fee_inversion_share": null,
+      "green_to_red_share": null,
+      "no_entry_reason_distribution": {
+        "entry_min_net_guard": 2
+      },
+      "position_open_count": 2,
+      "profit_factor": 0.0,
+      "rejected_or_contaminated_count": 4,
+      "runtime_event_count": 6,
+      "winrate": 0.0
+    },
+    "0.05-0.08": {
+      "accepted_clean_trade_count": 1,
+      "average_fee": 0.004595980000000001,
+      "average_spread_or_cost_burden": 0.0002807079414697413,
+      "candidate_count": 2,
+      "completed_trade_count": 1,
+      "cumulative_net_pnl": -0.02554617000000222,
+      "dominant_rejection_reasons": {
+        "decision_passed": 1,
+        "entry_min_net_guard": 1
+      },
+      "exit_reason_distribution": {
+        "time_decay_exit": 1
+      },
+      "expectancy": -0.02554617000000222,
+      "fee_inversion_share": null,
+      "green_to_red_share": null,
+      "no_entry_reason_distribution": {
+        "entry_min_net_guard": 1
+      },
+      "position_open_count": 1,
+      "profit_factor": 0.0,
+      "rejected_or_contaminated_count": 2,
+      "runtime_event_count": 3,
+      "winrate": 0.0
+    },
+    "0.08-0.10": {
+      "accepted_clean_trade_count": 0,
+      "average_fee": null,
+      "average_spread_or_cost_burden": null,
+      "candidate_count": 0,
+      "completed_trade_count": 0,
+      "cumulative_net_pnl": 0.0,
+      "dominant_rejection_reasons": {},
+      "exit_reason_distribution": {},
+      "expectancy": 0.0,
+      "fee_inversion_share": null,
+      "green_to_red_share": null,
+      "no_entry_reason_distribution": {},
+      "position_open_count": 0,
+      "profit_factor": 0.0,
+      "rejected_or_contaminated_count": 0,
+      "runtime_event_count": 0,
+      "winrate": 0.0
+    },
+    "0.10-0.12": {
+      "accepted_clean_trade_count": 0,
+      "average_fee": null,
+      "average_spread_or_cost_burden": null,
+      "candidate_count": 0,
+      "completed_trade_count": 0,
+      "cumulative_net_pnl": 0.0,
+      "dominant_rejection_reasons": {},
+      "exit_reason_distribution": {},
+      "expectancy": 0.0,
+      "fee_inversion_share": null,
+      "green_to_red_share": null,
+      "no_entry_reason_distribution": {},
+      "position_open_count": 0,
+      "profit_factor": 0.0,
+      "rejected_or_contaminated_count": 0,
+      "runtime_event_count": 0,
+      "winrate": 0.0
+    },
+    "0.12-0.15": {
+      "accepted_clean_trade_count": 0,
+      "average_fee": null,
+      "average_spread_or_cost_burden": null,
+      "candidate_count": 0,
+      "completed_trade_count": 0,
+      "cumulative_net_pnl": 0.0,
+      "dominant_rejection_reasons": {},
+      "exit_reason_distribution": {},
+      "expectancy": 0.0,
+      "fee_inversion_share": null,
+      "green_to_red_share": null,
+      "no_entry_reason_distribution": {},
+      "position_open_count": 0,
+      "profit_factor": 0.0,
+      "rejected_or_contaminated_count": 0,
+      "runtime_event_count": 0,
+      "winrate": 0.0
+    },
+    "<0.03": {
+      "accepted_clean_trade_count": 21,
+      "average_fee": 0.00514050186440678,
+      "average_spread_or_cost_burden": 0.0002520164289545846,
+      "candidate_count": 10,
+      "completed_trade_count": 21,
+      "cumulative_net_pnl": -0.04365123999999699,
+      "dominant_rejection_reasons": {
+        "decision_passed": 21,
+        "entry_min_net_guard": 76
+      },
+      "exit_reason_distribution": {
+        "protective_exit": 8,
+        "take_profit_net": 5,
+        "time_decay_exit": 8
+      },
+      "expectancy": -0.002078630476190333,
+      "fee_inversion_share": null,
+      "green_to_red_share": null,
+      "no_entry_reason_distribution": {
+        "entry_min_net_guard": 76
+      },
+      "position_open_count": 21,
+      "profit_factor": 0.7155449703784255,
+      "rejected_or_contaminated_count": 97,
+      "runtime_event_count": 118,
+      "winrate": 0.5238095238095238
+    },
+    ">0.15": {
+      "accepted_clean_trade_count": 0,
+      "average_fee": null,
+      "average_spread_or_cost_burden": null,
+      "candidate_count": 0,
+      "completed_trade_count": 0,
+      "cumulative_net_pnl": 0.0,
+      "dominant_rejection_reasons": {},
+      "exit_reason_distribution": {},
+      "expectancy": 0.0,
+      "fee_inversion_share": null,
+      "green_to_red_share": null,
+      "no_entry_reason_distribution": {},
+      "position_open_count": 0,
+      "profit_factor": 0.0,
+      "rejected_or_contaminated_count": 0,
+      "runtime_event_count": 0,
+      "winrate": 0.0
+    }
+  },
+  "classification": "ENTRY_MIN_NET_0_12_SUPPORTED_BY_NEGATIVE_LOWER_BUCKETS",
+  "contamination_policy": {
+    "rejected_if": [
+      "nonzero_process_returncode",
+      "dirty_or_unknown_shutdown",
+      "pending_positions",
+      "use_mock_param",
+      "live_env",
+      "diagnostic_mode_or_diag_disable_flags",
+      "seed_trades_enabled",
+      "fallback_enabled",
+      "seed/fallback/mock/forced-cycle/cycle-end events",
+      "missing_db"
+    ]
+  },
+  "final_verdict": "ENTRY_MIN_NET_THRESHOLD_CHANGE_NOT_JUSTIFIED",
+  "generated_at_utc": "2026-06-03T16:09:07.468415+00:00",
+  "hypothetical_threshold_simulation": {
+    "0.05": {
+      "admitted_event_count": 3,
+      "candidate_count": 2,
+      "clean_completed_trade_count": 1,
+      "contamination_rate": 0.0,
+      "expectancy": -0.02554617000000222,
+      "net_pnl": -0.02554617000000222,
+      "profit_factor": 0.0,
+      "sample_sufficient": false
+    },
+    "0.08": {
+      "admitted_event_count": 0,
+      "candidate_count": 0,
+      "clean_completed_trade_count": 0,
+      "contamination_rate": 0.0,
+      "expectancy": 0.0,
+      "net_pnl": 0.0,
+      "profit_factor": 0.0,
+      "sample_sufficient": false
+    },
+    "0.10": {
+      "admitted_event_count": 0,
+      "candidate_count": 0,
+      "clean_completed_trade_count": 0,
+      "contamination_rate": 0.0,
+      "expectancy": 0.0,
+      "net_pnl": 0.0,
+      "profit_factor": 0.0,
+      "sample_sufficient": false
+    },
+    "0.12": {
+      "admitted_event_count": 0,
+      "candidate_count": 0,
+      "clean_completed_trade_count": 0,
+      "contamination_rate": 0.0,
+      "expectancy": 0.0,
+      "net_pnl": 0.0,
+      "profit_factor": 0.0,
+      "sample_sufficient": false
+    }
+  },
+  "lower_bucket_aggregate_below_0_12": {
+    "clean_completed_trade_count": 24,
+    "expectancy": -0.003949396666666541,
+    "net_pnl": -0.09478551999999699
+  },
+  "near_miss_min_net_guard": {
+    "by_candidate": {
+      "DOTUSDTM:TrendFollowingV2:sell": 1
+    },
+    "count": 1,
+    "definition": "0.05 <= expected_net_after_full_cost < 0.12 and reason == entry_min_net_guard"
+  },
+  "patch_decision": "no_threshold_change",
+  "research_vs_runtime": {
+    "research_candidates": [
+      {
+        "accepted": null,
+        "decision_reason": null,
+        "expected_net_after_full_cost": 0.11373500855615154,
+        "side": "sell",
+        "source_artifact": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\analysis\\new_alpha_search_space_inventory_current.json",
+        "strategy": "TrendFollowingV2",
+        "symbol": "DOTUSDTM"
+      },
+      {
+        "accepted": null,
+        "decision_reason": null,
+        "expected_net_after_full_cost": 0.08144557636074735,
+        "side": "buy",
+        "source_artifact": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\analysis\\new_alpha_search_space_inventory_current.json",
+        "strategy": "TrendFollowingV2",
+        "symbol": "BNBUSDTM"
+      },
+      {
+        "accepted": null,
+        "decision_reason": null,
+        "expected_net_after_full_cost": 0.08137487663914103,
+        "side": "sell",
+        "source_artifact": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\analysis\\new_alpha_search_space_inventory_current.json",
+        "strategy": "TrendFollowingV2",
+        "symbol": "AVAXUSDTM"
+      }
+    ],
+    "research_expected_net_after_full_cost_stats": {
+      "count": 3,
+      "max": 0.11373500855615154,
+      "mean": 0.09218515385201331,
+      "median": 0.08144557636074735,
+      "min": 0.08137487663914103
+    },
+    "runtime_expected_net_after_full_cost_stats": {
+      "count": 127,
+      "max": 0.05172288403614261,
+      "mean": 0.0117073279888771,
+      "median": 0.008734257006581954,
+      "min": 0.001323609444292428
+    }
+  },
+  "runtime_expected_net_vs_realized_pnl": {
+    "clean_completed_trade_count": 24,
+    "pairs": [
+      {
+        "bucket": "<0.03",
+        "exit_reason": "protective_exit",
+        "expected_net_after_full_cost": 0.016127573472552358,
+        "realized_pnl": -0.023274549999988355,
+        "run_id": "20260602_222423",
+        "side": "buy",
+        "strategy": "TrendFollowingV2",
+        "symbol": "BTCUSDTM"
+      },
+      {
+        "bucket": "<0.03",
+        "exit_reason": "protective_exit",
+        "expected_net_after_full_cost": 0.009186077182519127,
+        "realized_pnl": -0.013975560000000001,
+        "run_id": "20260602_222423",
+        "side": "buy",
+        "strategy": "TrendFollowingV2",
+        "symbol": "BTCUSDTM"
+      },
+      {
+        "bucket": "<0.03",
+        "exit_reason": "protective_exit",
+        "expected_net_after_full_cost": 0.004254061969073239,
+        "realized_pnl": -0.01715517000000048,
+        "run_id": "20260602_213756",
+        "side": "buy",
+        "strategy": "TrendFollowingV2",
+        "symbol": "SOLUSDTM"
+      },
+      {
+        "bucket": "<0.03",
+        "exit_reason": "protective_exit",
+        "expected_net_after_full_cost": 0.010818299698235615,
+        "realized_pnl": -0.012654659999996045,
+        "run_id": "20260602_213756",
+        "side": "buy",
+        "strategy": "TrendFollowingV2",
+        "symbol": "SOLUSDTM"
+      },
+      {
+        "bucket": "<0.03",
+        "exit_reason": "take_profit_net",
+        "expected_net_after_full_cost": 0.002863562800924873,
+        "realized_pnl": 0.025469129999998296,
+        "run_id": "20260602_211507",
+        "side": "buy",
+        "strategy": "TrendFollowingV2",
+        "symbol": "SOLUSDTM"
+      },
+      {
+        "bucket": "0.03-0.05",
+        "exit_reason": "time_decay_exit",
+        "expected_net_after_full_cost": 0.030558597247304066,
+        "realized_pnl": -0.009333389999997341,
+        "run_id": "20260602_211507",
+        "side": "buy",
+        "strategy": "TrendFollowingV2",
+        "symbol": "SOLUSDTM"
+      },
+      {
+        "bucket": "<0.03",
+        "exit_reason": "time_decay_exit",
+        "expected_net_after_full_cost": 0.01998400304257394,
+        "realized_pnl": 0.0029659799999974413,
+        "run_id": "20260602_211507",
+        "side": "buy",
+        "strategy": "TrendFollowingV2",
+        "symbol": "SOLUSDTM"
+      },
+      {
+        "bucket": "<0.03",
+        "exit_reason": "time_decay_exit",
+        "expected_net_after_full_cost": 0.025983369114204166,
+        "realized_pnl": 0.004464570000000341,
+        "run_id": "20260602_211507",
+        "side": "buy",
+        "strategy": "TrendFollowingV2",
+        "symbol": "SOLUSDTM"
+      },
+      {
+        "bucket": "<0.03",
+        "exit_reason": "take_profit_net",
+        "expected_net_after_full_cost": 0.008844398762068436,
+        "realized_pnl": 0.011962019999997787,
+        "run_id": "20260602_211507",
+        "side": "buy",
+        "strategy": "TrendFollowingV2",
+        "symbol": "SOLUSDTM"
+      },
+      {
+        "bucket": "<0.03",
+        "exit_reason": "take_profit_net",
+        "expected_net_after_full_cost": 0.012267079850527593,
+        "realized_pnl": 0.014359800000000717,
+        "run_id": "20260602_211507",
+        "side": "buy",
+        "strategy": "TrendFollowingV2",
+        "symbol": "SOLUSDTM"
+      },
+      {
+        "bucket": "<0.03",
+        "exit_reason": "time_decay_exit",
+        "expected_net_after_full_cost": 0.027974284672299947,
+        "realized_pnl": 0.018255150000002284,
+        "run_id": "20260602_211507",
+        "side": "buy",
+        "strategy": "TrendFollowingV2",
+        "symbol": "SOLUSDTM"
+      },
+      {
+        "bucket": "0.05-0.08",
+        "exit_reason": "time_decay_exit",
+        "expected_net_after_full_cost": 0.05114894112391108,
+        "realized_pnl": -0.02554617000000222,
+        "run_id": "20260602_211507",
+        "side": "buy",
+        "strategy": "TrendFollowingV2",
+        "symbol": "SOLUSDTM"
+      },
+      {
+        "bucket": "<0.03",
+        "exit_reason": "protective_exit",
+        "expected_net_after_full_cost": 0.023970066348905077,
+        "realized_pnl": -0.024942510000003616,
+        "run_id": "20260602_211507",
+        "side": "buy",
+        "strategy": "TrendFollowingV2",
+        "symbol": "SOLUSDTM"
+      },
+      {
+        "bucket": "<0.03",
+        "exit_reason": "time_decay_exit",
+        "expected_net_after_full_cost": 0.007032634701797318,
+        "realized_pnl": -0.005228199999999137,
+        "run_id": "20260602_211507",
+        "side": "buy",
+        "strategy": "TrendFollowingV2",
+        "symbol": "SOLUSDTM"
+      },
+      {
+        "bucket": "<0.03",
+        "exit_reason": "time_decay_exit",
+        "expected_net_after_full_cost": 0.003418000527756484,
+        "realized_pnl": 0.0005711400000001359,
+        "run_id": "20260602_211507",
+        "side": "buy",
+        "strategy": "TrendFollowingV2",
+        "symbol": "SOLUSDTM"
+      },
+      {
+        "bucket": "<0.03",
+        "exit_reason": "time_decay_exit",
+        "expected_net_after_full_cost": 0.005509502761078519,
+        "realized_pnl": -0.002229300000001865,
+        "run_id": "20260602_211507",
+        "side": "buy",
+        "strategy": "TrendFollowingV2",
+        "symbol": "SOLUSDTM"
+      },
+      {
+        "bucket": "<0.03",
+        "exit_reason": "time_decay_exit",
+        "expected_net_after_full_cost": 0.0037964902951039847,
+        "realized_pnl": 0.001169560000000159,
+        "run_id": "20260602_211507",
+        "side": "buy",
+        "strategy": "TrendFollowingV2",
+        "symbol": "SOLUSDTM"
+      },
+      {
+        "bucket": "<0.03",
+        "exit_reason": "time_decay_exit",
+        "expected_net_after_full_cost": 0.009312872696877228,
+        "realized_pnl": 0.0007683600000010914,
+        "run_id": "20260602_211507",
+        "side": "buy",
+        "strategy": "TrendFollowingV2",
+        "symbol": "SOLUSDTM"
+      },
+      {
+        "bucket": "<0.03",
+        "exit_reason": "take_profit_net",
+        "expected_net_after_full_cost": 0.019392755843830746,
+        "realized_pnl": 0.01944848999999949,
+        "run_id": "20260602_211507",
+        "side": "buy",
+        "strategy": "TrendFollowingV2",
+        "symbol": "SOLUSDTM"
+      },
+      {
+        "bucket": "0.03-0.05",
+        "exit_reason": "time_decay_exit",
+        "expected_net_after_full_cost": 0.04598339589433236,
+        "realized_pnl": -0.016254720000000444,
+        "run_id": "20260602_211507",
+        "side": "buy",
+        "strategy": "TrendFollowingV2",
+        "symbol": "SOLUSDTM"
+      },
+      {
+        "bucket": "<0.03",
+        "exit_reason": "protective_exit",
+        "expected_net_after_full_cost": 0.015210997082237788,
+        "realized_pnl": -0.01493406999999998,
+        "run_id": "20260602_211507",
+        "side": "buy",
+        "strategy": "TrendFollowingV2",
+        "symbol": "SOLUSDTM"
+      },
+      {
+        "bucket": "<0.03",
+        "exit_reason": "protective_exit",
+        "expected_net_after_full_cost": 0.004171345498684916,
+        "realized_pnl": -0.011033660000001251,
+        "run_id": "20260602_211507",
+        "side": "buy",
+        "strategy": "TrendFollowingV2",
+        "symbol": "SOLUSDTM"
+      },
+      {
+        "bucket": "<0.03",
+        "exit_reason": "take_profit_net",
+        "expected_net_after_full_cost": 0.010676476551223621,
+        "realized_pnl": 0.010370239999998728,
+        "run_id": "20260602_204821",
+        "side": "buy",
+        "strategy": "TrendFollowingV2",
+        "symbol": "SOLUSDTM"
+      },
+      {
+        "bucket": "<0.03",
+        "exit_reason": "protective_exit",
+        "expected_net_after_full_cost": 0.017904900493623366,
+        "realized_pnl": -0.028028000000002728,
+        "run_id": "20260602_204821",
+        "side": "buy",
+        "strategy": "TrendFollowingV2",
+        "symbol": "SOLUSDTM"
+      }
+    ]
+  },
+  "scope": {
+    "kucoin_only": true,
+    "live": false,
+    "paper_only": true,
+    "repo_root": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main",
+    "strategy_mutation": false,
+    "threshold_mutation": false
+  },
+  "source_evidence": {
+    "clean_controlled_run_count": 10,
+    "clean_controlled_runs": [
+      {
+        "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260603_142706.db",
+        "json_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\results\\controlled_kpi_20260603_142706.json",
+        "run_id": "20260603_142706"
+      },
+      {
+        "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260603_112131.db",
+        "json_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\results\\controlled_kpi_20260603_112131.json",
+        "run_id": "20260603_112131"
+      },
+      {
+        "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260603_105249.db",
+        "json_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\results\\controlled_kpi_20260603_105249.json",
+        "run_id": "20260603_105249"
+      },
+      {
+        "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260602_222423.db",
+        "json_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\results\\controlled_kpi_20260602_222423.json",
+        "run_id": "20260602_222423"
+      },
+      {
+        "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260602_220321.db",
+        "json_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\results\\controlled_kpi_20260602_220321.json",
+        "run_id": "20260602_220321"
+      },
+      {
+        "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260602_213756.db",
+        "json_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\results\\controlled_kpi_20260602_213756.json",
+        "run_id": "20260602_213756"
+      },
+      {
+        "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260602_211507.db",
+        "json_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\results\\controlled_kpi_20260602_211507.json",
+        "run_id": "20260602_211507"
+      },
+      {
+        "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260602_204821.db",
+        "json_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\results\\controlled_kpi_20260602_204821.json",
+        "run_id": "20260602_204821"
+      },
+      {
+        "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260602_202318.db",
+        "json_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\results\\controlled_kpi_20260602_202318.json",
+        "run_id": "20260602_202318"
+      },
+      {
+        "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260602_195855.db",
+        "json_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\results\\controlled_kpi_20260602_195855.json",
+        "run_id": "20260602_195855"
+      }
+    ],
+    "controlled_run_count": 30,
+    "max_recent_controlled_runs_considered": 30,
+    "rejected_controlled_runs": [
+      {
+        "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260601_195917.db",
+        "json_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\results\\controlled_kpi_20260601_195917.json",
+        "reasons": [
+          "fallback_enabled"
+        ],
+        "run_id": "20260601_195917"
+      },
+      {
+        "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260601_194258.db",
+        "json_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\results\\controlled_kpi_20260601_194258.json",
+        "reasons": [
+          "fallback_enabled"
+        ],
+        "run_id": "20260601_194258"
+      },
+      {
+        "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260601_193609.db",
+        "json_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\results\\controlled_kpi_20260601_193609.json",
+        "reasons": [
+          "fallback_enabled"
+        ],
+        "run_id": "20260601_193609"
+      },
+      {
+        "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260601_191649.db",
+        "json_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\results\\controlled_kpi_20260601_191649.json",
+        "reasons": [
+          "fallback_enabled"
+        ],
+        "run_id": "20260601_191649"
+      },
+      {
+        "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260601_185702.db",
+        "json_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\results\\controlled_kpi_20260601_185702.json",
+        "reasons": [
+          "fallback_enabled"
+        ],
+        "run_id": "20260601_185702"
+      },
+      {
+        "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260601_181044.db",
+        "json_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\results\\controlled_kpi_20260601_181044.json",
+        "reasons": [
+          "fallback_enabled"
+        ],
+        "run_id": "20260601_181044"
+      },
+      {
+        "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260601_180551.db",
+        "json_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\results\\controlled_kpi_20260601_180551.json",
+        "reasons": [
+          "fallback_enabled"
+        ],
+        "run_id": "20260601_180551"
+      },
+      {
+        "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260601_173123.db",
+        "json_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\results\\controlled_kpi_20260601_173123.json",
+        "reasons": [
+          "fallback_enabled"
+        ],
+        "run_id": "20260601_173123"
+      },
+      {
+        "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260601_171633.db",
+        "json_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\results\\controlled_kpi_20260601_171633.json",
+        "reasons": [
+          "fallback_enabled"
+        ],
+        "run_id": "20260601_171633"
+      },
+      {
+        "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260601_164725.db",
+        "json_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\results\\controlled_kpi_20260601_164725.json",
+        "reasons": [
+          "diag_allow_reentry_while_in_position",
+          "diagnostic_mode",
+          "fallback_enabled",
+          "seed_trades_enabled"
+        ],
+        "run_id": "20260601_164725"
+      },
+      {
+        "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_171720.db",
+        "json_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\results\\controlled_kpi_20260531_171720.json",
+        "reasons": [
+          "diag_disable_net_target_guard",
+          "seed_trades_enabled"
+        ],
+        "run_id": "20260531_171720"
+      },
+      {
+        "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_150322.db",
+        "json_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\results\\controlled_kpi_20260531_150322.json",
+        "reasons": [
+          "diag_disable_net_target_guard",
+          "seed_trades_enabled"
+        ],
+        "run_id": "20260531_150322"
+      },
+      {
+        "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_145912.db",
+        "json_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\results\\controlled_kpi_20260531_145912.json",
+        "reasons": [
+          "diag_disable_net_target_guard",
+          "seed_trades_enabled"
+        ],
+        "run_id": "20260531_145912"
+      },
+      {
+        "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_145857.db",
+        "json_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\results\\controlled_kpi_20260531_145857.json",
+        "reasons": [
+          "diag_disable_net_target_guard",
+          "seed_trades_enabled"
+        ],
+        "run_id": "20260531_145857"
+      },
+      {
+        "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_145446.db",
+        "json_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\results\\controlled_kpi_20260531_145446.json",
+        "reasons": [
+          "diag_disable_net_target_guard",
+          "seed_trades_enabled"
+        ],
+        "run_id": "20260531_145446"
+      },
+      {
+        "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_145036.db",
+        "json_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\results\\controlled_kpi_20260531_145036.json",
+        "reasons": [
+          "diag_disable_net_target_guard",
+          "seed_trades_enabled"
+        ],
+        "run_id": "20260531_145036"
+      },
+      {
+        "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_143531.db",
+        "json_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\results\\controlled_kpi_20260531_143531.json",
+        "reasons": [
+          "diag_disable_net_target_guard",
+          "seed_trades_enabled"
+        ],
+        "run_id": "20260531_143531"
+      },
+      {
+        "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_143121.db",
+        "json_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\results\\controlled_kpi_20260531_143121.json",
+        "reasons": [
+          "diag_disable_net_target_guard",
+          "seed_trades_enabled"
+        ],
+        "run_id": "20260531_143121"
+      },
+      {
+        "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_143108.db",
+        "json_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\results\\controlled_kpi_20260531_143108.json",
+        "reasons": [
+          "diag_disable_net_target_guard",
+          "seed_trades_enabled"
+        ],
+        "run_id": "20260531_143108"
+      },
+      {
+        "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_143055.db",
+        "json_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\results\\controlled_kpi_20260531_143055.json",
+        "reasons": [
+          "diag_disable_net_target_guard",
+          "seed_trades_enabled"
+        ],
+        "run_id": "20260531_143055"
+      }
+    ],
+    "research_candidate_count": 3
+  }
+}
