@@ -1,0 +1,132 @@
+{
+  "canonical_key_formats": {
+    "allowlist_key": "DOTUSDTM:TrendFollowingV2:sell",
+    "allowlist_matches_research": true,
+    "canonical_allowlist_key": "DOTUSDTM:TRENDFOLLOWING:sell",
+    "canonical_research_key": "DOTUSDTM:TRENDFOLLOWING:sell",
+    "research_key": "DOTUSDTM:TrendFollowingV2:sell",
+    "strategy_name_mismatch": false,
+    "symbol_in_runtime_universe": true
+  },
+  "classification": "DOT_PROFILE_EXISTS_BUT_MIN_NET_GUARD_BLOCKED",
+  "gate_path": {
+    "gate_reason_distribution": {
+      "entry_edge_filtered": 12,
+      "entry_min_net_guard": 4,
+      "no_runtime_profile": 455,
+      "symbol_strategy_side_allowlist": 41
+    },
+    "matching_profile_row_count": 52,
+    "matching_profile_sample_rows": [
+      {
+        "event": "entry_eval_v2",
+        "expected_net_after_cost": 0.000509187668196724,
+        "id": 346,
+        "reason_code": "entry_edge_filtered",
+        "risk_block_fields": {},
+        "runtime_profile_key": "DOTUSDTM|rolling_quote_window|n=13|span=145",
+        "runtime_profile_sample_size": 13,
+        "runtime_profile_source": "rolling_quote_window",
+        "runtime_profile_span_sec": 145.323,
+        "side": "sell",
+        "strategy": "TrendFollowingV2",
+        "symbol": "DOTUSDTM",
+        "timestamp": "2026-06-03 12:32:03.143493"
+      },
+      {
+        "event": "entry_gate_decision_summary",
+        "expected_net_after_cost": 0.000509187668196724,
+        "id": 347,
+        "reason_code": "entry_edge_filtered",
+        "risk_block_fields": {},
+        "runtime_profile_key": "DOTUSDTM|rolling_quote_window|n=13|span=145",
+        "runtime_profile_sample_size": 13,
+        "runtime_profile_source": "rolling_quote_window",
+        "runtime_profile_span_sec": 145.323,
+        "side": "sell",
+        "strategy": "TrendFollowingV2",
+        "symbol": "DOTUSDTM",
+        "timestamp": "2026-06-03 12:32:04.014366"
+      },
+      {
+        "event": "entry_reject_v2",
+        "expected_net_after_cost": 0.000509187668196724,
+        "id": 349,
+        "reason_code": "entry_edge_filtered",
+        "risk_block_fields": {},
+        "runtime_profile_key": "DOTUSDTM|rolling_quote_window|n=13|span=145",
+        "runtime_profile_sample_size": 13,
+        "runtime_profile_source": "rolling_quote_window",
+        "runtime_profile_span_sec": 145.323,
+        "side": "sell",
+        "strategy": "TrendFollowingV2",
+        "symbol": "DOTUSDTM",
+        "timestamp": "2026-06-03 12:32:04.322623"
+      },
+      {
+        "event": "entry_eval_v2",
+        "expected_net_after_cost": 0.000509187668196724,
+        "id": 351,
+        "reason_code": "entry_edge_filtered",
+        "risk_block_fields": {},
+        "runtime_profile_key": "DOTUSDTM|rolling_quote_window|n=14|span=147",
+        "runtime_profile_sample_size": 14,
+        "runtime_profile_source": "rolling_quote_window",
+        "runtime_profile_span_sec": 147.0,
+        "side": "sell",
+        "strategy": "TrendFollowingV2",
+        "symbol": "DOTUSDTM",
+        "timestamp": "2026-06-03 12:32:06.102995"
+      },
+      {
+        "event": "entry_gate_decision_summary",
+        "expected_net_after_cost": 0.000509187668196724,
+        "id": 352,
+        "reason_code": "entry_edge_filtered",
+        "risk_block_fields": {},
+        "runtime_profile_key": "DOTUSDTM|rolling_quote_window|n=14|span=147",
+        "runtime_profile_sample_size": 14,
+        "runtime_profile_source": "rolling_quote_window",
+        "runtime_profile_span_sec": 147.0,
+        "side": "sell",
+        "strategy": "TrendFollowingV2",
+        "symbol": "DOTUSDTM",
+        "timestamp": "2026-06-03 12:32:06.260110"
+      }
+    ],
+    "profile_row_count": 52
+  },
+  "generated_at_utc": "2026-06-03T14:27:41.312118+00:00",
+  "patch_decision": "not_justified",
+  "research_candidate": {
+    "candidate_key": "DOTUSDTM:TrendFollowingV2:sell",
+    "classification": "NEW_ALPHA_CANDIDATE_FOUND_FOR_PAPER_VALIDATION",
+    "confidence": 1.0,
+    "expected_net_after_full_cost": 0.11373500855615154,
+    "final_notional_usdt": 20.07,
+    "probability_of_profit": 0.9999999934813502,
+    "side": "sell",
+    "source_artifact": "analysis/new_alpha_research_validation_current.json",
+    "strategy": "TrendFollowingV2",
+    "symbol": "DOTUSDTM"
+  },
+  "runtime_profile_sources": {
+    "alpha_history_candidate_present": false,
+    "bootstrap_rows_inserted": 0,
+    "positive_side_allowlist": [],
+    "runtime_profile_source_values": [
+      "rolling_quote_window"
+    ],
+    "runtime_symbols": [
+      "DOTUSDTM"
+    ]
+  },
+  "source_artifacts": {
+    "alpha_history_report": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\alpha_history_auto_recent_report.json",
+    "research_artifact": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\analysis\\new_alpha_search_space_inventory_current.json",
+    "result_artifact": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\results\\controlled_kpi_20260603_142706.json",
+    "runtime_db": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260603_142706.db",
+    "smoke_artifact": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\analysis\\dot_trendfollowingv2_runtime_smoke_current.json"
+  },
+  "target": "DOTUSDTM:TrendFollowingV2:sell"
+}
