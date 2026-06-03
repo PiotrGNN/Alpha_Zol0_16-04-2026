@@ -24,6 +24,29 @@ RESULTS_DIR.mkdir(exist_ok=True)
 if str(WORKDIR) not in sys.path:
     sys.path.insert(0, str(WORKDIR))
 
+EFFECTIVE_ENV_VALUE_KEYS = (
+    "ALPHA_WHITELIST_ENABLE",
+    "ALPHA_WHITELIST_COLDSTART_ALLOW",
+    "ALPHA_WHITELIST_FALLBACK_ENABLE",
+    "SEED_TRADES_ENABLE",
+    "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST",
+    "ALPHA_BOOTSTRAP_REQUIRE_EXTERNAL_SOURCE",
+    "LOSS_COOLDOWN_SEC",
+    "ENTRY_MIN_NET_USDT",
+    "ENTRY_MIN_NET_TO_STOP_RATIO",
+    "ENTRY_SYMBOL_STRATEGY_BLOCKLIST",
+    "ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST",
+    "ENTRY_SYMBOL_STRATEGY_SIDE_BLOCKLIST",
+    "DIAG_DISABLE_SIDE_EXPECTANCY",
+    "DIAG_DISABLE_NET_TARGET_GUARD",
+    "DIAG_ALLOW_REENTRY_WHILE_IN_POSITION",
+    "RESEARCH_POST_CLOSE_SUMMARY_GRACE_TICKS",
+    "RESEARCH_POST_CLOSE_SUMMARY_GRACE_TIMEOUT_SEC",
+    "POST_PROMOTION_OBSERVATION_ENABLED",
+    "POST_PROMOTION_OBSERVATION_MAX_SEC",
+    "POST_PROMOTION_OBSERVATION_MAX_CYCLES",
+)
+
 
 def _parse_symbols(value: str):
     if not value:
@@ -5282,29 +5305,7 @@ def _run_variant(
             "LIVE",
         )
     }
-    env_effective_flags = {
-        key: env.get(key)
-        for key in (
-            "ALPHA_WHITELIST_ENABLE",
-            "ALPHA_WHITELIST_COLDSTART_ALLOW",
-            "ALPHA_WHITELIST_FALLBACK_ENABLE",
-            "SEED_TRADES_ENABLE",
-            "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST",
-            "ALPHA_BOOTSTRAP_REQUIRE_EXTERNAL_SOURCE",
-            "LOSS_COOLDOWN_SEC",
-            "ENTRY_SYMBOL_STRATEGY_BLOCKLIST",
-            "ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST",
-            "ENTRY_SYMBOL_STRATEGY_SIDE_BLOCKLIST",
-            "DIAG_DISABLE_SIDE_EXPECTANCY",
-            "DIAG_DISABLE_NET_TARGET_GUARD",
-            "DIAG_ALLOW_REENTRY_WHILE_IN_POSITION",
-            "RESEARCH_POST_CLOSE_SUMMARY_GRACE_TICKS",
-            "RESEARCH_POST_CLOSE_SUMMARY_GRACE_TIMEOUT_SEC",
-            "POST_PROMOTION_OBSERVATION_ENABLED",
-            "POST_PROMOTION_OBSERVATION_MAX_SEC",
-            "POST_PROMOTION_OBSERVATION_MAX_CYCLES",
-        )
-    }
+    env_effective_flags = {key: env.get(key) for key in EFFECTIVE_ENV_VALUE_KEYS}
     print(
         f"[{variant}] end={end_dt.isoformat()} actual_sec={int((end_dt - start_dt).total_seconds())} "  # noqa: E501
         f"trades={metrics.get('trade_count')} net_pnl={metrics.get('net_pnl')}"
