@@ -1,0 +1,314 @@
+{
+  "classification": "EDGE_REPAIR_AND_STRONGER_ALPHA_SEARCH",
+  "completion_criteria": {
+    "clean_natural_trade_sample_required_before_profitability_claim": true,
+    "current_runtime_semantics": true,
+    "minimum_entry_net_to_stop_ratio": 1.1,
+    "minimum_expected_net_after_full_cost": 0.08,
+    "profitability_claim_allowed": false
+  },
+  "evidence": {
+    "candidate_findings": {
+      "AVAXUSDTM:TrendFollowingV2:sell": {
+        "canonical_strategy": "TRENDFOLLOWING",
+        "cost_burden_range": {
+          "max": 0.00028686635944700606,
+          "min": 0.00026223915305060213
+        },
+        "edge_filter_block_count": 693,
+        "event_count": 799,
+        "exact_reason_no_natural_trade_opened": "all observed current-runtime candidates were blocked before position_open",
+        "failure_classification": "strategy_weakness",
+        "highest_observed_expected_net_after_full_cost": 0.04826070387426362,
+        "highest_observed_ratio": 0.9090909090909091,
+        "min_net_block_count": 92,
+        "net_to_stop_block_count": 14,
+        "ratio_only_block_count": 14,
+        "reason_distribution": {
+          "entry_edge_filtered": 693,
+          "entry_min_net_guard": 92,
+          "entry_net_to_stop_guard": 14
+        },
+        "side": "sell",
+        "stop_risk_range": {
+          "max": 0.053086774261689985,
+          "min": 0.016817272526879694
+        },
+        "strategy": "TrendFollowingV2",
+        "symbol": "AVAXUSDTM"
+      },
+      "BNBUSDTM:TrendFollowingV2:buy": {
+        "canonical_strategy": "TRENDFOLLOWING",
+        "cost_burden_range": {
+          "max": 0.0002835112621777591,
+          "min": 0.0002515903434346633
+        },
+        "edge_filter_block_count": 1050,
+        "event_count": 1092,
+        "exact_reason_no_natural_trade_opened": "all observed current-runtime candidates were blocked before position_open",
+        "failure_classification": "strategy_weakness",
+        "highest_observed_expected_net_after_full_cost": 0.05386902950622281,
+        "highest_observed_ratio": 0.9090909090909091,
+        "min_net_block_count": 42,
+        "net_to_stop_block_count": 0,
+        "ratio_only_block_count": 0,
+        "reason_distribution": {
+          "entry_edge_filtered": 1050,
+          "entry_min_net_guard": 42
+        },
+        "side": "buy",
+        "stop_risk_range": {
+          "max": 0.0592559324568451,
+          "min": 0.01838413115844817
+        },
+        "strategy": "TrendFollowingV2",
+        "symbol": "BNBUSDTM"
+      },
+      "DOTUSDTM:TrendFollowingV2:sell": {
+        "canonical_strategy": "TRENDFOLLOWING",
+        "cost_burden_range": {
+          "max": 0.00043050541516245506,
+          "min": 0.0003397263346792185
+        },
+        "edge_filter_block_count": 78,
+        "event_count": 98,
+        "exact_reason_no_natural_trade_opened": "all observed current-runtime candidates were blocked before position_open",
+        "failure_classification": "strategy_weakness",
+        "highest_observed_expected_net_after_full_cost": 0.056727152451426704,
+        "highest_observed_ratio": 0.9454525408571117,
+        "min_net_block_count": 14,
+        "net_to_stop_block_count": 6,
+        "ratio_only_block_count": 6,
+        "reason_distribution": {
+          "entry_edge_filtered": 78,
+          "entry_min_net_guard": 14,
+          "entry_net_to_stop_guard": 6
+        },
+        "side": "sell",
+        "stop_risk_range": {
+          "max": 0.06,
+          "min": 0.028386067179802715
+        },
+        "strategy": "TrendFollowingV2",
+        "symbol": "DOTUSDTM"
+      }
+    },
+    "clean_trade_with_ratio_count": 0,
+    "max_expected_net_after_full_cost": 0.056727152451426704,
+    "ratio_stats": {
+      "count": 84,
+      "max": 0.9454525408571117,
+      "mean": 0.909955553194831,
+      "min": 0.909090909090909
+    },
+    "ratio_threshold_simulation": {
+      "0.90": {
+        "additional_admitted_events": 10,
+        "additional_candidates": 2,
+        "clean_completed_historical_trades_available": 0,
+        "expectancy": null,
+        "experiment_justified": false,
+        "likely_opens_if_all_other_gates_pass": 10,
+        "profit_factor": null,
+        "realized_net_pnl": null,
+        "sample_sufficiency": "INSUFFICIENT_CLEAN_COMPLETED_TRADES"
+      },
+      "0.95": {
+        "additional_admitted_events": 0,
+        "additional_candidates": 0,
+        "clean_completed_historical_trades_available": 0,
+        "expectancy": null,
+        "experiment_justified": false,
+        "likely_opens_if_all_other_gates_pass": 0,
+        "profit_factor": null,
+        "realized_net_pnl": null,
+        "sample_sufficiency": "INSUFFICIENT_CLEAN_COMPLETED_TRADES"
+      },
+      "1.00": {
+        "additional_admitted_events": 0,
+        "additional_candidates": 0,
+        "clean_completed_historical_trades_available": 0,
+        "expectancy": null,
+        "experiment_justified": false,
+        "likely_opens_if_all_other_gates_pass": 0,
+        "profit_factor": null,
+        "realized_net_pnl": null,
+        "sample_sufficiency": "INSUFFICIENT_CLEAN_COMPLETED_TRADES"
+      },
+      "1.10": {
+        "additional_admitted_events": 0,
+        "additional_candidates": 0,
+        "clean_completed_historical_trades_available": 0,
+        "expectancy": null,
+        "experiment_justified": false,
+        "likely_opens_if_all_other_gates_pass": 0,
+        "profit_factor": null,
+        "realized_net_pnl": null,
+        "sample_sufficiency": "INSUFFICIENT_CLEAN_COMPLETED_TRADES"
+      }
+    },
+    "semantics_final_verdict": "THRESHOLD_CHANGE_NOT_JUSTIFIED_STRATEGY_EDGE_REPAIR_REQUIRED",
+    "stop_risk_classification": "STOP_RISK_MODEL_UNDERINSTRUMENTED",
+    "strategy_classification": "TRENDFOLLOWINGV2_EDGE_TOO_WEAK",
+    "threshold_classification": "THRESHOLDS_SEMANTICALLY_CORRECT_AND_PROTECTIVE"
+  },
+  "execution_sequence": [
+    "Do not mutate thresholds.",
+    "Build/refresh clean discovery corpus under KuCoin PAPER only.",
+    "Rank non-TrendFollowing and repaired TrendFollowing candidates by expected_net_after_full_cost >= 0.08 and ratio >= 1.10.",
+    "Run one candidate at a time through clean current runtime smoke.",
+    "Promote only candidates with natural opens and clean completed trade evidence; do not claim profitability before sample sufficiency."
+  ],
+  "generated_at_utc": "2026-06-03T22:33:22.473591+00:00",
+  "next_action": {
+    "next_action_classification": "EDGE_REPAIR_AND_STRONGER_ALPHA_SEARCH",
+    "paper_experiment_allowed": true,
+    "profitability_claim_allowed": false,
+    "ratio_patch_allowed": false,
+    "strategy_patch_allowed": false,
+    "threshold_patch_allowed": false
+  },
+  "patch_policy": {
+    "do_not_lower_thresholds": true,
+    "do_not_patch_strategy_without_offline_replay": true,
+    "do_not_weaken_ratio_guard": true,
+    "kucoin_only": true,
+    "live_allowed": false,
+    "paper_only": true
+  },
+  "profitability_claim": false,
+  "rejected_current_candidates": [
+    {
+      "candidate": "AVAXUSDTM:TrendFollowingV2:sell",
+      "max_expected_net_after_full_cost": 0.04826070387426362,
+      "max_ratio": 0.9090909090909091,
+      "reason": "strategy_weakness"
+    },
+    {
+      "candidate": "BNBUSDTM:TrendFollowingV2:buy",
+      "max_expected_net_after_full_cost": 0.05386902950622281,
+      "max_ratio": 0.9090909090909091,
+      "reason": "strategy_weakness"
+    },
+    {
+      "candidate": "DOTUSDTM:TrendFollowingV2:sell",
+      "max_expected_net_after_full_cost": 0.056727152451426704,
+      "max_ratio": 0.9454525408571117,
+      "reason": "strategy_weakness"
+    }
+  ],
+  "stronger_alpha_search_plan": [
+    {
+      "candidate_source": "fresh discovery required",
+      "current_runtime_semantics_required": true,
+      "max_expected_net_after_full_cost": 0.08,
+      "minimum_expected_net_after_full_cost": 0.08,
+      "priority": 1,
+      "rationale": "search for impulse edges with expected_net_after_full_cost >= 0.08 under current gates",
+      "strategy": "MicroBreakoutV2"
+    },
+    {
+      "candidate_source": "fresh discovery required",
+      "current_runtime_semantics_required": true,
+      "max_expected_net_after_full_cost": 0.08,
+      "minimum_expected_net_after_full_cost": 0.08,
+      "priority": 2,
+      "rationale": "one-tick impulse horizon may better match short PAPER exit geometry than ret_3 trend lag",
+      "strategy": "MomentumV2"
+    },
+    {
+      "candidate_source": "fresh discovery required",
+      "current_runtime_semantics_required": true,
+      "max_expected_net_after_full_cost": 0.08,
+      "minimum_expected_net_after_full_cost": 0.08,
+      "priority": 3,
+      "rationale": "test opposite-side extreme reversion where stop-risk ratio can exceed 1.10 naturally",
+      "strategy": "MeanReversionV2"
+    },
+    {
+      "candidate": "DOTUSDTM:TrendFollowingV2:sell",
+      "candidate_source": "current rejected runtime evidence",
+      "current_runtime_semantics_required": true,
+      "max_expected_net_after_full_cost": 0.056727152451426704,
+      "max_ratio": 0.9454525408571117,
+      "minimum_expected_net_after_full_cost": 0.08,
+      "priority": 4,
+      "rationale": "keep as repair benchmark, not as immediate runtime candidate",
+      "strategy": "TrendFollowingV2"
+    },
+    {
+      "candidate": "BNBUSDTM:TrendFollowingV2:buy",
+      "candidate_source": "current rejected runtime evidence",
+      "current_runtime_semantics_required": true,
+      "max_expected_net_after_full_cost": 0.05386902950622281,
+      "max_ratio": 0.9090909090909091,
+      "minimum_expected_net_after_full_cost": 0.08,
+      "priority": 5,
+      "rationale": "keep as repair benchmark, not as immediate runtime candidate",
+      "strategy": "TrendFollowingV2"
+    },
+    {
+      "candidate": "AVAXUSDTM:TrendFollowingV2:sell",
+      "candidate_source": "current rejected runtime evidence",
+      "current_runtime_semantics_required": true,
+      "max_expected_net_after_full_cost": 0.04826070387426362,
+      "max_ratio": 0.9090909090909091,
+      "minimum_expected_net_after_full_cost": 0.08,
+      "priority": 6,
+      "rationale": "keep as repair benchmark, not as immediate runtime candidate",
+      "strategy": "TrendFollowingV2"
+    }
+  ],
+  "trendfollowing_repair_plan": [
+    {
+      "gate": "offline_expected_net_replay",
+      "objective": "Replay TrendFollowingV2 ret_3 signals against current cost and risk formulas before any strategy mutation.",
+      "pass_condition": "candidate families produce expected_net_after_full_cost >= 0.08 and ratio >= 1.10 without threshold relaxation",
+      "required_evidence": [
+        "expected_move_raw",
+        "expected_move_scaled",
+        "expected_net_after_cost",
+        "expected_net_after_full_cost",
+        "entry_net_to_stop_ratio",
+        "MFE/MAE after signal timestamp where available"
+      ]
+    },
+    {
+      "gate": "signal_timing_audit",
+      "objective": "Measure whether ret_3 enters after most move has already occurred.",
+      "pass_condition": "post-signal MFE supports current expected_move formula after costs",
+      "required_evidence": [
+        "signal_horizon_ticks",
+        "post-signal MFE",
+        "post-signal MAE",
+        "time_to_first_MFE",
+        "time_from_peak_to_close"
+      ]
+    },
+    {
+      "gate": "cost_burden_replay",
+      "objective": "Separate weak signal from fee/spread/slippage overburden.",
+      "pass_condition": "edge remains positive after current total cost ratio with margin to reach full-cost net >= 0.08",
+      "required_evidence": [
+        "fee_round_trip_ratio",
+        "spread_ratio",
+        "slippage_ratio",
+        "expected_edge_after_fee",
+        "expected_net_after_cost"
+      ]
+    },
+    {
+      "gate": "paper_only_shadow_candidate_test",
+      "objective": "Run clean PAPER-only runtime smoke only after offline replay finds stronger TFV2 parameter family.",
+      "pass_condition": "natural current-semantics admission, completed clean trades, no profitability claim until sufficient sample",
+      "required_evidence": [
+        "LIVE=0",
+        "USE_MOCK=0",
+        "seed=0",
+        "fallback=0",
+        "force_open=0",
+        "position_open natural only"
+      ]
+    }
+  ]
+}
