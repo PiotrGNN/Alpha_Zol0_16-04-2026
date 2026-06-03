@@ -1,0 +1,284 @@
+{
+  "accepted_rejected_no_trade_classification": "NO_TRADE_RUNTIME_GATE_BLOCKED",
+  "admission_blocker": "no_runtime_profile",
+  "command": "$env:LIVE='0'; $env:USE_MOCK='0'; $env:RUN_SYMBOLS='DOTUSDTM'; $env:ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST='DOTUSDTM:TrendFollowingV2:sell'; $env:SEED_TRADES_ENABLE='0'; $env:PAPER_AUTO_OPEN_STARTUP_ENABLE='0'; $env:PAPER_AUTO_OPEN_FALLBACK_ENABLE='0'; $env:ENTRY_ALLOWLIST_DIAGNOSTIC_FORCE_OPEN='0'; $env:ALPHA_WHITELIST_FALLBACK_ENABLE='0'; $env:DIAGNOSTIC_MODE='0'; python scripts\\controlled_kpi_run.py --variant-only after --after-min 20 --symbols DOTUSDTM --market-type futures --engine v2 --paper-auto-open --run-id 20260603_142706 --after-env RUN_SYMBOLS=DOTUSDTM --after-env ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST=DOTUSDTM:TrendFollowingV2:sell --after-env SEED_TRADES_ENABLE=0 --after-env PAPER_AUTO_OPEN_STARTUP_ENABLE=0 --after-env PAPER_AUTO_OPEN_FALLBACK_ENABLE=0 --after-env ENTRY_ALLOWLIST_DIAGNOSTIC_FORCE_OPEN=0 --after-env ALPHA_WHITELIST_FALLBACK_ENABLE=0 --after-env DIAGNOSTIC_MODE=0 --after-env USE_MOCK=0 --after-env LIVE=0 --after-env ALLOW_ONE_SIDED_VALIDATION=1 --after-env PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST=1",
+  "completed_trade_count": 0,
+  "contamination_checks": {
+    "assisted_seed_open_count": 0,
+    "contaminating_event_counts": {},
+    "data_check_real_quote_path_ok": true,
+    "diagnostic_force_open_count": 0,
+    "fallback_open_count": 0,
+    "forced_cycle_or_cycle_end_events": {},
+    "log_error_count": 0,
+    "mock_quote_count": 0,
+    "use_mock": false
+  },
+  "data_check": {
+    "market_type": "futures",
+    "results": {
+      "DOTUSDTM": {
+        "bad_ohlc_count": 0,
+        "bad_volume_count": 0,
+        "count": 79,
+        "last_ts": 1780489560000,
+        "monotonic_ts": true,
+        "ok": true,
+        "stale_sec": 67.118,
+        "unique_ts_ratio": 1.0
+      }
+    },
+    "skipped": false,
+    "symbols": [
+      "DOTUSDTM"
+    ],
+    "timeframe": "1"
+  },
+  "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260603_142706.db",
+  "entry_admission_contract": {
+    "after_requested": true,
+    "allow_one_sided_validation": true,
+    "allowlist_contract_type": "explicit_side_allowlist",
+    "allowlist_side_coverage": [
+      "sell"
+    ],
+    "alpha_bootstrap_runtime_status": "PASS",
+    "conflicting_side_tokens": [],
+    "explicit_side_allowlist": [
+      "DOTUSDTM:TrendFollowingV2:sell"
+    ],
+    "explicit_side_blocklist": [],
+    "invalid_reason": "ONE_SIDED_ALLOWLIST_DIAGNOSTIC_OPT_IN",
+    "one_sided_allowlist_detected": true,
+    "paper_auto_open": true,
+    "positive_side_allowlist": [],
+    "profit_valid": false,
+    "reason_codes": [
+      "EXPLICIT_SIDE_ALLOWLIST_PRESENT",
+      "ONE_SIDED_ALLOWLIST_DIAGNOSTIC_OPT_IN",
+      "PROFIT_VALIDATION_CORPUS_INVALID_ONE_SIDED_ALLOWLIST"
+    ],
+    "require_explicit_side_allowlist": true,
+    "status": "PASS",
+    "symbol_scope_count": 1,
+    "symbol_scope_type": "single_symbol",
+    "validation_classification": "PAPER_VALIDATION_CANDIDATE",
+    "variant_only": "after"
+  },
+  "event_counts": {
+    "entry_eval_v2": 20,
+    "entry_gate_decision_summary": 512,
+    "entry_reject_v2": 512,
+    "pre_entry_candidate_rejection_trace": 512,
+    "risk_decision": 512,
+    "runtime_v2_started": 1,
+    "runtime_v2_stopped": 1
+  },
+  "exact_environment": {
+    "ALLOW_ONE_SIDED_VALIDATION": "1",
+    "ALPHA_WHITELIST_FALLBACK_ENABLE": "0",
+    "DIAGNOSTIC_MODE": "0",
+    "ENTRY_ALLOWLIST_DIAGNOSTIC_FORCE_OPEN": "0",
+    "ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST": "DOTUSDTM:TrendFollowingV2:sell",
+    "LIVE": "0",
+    "PAPER_AUTO_OPEN_FALLBACK_ENABLE": "0",
+    "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST": "1",
+    "PAPER_AUTO_OPEN_STARTUP_ENABLE": "0",
+    "RUN_SYMBOLS": "DOTUSDTM",
+    "SEED_TRADES_ENABLE": "0",
+    "USE_MOCK": "0"
+  },
+  "exit_reason_distribution": {},
+  "expectancy": 0.0,
+  "final_classification": "DOT_ENTRY_BLOCKED_BY_RUNTIME_GATE",
+  "gate_reason_distribution": {
+    "entry_edge_filtered": 12,
+    "entry_min_net_guard": 4,
+    "no_runtime_profile": 455,
+    "symbol_strategy_side_allowlist": 41
+  },
+  "generated_at_utc": "2026-06-03T12:51:27.305358+00:00",
+  "natural_entry_candidate_contract": {
+    "allowed_sides": [
+      {
+        "count": 16,
+        "side": "sell",
+        "strategy": "TrendFollowingV2",
+        "symbol": "DOTUSDTM"
+      }
+    ],
+    "assisted_seed_admitted_count": 0,
+    "assisted_seed_allowed_sides": [],
+    "assisted_seed_evidence_only": false,
+    "assisted_seed_open_count": 0,
+    "blocked_sides": [
+      {
+        "count": 41,
+        "reason": "symbol_strategy_side_allowlist",
+        "side": null,
+        "strategy": null,
+        "symbol": "DOTUSDTM"
+      }
+    ],
+    "classification": "NATURAL_ENTRY_CANDIDATE_PRESENT",
+    "empty_assignment_rows": 0,
+    "fallback_open_count": 0,
+    "final_surviving_candidate_count": 16,
+    "guard_rejected_sides": [
+      {
+        "count": 4,
+        "reason": "entry_min_net_guard",
+        "side": "sell",
+        "strategy": "TrendFollowingV2",
+        "symbol": "DOTUSDTM"
+      }
+    ],
+    "invalid_side_candidates": [],
+    "natural_admitted_count": 0,
+    "raw_side_value_counts_top20": [
+      {
+        "count": 32,
+        "raw_side": "sell"
+      }
+    ],
+    "reason_codes": [
+      "ROUTER_CANDIDATES_EXIST",
+      "NO_NATURAL_ADMISSION",
+      "ALLOWLIST_BLOCKLIST_REJECTIONS_PRESENT",
+      "GUARD_REJECTIONS_PRESENT"
+    ],
+    "rejected_candidate_count": 512,
+    "rejection_reason_counts": [
+      [
+        "no_runtime_profile",
+        455
+      ],
+      [
+        "symbol_strategy_side_allowlist",
+        41
+      ],
+      [
+        "entry_edge_filtered",
+        12
+      ],
+      [
+        "entry_min_net_guard",
+        4
+      ]
+    ],
+    "router_candidate_rows": 16,
+    "router_candidate_sides": [
+      {
+        "count": 496,
+        "side": null,
+        "strategy": null,
+        "symbol": "DOTUSDTM"
+      },
+      {
+        "count": 16,
+        "side": "sell",
+        "strategy": "TrendFollowingV2",
+        "symbol": "DOTUSDTM"
+      }
+    ],
+    "strategy_evidence_classification": "NO_NATURAL_ADMISSION",
+    "usable_strategy_economics": false
+  },
+  "net_pnl": 0.0,
+  "next_recommended_action": "Perform entry-gate component autopsy only; do not patch strategy or thresholds until no_runtime_profile / entry_min_net_guard path is isolated.",
+  "no_entry_reason_distribution": {
+    "entry_edge_filtered": 12,
+    "entry_min_net_guard": 4,
+    "no_runtime_profile": 455,
+    "symbol_strategy_side_allowlist": 41
+  },
+  "pending_positions": 0,
+  "position_open_count": 0,
+  "position_open_v2_count": 0,
+  "process_returncode": 0,
+  "profit_factor": 0.0,
+  "result_json": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\results\\controlled_kpi_20260603_142706.json",
+  "risk_reason_distribution": {
+    "entry_edge_filtered": 12,
+    "entry_min_net_guard": 4,
+    "no_runtime_profile": 455,
+    "symbol_strategy_side_allowlist": 41
+  },
+  "run_id": "20260603_142706",
+  "runner_params": {
+    "after_env_overrides": {
+      "ALLOW_ONE_SIDED_VALIDATION": "1",
+      "ALPHA_WHITELIST_FALLBACK_ENABLE": "0",
+      "DIAGNOSTIC_MODE": "0",
+      "ENTRY_ALLOWLIST_DIAGNOSTIC_FORCE_OPEN": "0",
+      "ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST": "DOTUSDTM:TrendFollowingV2:sell",
+      "LIVE": "0",
+      "PAPER_AUTO_OPEN_FALLBACK_ENABLE": "0",
+      "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST": "1",
+      "PAPER_AUTO_OPEN_STARTUP_ENABLE": "0",
+      "RUN_SYMBOLS": "DOTUSDTM",
+      "SEED_TRADES_ENABLE": "0",
+      "USE_MOCK": "0"
+    },
+    "after_env_overrides_cli": {
+      "ALLOW_ONE_SIDED_VALIDATION": "1",
+      "ALPHA_WHITELIST_FALLBACK_ENABLE": "0",
+      "DIAGNOSTIC_MODE": "0",
+      "ENTRY_ALLOWLIST_DIAGNOSTIC_FORCE_OPEN": "0",
+      "ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST": "DOTUSDTM:TrendFollowingV2:sell",
+      "LIVE": "0",
+      "PAPER_AUTO_OPEN_FALLBACK_ENABLE": "0",
+      "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST": "1",
+      "PAPER_AUTO_OPEN_STARTUP_ENABLE": "0",
+      "RUN_SYMBOLS": "DOTUSDTM",
+      "SEED_TRADES_ENABLE": "0",
+      "USE_MOCK": "0"
+    },
+    "after_min": 20,
+    "alpha_bootstrap_accepted_scorecard": "analysis/zol0_profitability_audit_scorecard.json",
+    "alpha_bootstrap_auto_refresh": true,
+    "alpha_bootstrap_build_fallback_positive_side_pairs": 2,
+    "alpha_bootstrap_build_fallback_top_pairs": 0,
+    "alpha_bootstrap_build_glob": "artifacts/diagnostics/alpha_bootstrap_bundle_20260506_positive_side_filtered/alpha_history_live_candidate.db,zol0.db,tmp/controlled_kpi_after_*.db,tmp/controlled_kpi_before_*.db",
+    "alpha_bootstrap_build_max_per_source": 320,
+    "alpha_bootstrap_build_max_sources": 35,
+    "alpha_bootstrap_build_max_total": 3000,
+    "alpha_bootstrap_build_min_abs_pnl": 0.0,
+    "alpha_bootstrap_build_min_pair_expectancy": 0.0,
+    "alpha_bootstrap_build_min_pair_trades": 10,
+    "alpha_bootstrap_build_min_pair_winrate": 0.4,
+    "alpha_bootstrap_build_min_side_expectancy": 0.0,
+    "alpha_bootstrap_build_min_side_trades": 2,
+    "alpha_bootstrap_build_min_side_winrate": 0.45,
+    "alpha_bootstrap_build_output": "tmp/alpha_history_auto_recent.db",
+    "alpha_bootstrap_build_report_json": "tmp/alpha_history_auto_recent_report.json",
+    "alpha_bootstrap_source_db_glob": "D:/Alpha_Zol0-lvl_5-main/Alpha_Zol0-lvl_5-main/tmp/alpha_history_auto_recent.db",
+    "alpha_bootstrap_source_db_url": "sqlite:///D:/Alpha_Zol0-lvl_5-main/Alpha_Zol0-lvl_5-main/tmp/alpha_history_auto_recent.db",
+    "auto_after_overrides": {},
+    "before_env_overrides": {},
+    "before_env_overrides_cli": {},
+    "before_min": 30,
+    "engine": "v2",
+    "equity_snapshot_sec": 10,
+    "market_type": "futures",
+    "paper_auto_close_sec": 60,
+    "paper_auto_open": true,
+    "quality_profile": false,
+    "symbols": [
+      "DOTUSDTM"
+    ],
+    "timeframe": "1",
+    "use_mock": false,
+    "variant_only": "after"
+  },
+  "scope": {
+    "candidate": "DOTUSDTM:TrendFollowingV2:sell",
+    "kucoin_only": true,
+    "live": 0,
+    "paper_only": true,
+    "symbol": "DOTUSDTM",
+    "use_mock": 0
+  },
+  "shutdown_classification": "close_flush_done_pending_positions_zero",
+  "winrate": 0.0
+}
