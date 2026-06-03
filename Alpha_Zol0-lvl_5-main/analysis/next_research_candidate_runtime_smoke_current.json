@@ -1,0 +1,180 @@
+{
+  "candidates": [
+    {
+      "allowlist_canonical_keys": [
+        "BNBUSDTM:TRENDFOLLOWING:buy"
+      ],
+      "allowlist_key_matches": true,
+      "allowlist_raw": "BNBUSDTM:TrendFollowingV2:buy",
+      "candidate": "BNBUSDTM:TrendFollowingV2:buy",
+      "canonical_candidate_key": "BNBUSDTM:TRENDFOLLOWING:buy",
+      "classification": "NEXT_CANDIDATE_BLOCKED_BY_MIN_NET",
+      "clean_evidence": true,
+      "completed_clean_natural_trade_count": 0,
+      "completed_trade_count": 0,
+      "contamination_checks": {
+        "fallback": 0,
+        "force_open": 0,
+        "forced_cycle": 0,
+        "live": 0,
+        "mock": 0,
+        "pending_positions": 0,
+        "process_returncode": 0,
+        "seed": 0
+      },
+      "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260603_180101.db",
+      "effective_entry_min_net_usdt_values": [
+        0.12
+      ],
+      "entry_eval_count_global": 149,
+      "event_counts": {
+        "entry_eval_v2": 149,
+        "entry_gate_decision_summary": 505,
+        "entry_reject_v2": 505,
+        "pre_entry_candidate_rejection_trace": 505,
+        "risk_decision": 505,
+        "runtime_v2_started": 1,
+        "runtime_v2_stopped": 1
+      },
+      "expected_net_after_cost_ratio_stats": {
+        "count": 288,
+        "max": 0.002157073563108565,
+        "mean": 0.00024821890849164295,
+        "min": -0.0001154235552723695
+      },
+      "expected_net_after_full_cost_stats": {
+        "count": 10,
+        "max": 0.05386902950622281,
+        "mean": 0.030537919551154792,
+        "min": 0.01671284650768015
+      },
+      "global_reason_distribution": {
+        "allow": 20,
+        "entry_edge_filtered": 516,
+        "entry_min_net_guard": 30,
+        "no_runtime_profile": 240,
+        "symbol_strategy_side_allowlist": 858
+      },
+      "min_net_guard_count": 20,
+      "position_open_count": 0,
+      "process_returncode": 0,
+      "research_expected_net_after_full_cost": 0.08144557636074735,
+      "result_path": "results\\controlled_kpi_20260603_180101.json",
+      "run_id": "20260603_180101",
+      "runtime_profile_event_count": 427,
+      "runtime_profile_exists": true,
+      "runtime_profile_keys_top": {
+        "BNBUSDTM|rolling_quote_window|n=180|span=474": 12,
+        "BNBUSDTM|rolling_quote_window|n=180|span=483": 9,
+        "BNBUSDTM|rolling_quote_window|n=180|span=506": 9,
+        "BNBUSDTM|rolling_quote_window|n=180|span=511": 9,
+        "BNBUSDTM|rolling_quote_window|n=180|span=527": 9
+      },
+      "shutdown_classification": "close_flush_done_pending_positions_zero",
+      "target_entry_eval_count": 427,
+      "target_reason_distribution": {
+        "allow": 20,
+        "entry_edge_filtered": 387,
+        "entry_min_net_guard": 20
+      },
+      "target_runtime_event_count": 427
+    },
+    {
+      "allowlist_canonical_keys": [
+        "AVAXUSDTM:TRENDFOLLOWING:sell"
+      ],
+      "allowlist_key_matches": true,
+      "allowlist_raw": "AVAXUSDTM:TrendFollowingV2:sell",
+      "candidate": "AVAXUSDTM:TrendFollowingV2:sell",
+      "canonical_candidate_key": "AVAXUSDTM:TRENDFOLLOWING:sell",
+      "classification": "NEXT_CANDIDATE_BLOCKED_BY_MIN_NET",
+      "clean_evidence": true,
+      "completed_clean_natural_trade_count": 0,
+      "completed_trade_count": 0,
+      "contamination_checks": {
+        "fallback": 0,
+        "force_open": 0,
+        "forced_cycle": 0,
+        "live": 0,
+        "mock": 0,
+        "pending_positions": 0,
+        "process_returncode": 0,
+        "seed": 0
+      },
+      "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260603_182201.db",
+      "effective_entry_min_net_usdt_values": [
+        0.12
+      ],
+      "entry_eval_count_global": 98,
+      "event_counts": {
+        "entry_eval_v2": 98,
+        "entry_gate_decision_summary": 492,
+        "entry_reject_v2": 492,
+        "pre_entry_candidate_rejection_trace": 492,
+        "risk_decision": 492,
+        "runtime_v2_started": 1,
+        "runtime_v2_stopped": 1
+      },
+      "expected_net_after_cost_ratio_stats": {
+        "count": 182,
+        "max": 0.001500023392234293,
+        "mean": 0.0003508714864861923,
+        "min": -9.877933974568765e-05
+      },
+      "expected_net_after_full_cost_stats": {
+        "count": 14,
+        "max": 0.044791973511999386,
+        "mean": 0.02584837712591605,
+        "min": 0.018596702436875164
+      },
+      "global_reason_distribution": {
+        "allow": 28,
+        "entry_edge_filtered": 280,
+        "entry_min_net_guard": 42,
+        "no_runtime_profile": 765,
+        "symbol_strategy_side_allowlist": 459
+      },
+      "min_net_guard_count": 28,
+      "position_open_count": 0,
+      "process_returncode": 0,
+      "research_expected_net_after_full_cost": 0.08137487663914103,
+      "result_path": "results\\controlled_kpi_20260603_182201.json",
+      "run_id": "20260603_182201",
+      "runtime_profile_event_count": 266,
+      "runtime_profile_exists": true,
+      "runtime_profile_keys_top": {
+        "AVAXUSDTM|rolling_quote_window|n=180|span=827": 7,
+        "AVAXUSDTM|rolling_quote_window|n=180|span=835": 6,
+        "AVAXUSDTM|rolling_quote_window|n=180|span=849": 10,
+        "AVAXUSDTM|rolling_quote_window|n=180|span=864": 6,
+        "AVAXUSDTM|rolling_quote_window|n=180|span=875": 7
+      },
+      "shutdown_classification": "close_flush_done_pending_positions_zero",
+      "target_entry_eval_count": 266,
+      "target_reason_distribution": {
+        "allow": 28,
+        "entry_edge_filtered": 210,
+        "entry_min_net_guard": 28
+      },
+      "target_runtime_event_count": 266
+    }
+  ],
+  "classification": "NO_RESEARCH_CANDIDATE_PASSES_CURRENT_RUNTIME_GATES",
+  "generated_at_utc": "2026-06-03T17:12:13.452338+00:00",
+  "next_action": "No threshold/strategy patch; current candidates did not pass runtime gates with clean evidence.",
+  "profitability_claim": false,
+  "scope": {
+    "diagnostic_force_open": false,
+    "entry_min_net_usdt": 0.12,
+    "fallback": false,
+    "kucoin_only": true,
+    "live": false,
+    "paper_only": true,
+    "seed": false,
+    "strategy_patch": false,
+    "threshold_mutation": false,
+    "use_mock": false
+  },
+  "smoke_duration_min_per_candidate": 20,
+  "source_research_artifact": "analysis/new_alpha_research_validation_current.json"
+}
