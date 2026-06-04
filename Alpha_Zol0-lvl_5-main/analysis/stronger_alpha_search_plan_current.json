@@ -1,0 +1,137 @@
+{
+  "classification": "STRONGER_ALPHA_SEARCH_PLAN_READY",
+  "ranked_families": [
+    {
+      "candidate_promotion_criteria": [
+        "clean source=rolling_quote_window",
+        "non-contaminated seed/fallback/mock/force_open/forced_cycle flags",
+        "sample_count >= 20 per symbol/side/horizon bucket",
+        "p95_signed_net_move >= 0.12 in the same ratio unit as trajectory net",
+        "expected_net_after_cost remains positive after total_cost_ratio"
+      ],
+      "cost_fee_spread_guards": "Reject buckets where max MFE <= median estimated_cost or cost fields are missing.",
+      "expected_source_of_edge": "Fresh rolling_quote_window compression-to-expansion movement with low spread burden.",
+      "fail_closed_conditions": [
+        "unit mismatch",
+        "missing trajectory cost fields",
+        "contaminated evidence",
+        "public-kline-only source",
+        "insufficient sample"
+      ],
+      "family": "MicroBreakoutV2",
+      "paper_validation_path": "Run PAPER-only capture with RUNTIME_V2_POST_SIGNAL_TRAJECTORY=1, LIVE=0, USE_MOCK=0, no seed/fallback/force-open; analyze only natural post_signal_trajectory_v2 rows.",
+      "post_signal_target_criteria": "p95 signed_net_move ratio >= configured alpha target with best MFE not dominated by cost.",
+      "rank": 1,
+      "required_runtime_compatible_telemetry": [
+        "rolling_quote_window source",
+        "post_signal_trajectory_v2 horizons",
+        "expected_net_after_cost",
+        "estimated_cost",
+        "runtime_profile_key",
+        "contamination_flags"
+      ],
+      "role": "primary_search",
+      "signal_hypothesis": "Short-horizon order-flow/quote-window impulse can create post-cost signed movement before spread decay.",
+      "stop_risk_ratio_requirements": "Require stop_risk telemetry before promotion to execution; fail closed if ratio is missing."
+    },
+    {
+      "candidate_promotion_criteria": [
+        "clean non-TrendFollowing bucket",
+        "sample_count >= 20",
+        "p95_signed_net_move >= 0.12 ratio target",
+        "median MFE minus cost burden > 0"
+      ],
+      "cost_fee_spread_guards": "Reject if median estimated_cost exceeds median MFE.",
+      "expected_source_of_edge": "Rolling quote-window continuation where signed movement persists through 3-5 tick horizons.",
+      "fail_closed_conditions": [
+        "horizon mismatch not explained by telemetry",
+        "missing cost fields",
+        "contamination",
+        "sample below contract"
+      ],
+      "family": "MomentumV2",
+      "paper_validation_path": "Observe naturally rejected/admitted MomentumV2 candidates in PAPER-only runtime and compare against TrendFollowing baseline.",
+      "post_signal_target_criteria": "3/5 tick p95 signed_net_move reaches ratio target without adverse MAE dominance.",
+      "rank": 2,
+      "required_runtime_compatible_telemetry": [
+        "rolling_quote_window source",
+        "signal_horizon_ticks",
+        "post_signal_trajectory_v2 horizon distribution",
+        "expected_net_after_cost",
+        "estimated_cost"
+      ],
+      "role": "secondary_search",
+      "signal_hypothesis": "Directional continuation after quote-window momentum can exceed fee/spread burden in selected symbol/side buckets.",
+      "stop_risk_ratio_requirements": "Require expected net to stop-risk ratio telemetry before any runtime gate promotion."
+    },
+    {
+      "candidate_promotion_criteria": [
+        "clean bucket with sample_count >= 20",
+        "p95_signed_net_move >= 0.12 ratio target",
+        "best events repeat across more than one run or timestamp cluster"
+      ],
+      "cost_fee_spread_guards": "Reject if max MFE is only marginally above estimated_cost or spread burden is unstable.",
+      "expected_source_of_edge": "Short horizon reversion after local quote-window extremes, especially sell-side overextension buckets.",
+      "fail_closed_conditions": [
+        "single-event only evidence",
+        "missing expected fields",
+        "contaminated evidence",
+        "unit mismatch"
+      ],
+      "family": "MeanReversionV2",
+      "paper_validation_path": "Focus PAPER observation on best clean near-target symbol/side only after unit sanity remains consistent.",
+      "post_signal_target_criteria": "h1/h3 signed_net_move p95 reaches ratio target and does not rely on one isolated event.",
+      "rank": 3,
+      "required_runtime_compatible_telemetry": [
+        "rolling_quote_window source",
+        "post_signal_trajectory_v2 h1/h3 observations",
+        "estimated_cost",
+        "expected_net_after_cost",
+        "reason_code"
+      ],
+      "role": "tertiary_search",
+      "signal_hypothesis": "Quote-window overextension can revert enough to create post-cost signed net movement.",
+      "stop_risk_ratio_requirements": "Require stop-risk and entry-net-to-stop ratio telemetry for promotion beyond research."
+    },
+    {
+      "candidate_promotion_criteria": [
+        "comparator only",
+        "do not promote over non-TrendFollowing unless explicitly requested"
+      ],
+      "cost_fee_spread_guards": "Same cost dominance checks as primary families.",
+      "expected_source_of_edge": "Existing runtime-compatible TrendFollowing quote-window behavior.",
+      "fail_closed_conditions": [
+        "treated as primary stronger-alpha candidate",
+        "contaminated evidence",
+        "source mismatch"
+      ],
+      "family": "TrendFollowingV2",
+      "paper_validation_path": "Keep as baseline in the same PAPER-only post-signal reports.",
+      "post_signal_target_criteria": "Used to benchmark non-TrendFollowing MFE/net opportunity only.",
+      "rank": 4,
+      "required_runtime_compatible_telemetry": [
+        "rolling_quote_window source",
+        "post_signal_trajectory_v2",
+        "expected_net_after_cost",
+        "estimated_cost"
+      ],
+      "role": "demoted_comparator_only",
+      "signal_hypothesis": "Baseline directional continuation comparator, not primary stronger-alpha source.",
+      "stop_risk_ratio_requirements": "Comparator ratio telemetry only."
+    }
+  ],
+  "scope": {
+    "exchange": "KuCoin",
+    "forbidden_changes": [
+      "threshold_mutation",
+      "strategy_patch",
+      "readiness_mutation",
+      "execution_semantics_mutation",
+      "LIVE",
+      "fallback",
+      "seed",
+      "force_open"
+    ],
+    "mode": "PAPER_ONLY"
+  }
+}

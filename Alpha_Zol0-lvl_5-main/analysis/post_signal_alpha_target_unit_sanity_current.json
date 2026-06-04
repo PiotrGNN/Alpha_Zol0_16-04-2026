@@ -1,0 +1,82 @@
+{
+  "blocking_missing_fields": [],
+  "classification": "POST_SIGNAL_ALPHA_TARGET_UNITS_CONSISTENT",
+  "comparison_compatibility": {
+    "expected_net_vs_post_signal_mfe": true,
+    "mfe_vs_cost_burden": true,
+    "p95_signed_net_vs_alpha_target": true
+  },
+  "final_verdict": "STRONGER_ALPHA_SEARCH_CONFIRMED_UNITS_CONSISTENT",
+  "inputs": {
+    "failure_artifact": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\analysis\\post_signal_alpha_target_failure_current.json",
+    "runtime_artifact": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\analysis\\runtime_post_signal_trajectory_current.json"
+  },
+  "normalization_check": {
+    "alpha_target_value": 0.12,
+    "best_event_remains_far_from_target": true,
+    "best_mfe": 0.000762476326,
+    "best_net_to_target_ratio": 0.0042569716,
+    "best_signed_net_move": 0.000510836592
+  },
+  "patch_decision": {
+    "create_stronger_alpha_search_plan": true,
+    "patch_analyzer": false,
+    "patch_runtime": false,
+    "reason": "alpha target and trajectory net are unit-compatible ratio values"
+  },
+  "source_evidence": {
+    "cost_ratio_source_present": true,
+    "failure_mfe_from_signed_gross_present": true,
+    "files": {
+      "failure_analyzer": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\scripts\\analyze_post_signal_alpha_target_failure.py",
+      "runtime_analyzer": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\scripts\\analyze_runtime_post_signal_trajectory.py",
+      "tracker": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\core\\runtime_v2\\post_signal_trajectory.py"
+    },
+    "notional_full_cost_formula_present": false,
+    "raw_move_ratio_formula_present": true,
+    "runtime_analyzer_compares_p95_signed_net": true,
+    "signed_net_ratio_formula_present": true,
+    "source_readable": true
+  },
+  "summary": {
+    "alpha_target_count": 0,
+    "clean_event_count": 86,
+    "failure_artifact_classification": "POST_SIGNAL_NO_TARGETS_BECAUSE_SIGNALS_WEAK",
+    "runtime_artifact_classification": "POST_SIGNAL_TRAJECTORY_NO_TARGETS",
+    "trajectory_event_count": 86
+  },
+  "unit_findings": {
+    "MAE": {
+      "reason": "absolute_negative_signed_gross_move",
+      "unit": "ratio"
+    },
+    "MFE": {
+      "reason": "max_positive_signed_gross_move",
+      "unit": "ratio"
+    },
+    "alpha_target": {
+      "reason": "derived_from_p95_signed_net_move_comparison",
+      "unit": "ratio"
+    },
+    "estimated_cost": {
+      "reason": "total_cost_ratio_or_ratio_components",
+      "unit": "ratio"
+    },
+    "expected_net_after_cost": {
+      "reason": "candidate.expected_net_after_cost_ratio",
+      "unit": "ratio"
+    },
+    "expected_net_after_full_cost": {
+      "reason": "requires_notional_multiplication",
+      "unit": "not_present_in_post_signal_tracker"
+    },
+    "signed_gross_move": {
+      "reason": "quote_mid_relative_delta",
+      "unit": "ratio"
+    },
+    "signed_net_move": {
+      "reason": "signed_gross_move_minus_estimated_cost",
+      "unit": "ratio"
+    }
+  }
+}
