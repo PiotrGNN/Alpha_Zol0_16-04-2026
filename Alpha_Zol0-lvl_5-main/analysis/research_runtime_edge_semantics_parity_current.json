@@ -1,0 +1,940 @@
+{
+  "candidate_findings": {
+    "AVAXUSDTM:TrendFollowingV2:buy": {
+      "all_blocking_gates": {
+        "entry_edge_filtered": 144,
+        "min_net_guard": 30
+      },
+      "blocker_classification": "entry_edge_filtered",
+      "candidate": "AVAXUSDTM:TrendFollowingV2:buy",
+      "canonical_candidate_key": "AVAXUSDTM:TRENDFOLLOWING:buy",
+      "canonical_strategy": "TRENDFOLLOWING",
+      "completed_clean_natural_trade_count": 0,
+      "data_source_mismatch": true,
+      "db_scan": {
+        "best_event": {
+          "cost_breakdown": {
+            "bucket_expectancy": 0.0,
+            "bucket_trade_count": 0,
+            "bucket_winrate": 0.0,
+            "expected_gross_before_cost": 0.0029446407538278206,
+            "expected_move_raw": 0.003099621846134548,
+            "expected_move_scaled": 0.0029446407538278206,
+            "fee_rate": 0.0001,
+            "fee_round_trip_ratio": 0.0002,
+            "runtime_profile_age_sec": 813.058,
+            "runtime_profile_key": "AVAXUSDTM|rolling_quote_window|n=120|span=813",
+            "runtime_profile_sample_size": 120,
+            "runtime_profile_source": "rolling_quote_window",
+            "runtime_profile_span_sec": 813.058,
+            "signal_horizon_ticks": 3.0,
+            "slippage_ratio": 5e-05,
+            "spread_ratio": 1.2360175514485456e-05,
+            "symbol_trade_count": 0,
+            "total_cost_ratio": 0.0002623601755144855,
+            "trendfollowing_tuple_concentration": 0.0,
+            "tuple_concentration": 0.0
+          },
+          "expected_edge_after_fee": 0.0027446407538278205,
+          "expected_move": 0.0029446407538278206,
+          "expected_move_raw": 0.003099621846134548,
+          "expected_move_scaled": 0.0029446407538278206,
+          "expected_net_after_cost": 0.002682280578313335,
+          "expected_net_after_full_cost": 0.06944317126030092,
+          "runtime_profile_age_sec": 813.058,
+          "runtime_profile_key": "AVAXUSDTM|rolling_quote_window|n=120|span=813",
+          "runtime_profile_sample_size": 120,
+          "runtime_profile_source": "rolling_quote_window",
+          "runtime_profile_span_sec": 813.058,
+          "signal_expected_move_formula": "abs(ret_3) * 0.95",
+          "signal_horizon_ticks": 3.0,
+          "sizing_trace": {
+            "capped_notional_usdt": 26.612742995938312,
+            "entry_min_net_usdt": 0.12,
+            "estimated_stop_loss_net_usdt": 0.06,
+            "estimated_take_profit_net_usdt": 0.03,
+            "expected_net_after_full_cost": 0.06944317126030092,
+            "final_notional_usdt": 25.889599999999998,
+            "quantity_contracts": 32.0,
+            "requested_notional_usdt": 26.612742995938312,
+            "risk_cap_usdt": 90.0
+          }
+        },
+        "db_exists": true,
+        "expected_net_after_full_cost_stats": {
+          "count": 15,
+          "max": 0.06944317126030092,
+          "mean": 0.03215126180322969,
+          "min": 0.017541233104811406
+        },
+        "first_timestamp": "2026-06-03 23:48:04.551167",
+        "last_timestamp": "2026-06-04 00:06:56.923210",
+        "missing_fields": [
+          "quote_source"
+        ],
+        "profile_sources": {
+          "rolling_quote_window": 204
+        },
+        "quote_sources": {},
+        "reason_counts": {
+          "allow": 30,
+          "entry_edge_filtered": 144,
+          "entry_min_net_guard": 30
+        },
+        "records": 15
+      },
+      "delta_absolute": -0.05422873522872028,
+      "delta_percent": -43.84887139548896,
+      "effective_entry_min_net_usdt": 0.12,
+      "effective_threshold": 0.12,
+      "effective_threshold_source": "effective_entry_min_net_usdt_values",
+      "first_blocking_gate": "entry_edge_filtered",
+      "historical_discovery": null,
+      "missing_evidence": [
+        "candle_end",
+        "candle_start",
+        "fee_estimate",
+        "quote_source",
+        "slippage_estimate",
+        "timestamp"
+      ],
+      "missing_fields": [
+        "quote_source"
+      ],
+      "position_open_count": 0,
+      "quote_sources": {},
+      "research": {
+        "candidate": "AVAXUSDTM:TrendFollowingV2:buy",
+        "candle_window": {
+          "interval": null,
+          "profile_span_sec": 960.0,
+          "sample_count": 17
+        },
+        "canonical_candidate_key": "AVAXUSDTM:TRENDFOLLOWING:buy",
+        "canonical_strategy": "TRENDFOLLOWING",
+        "confidence": 1.0,
+        "data_source": "kucoin_public_futures_klines",
+        "expected_move": 0.009348978046933987,
+        "expected_net_after_cost": 0.009088978046933973,
+        "expected_net_after_full_cost": 0.1236719064890212,
+        "final_notional_usdt": 13.606800000000002,
+        "missing_fields": [
+          "timestamp",
+          "fee_estimate",
+          "slippage_estimate",
+          "candle_start",
+          "candle_end"
+        ],
+        "probability_of_profit": 0.9999998458849837,
+        "profile_span_sec": 960.0,
+        "sample_count": 17,
+        "side": "buy",
+        "source": "fresh_kucoin_public_klines_research",
+        "spread_bps": 1.0,
+        "strategy": "TrendFollowingV2",
+        "symbol": "AVAXUSDTM",
+        "timestamp": null
+      },
+      "research_edge": 0.1236719064890212,
+      "runtime_edge_fails_due_to_decay_or_formula_cost_change": "inconclusive_source_mismatch_and_missing_research_timestamp",
+      "runtime_edge_filter_count": 144,
+      "runtime_max_edge": 0.06944317126030092,
+      "runtime_max_expected_net_after_full_cost": 0.06944317126030092,
+      "runtime_mean_expected_net_after_full_cost": 0.03215126180322969,
+      "runtime_min_net_guard_count": 30,
+      "runtime_observed_passes_effective_threshold": false,
+      "runtime_profile_exists": true,
+      "runtime_profile_keys_top": {
+        "AVAXUSDTM|rolling_quote_window|n=115|span=788": 4,
+        "AVAXUSDTM|rolling_quote_window|n=116|span=790": 4,
+        "AVAXUSDTM|rolling_quote_window|n=21|span=120": 4,
+        "AVAXUSDTM|rolling_quote_window|n=22|span=133": 4,
+        "AVAXUSDTM|rolling_quote_window|n=23|span=133": 4
+      },
+      "runtime_profile_sources": {
+        "rolling_quote_window": 204
+      },
+      "runtime_stop_ratio_guard_count": 0,
+      "runtime_would_pass_at_research_value": true,
+      "side": "buy",
+      "strategy": "TrendFollowingV2",
+      "symbol": "AVAXUSDTM",
+      "timestamp_freshness_delta": null
+    },
+    "AVAXUSDTM:TrendFollowingV2:sell": {
+      "all_blocking_gates": {
+        "entry_edge_filtered": 195,
+        "min_net_guard": 24
+      },
+      "blocker_classification": "entry_edge_filtered",
+      "candidate": "AVAXUSDTM:TrendFollowingV2:sell",
+      "canonical_candidate_key": "AVAXUSDTM:TRENDFOLLOWING:sell",
+      "canonical_strategy": "TRENDFOLLOWING",
+      "completed_clean_natural_trade_count": 0,
+      "data_source_mismatch": true,
+      "db_scan": {
+        "best_event": {
+          "cost_breakdown": {
+            "bucket_expectancy": 0.0,
+            "bucket_trade_count": 0,
+            "bucket_winrate": 0.0,
+            "expected_gross_before_cost": 0.0012935569722103302,
+            "expected_move_raw": 0.001361638918116137,
+            "expected_move_scaled": 0.0012935569722103302,
+            "fee_rate": 0.0001,
+            "fee_round_trip_ratio": 0.0002,
+            "runtime_profile_age_sec": 649.904,
+            "runtime_profile_key": "AVAXUSDTM|rolling_quote_window|n=91|span=649",
+            "runtime_profile_sample_size": 91,
+            "runtime_profile_source": "rolling_quote_window",
+            "runtime_profile_span_sec": 649.904,
+            "signal_horizon_ticks": 3.0,
+            "slippage_ratio": 5e-05,
+            "spread_ratio": 1.2395413696925267e-05,
+            "symbol_trade_count": 0,
+            "total_cost_ratio": 0.0002623954136969253,
+            "trendfollowing_tuple_concentration": 0.0,
+            "tuple_concentration": 0.0
+          },
+          "expected_edge_after_fee": 0.0010935569722103301,
+          "expected_move": 0.0012935569722103302,
+          "expected_move_raw": 0.001361638918116137,
+          "expected_move_scaled": 0.0012935569722103302,
+          "expected_net_after_cost": 0.0010311615585134049,
+          "expected_net_after_full_cost": 0.03410747308055826,
+          "runtime_profile_age_sec": 649.904,
+          "runtime_profile_key": "AVAXUSDTM|rolling_quote_window|n=91|span=649",
+          "runtime_profile_sample_size": 91,
+          "runtime_profile_source": "rolling_quote_window",
+          "runtime_profile_span_sec": 649.904,
+          "signal_expected_move_formula": "abs(ret_3) * 0.95",
+          "signal_horizon_ticks": 3.0,
+          "sizing_trace": {
+            "capped_notional_usdt": 33.58362165378563,
+            "entry_min_net_usdt": 0.12,
+            "estimated_stop_loss_net_usdt": 0.03751822038861409,
+            "estimated_take_profit_net_usdt": 0.02899135211847452,
+            "expected_net_after_full_cost": 0.03410747308055826,
+            "final_notional_usdt": 33.07675,
+            "quantity_contracts": 41.0,
+            "requested_notional_usdt": 33.58362165378563,
+            "risk_cap_usdt": 90.0
+          }
+        },
+        "db_exists": true,
+        "expected_net_after_full_cost_stats": {
+          "count": 12,
+          "max": 0.03410747308055826,
+          "mean": 0.024866997023869183,
+          "min": 0.01589584119450839
+        },
+        "first_timestamp": "2026-06-03 23:24:01.265689",
+        "last_timestamp": "2026-06-03 23:42:18.561431",
+        "missing_fields": [
+          "quote_source"
+        ],
+        "profile_sources": {
+          "rolling_quote_window": 243
+        },
+        "quote_sources": {},
+        "reason_counts": {
+          "allow": 24,
+          "entry_edge_filtered": 195,
+          "entry_min_net_guard": 24
+        },
+        "records": 12
+      },
+      "delta_absolute": null,
+      "delta_percent": null,
+      "effective_entry_min_net_usdt": 0.12,
+      "effective_threshold": 0.12,
+      "effective_threshold_source": "effective_entry_min_net_usdt_values",
+      "first_blocking_gate": "entry_edge_filtered",
+      "historical_discovery": {
+        "best_event": {
+          "candidate_key": "AVAXUSDTM:TrendFollowingV2:sell",
+          "confidence": 1.0,
+          "cost_breakdown": {
+            "bucket_expectancy": 0.0,
+            "bucket_trade_count": 0,
+            "bucket_winrate": 0.0,
+            "expected_gross_before_cost": 0.0018713450292395795,
+            "expected_move_raw": 0.001969836872883768,
+            "expected_move_scaled": 0.0018713450292395795,
+            "fee_rate": 0.0001,
+            "fee_round_trip_ratio": 0.0002,
+            "runtime_profile_age_sec": 496.324,
+            "runtime_profile_key": "AVAXUSDTM|rolling_quote_window|n=83|span=496",
+            "runtime_profile_sample_size": 83,
+            "runtime_profile_source": "rolling_quote_window",
+            "runtime_profile_span_sec": 496.324,
+            "signal_horizon_ticks": 3.0,
+            "slippage_ratio": 5e-05,
+            "spread_ratio": 1.2335779929679216e-05,
+            "symbol_trade_count": 0,
+            "total_cost_ratio": 0.00026233577992967926,
+            "trendfollowing_tuple_concentration": 0.0,
+            "tuple_concentration": 0.0
+          },
+          "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260603_191203.db",
+          "entry_min_net_to_stop_ratio": null,
+          "entry_min_net_usdt": 0.05,
+          "entry_net_to_stop_ratio": null,
+          "estimated_stop_loss_net_usdt": 0.053086774261689985,
+          "event": "entry_reject_v2",
+          "expected_net_after_cost": 0.0016090092493099002,
+          "expected_net_after_full_cost": 0.04826070387426362,
+          "final_notional_usdt": 29.994050000000005,
+          "probability_of_profit": 0.9999999524208949,
+          "reason_code": "entry_min_net_guard",
+          "requested_notional_usdt": 30.64261811410098,
+          "row_id": 946,
+          "run_id": "20260603_191203",
+          "side": "sell",
+          "strategy": "TrendFollowingV2",
+          "symbol": "AVAXUSDTM",
+          "timestamp": "2026-06-03 18:16:20.929790"
+        },
+        "candidate_key": "AVAXUSDTM:TrendFollowingV2:sell",
+        "event_count": 65,
+        "max_expected_net_after_full_cost": 0.04826070387426362,
+        "mean_expected_net_after_full_cost": 0.026863020010156533,
+        "qualified_event_count": 0,
+        "reason_counts": {
+          "entry_min_net_guard": 58,
+          "entry_net_to_stop_guard": 7
+        },
+        "side": "sell",
+        "strategy": "TrendFollowingV2",
+        "symbol": "AVAXUSDTM"
+      },
+      "missing_evidence": [
+        "quote_source"
+      ],
+      "missing_fields": [
+        "quote_source"
+      ],
+      "position_open_count": 0,
+      "quote_sources": {},
+      "research": null,
+      "research_edge": null,
+      "runtime_edge_fails_due_to_decay_or_formula_cost_change": "inconclusive_source_mismatch_and_missing_research_timestamp",
+      "runtime_edge_filter_count": 195,
+      "runtime_max_edge": 0.03410747308055826,
+      "runtime_max_expected_net_after_full_cost": 0.03410747308055826,
+      "runtime_mean_expected_net_after_full_cost": 0.024866997023869183,
+      "runtime_min_net_guard_count": 24,
+      "runtime_observed_passes_effective_threshold": false,
+      "runtime_profile_exists": true,
+      "runtime_profile_keys_top": {
+        "AVAXUSDTM|rolling_quote_window|n=10|span=59": 4,
+        "AVAXUSDTM|rolling_quote_window|n=11|span=59": 4,
+        "AVAXUSDTM|rolling_quote_window|n=180|span=1072": 6,
+        "AVAXUSDTM|rolling_quote_window|n=180|span=1084": 6,
+        "AVAXUSDTM|rolling_quote_window|n=49|span=288": 4
+      },
+      "runtime_profile_sources": {
+        "rolling_quote_window": 243
+      },
+      "runtime_stop_ratio_guard_count": 0,
+      "runtime_would_pass_at_research_value": false,
+      "side": "sell",
+      "strategy": "TrendFollowingV2",
+      "symbol": "AVAXUSDTM",
+      "timestamp_freshness_delta": null
+    },
+    "BNBUSDTM:TrendFollowingV2:buy": {
+      "all_blocking_gates": {
+        "entry_edge_filtered": 342,
+        "min_net_guard": 10
+      },
+      "blocker_classification": "entry_edge_filtered",
+      "candidate": "BNBUSDTM:TrendFollowingV2:buy",
+      "canonical_candidate_key": "BNBUSDTM:TRENDFOLLOWING:buy",
+      "canonical_strategy": "TRENDFOLLOWING",
+      "completed_clean_natural_trade_count": 0,
+      "data_source_mismatch": true,
+      "db_scan": {
+        "best_event": {
+          "cost_breakdown": {
+            "bucket_expectancy": 0.0,
+            "bucket_trade_count": 0,
+            "bucket_winrate": 0.0,
+            "expected_gross_before_cost": 0.0010089838291075348,
+            "expected_move_raw": 0.0010620882411658261,
+            "expected_move_scaled": 0.0010089838291075348,
+            "fee_rate": 0.0001,
+            "fee_round_trip_ratio": 0.0002,
+            "runtime_profile_age_sec": 115.183,
+            "runtime_profile_key": "BNBUSDTM|rolling_quote_window|n=49|span=115",
+            "runtime_profile_sample_size": 49,
+            "runtime_profile_source": "rolling_quote_window",
+            "runtime_profile_span_sec": 115.183,
+            "signal_horizon_ticks": 3.0,
+            "slippage_ratio": 5e-05,
+            "spread_ratio": 6.381722746049494e-06,
+            "symbol_trade_count": 0,
+            "total_cost_ratio": 0.0002563817227460495,
+            "trendfollowing_tuple_concentration": 0.0,
+            "tuple_concentration": 0.0
+          },
+          "expected_edge_after_fee": 0.0008089838291075348,
+          "expected_move": 0.0010089838291075348,
+          "expected_move_raw": 0.0010620882411658261,
+          "expected_move_scaled": 0.0010089838291075348,
+          "expected_net_after_cost": 0.0007526021063614853,
+          "expected_net_after_full_cost": 0.023586173712315767,
+          "runtime_profile_age_sec": 115.183,
+          "runtime_profile_key": "BNBUSDTM|rolling_quote_window|n=49|span=115",
+          "runtime_profile_sample_size": 49,
+          "runtime_profile_source": "rolling_quote_window",
+          "runtime_profile_span_sec": 115.183,
+          "signal_expected_move_formula": "abs(ret_3) * 0.95",
+          "signal_horizon_ticks": 3.0,
+          "sizing_trace": {
+            "capped_notional_usdt": 33.91147241841965,
+            "entry_min_net_usdt": 0.12,
+            "estimated_stop_loss_net_usdt": 0.025944791083547348,
+            "estimated_take_profit_net_usdt": 0.0200482476554684,
+            "expected_net_after_full_cost": 0.023586173712315767,
+            "final_notional_usdt": 31.3395,
+            "quantity_contracts": 5.0,
+            "requested_notional_usdt": 33.91147241841965,
+            "risk_cap_usdt": 90.0
+          }
+        },
+        "db_exists": true,
+        "expected_net_after_full_cost_stats": {
+          "count": 5,
+          "max": 0.023586173712315767,
+          "mean": 0.01982571080621421,
+          "min": 0.008319553793948758
+        },
+        "first_timestamp": "2026-06-03 23:02:13.599919",
+        "last_timestamp": "2026-06-03 23:21:41.294976",
+        "missing_fields": [
+          "quote_source"
+        ],
+        "profile_sources": {
+          "rolling_quote_window": 362
+        },
+        "quote_sources": {},
+        "reason_counts": {
+          "allow": 10,
+          "entry_edge_filtered": 342,
+          "entry_min_net_guard": 10
+        },
+        "records": 5
+      },
+      "delta_absolute": null,
+      "delta_percent": null,
+      "effective_entry_min_net_usdt": 0.12,
+      "effective_threshold": 0.12,
+      "effective_threshold_source": "effective_entry_min_net_usdt_values",
+      "first_blocking_gate": "entry_edge_filtered",
+      "historical_discovery": {
+        "best_event": {
+          "candidate_key": "BNBUSDTM:TrendFollowingV2:buy",
+          "confidence": 1.0,
+          "cost_breakdown": {
+            "bucket_expectancy": 0.0,
+            "bucket_trade_count": 0,
+            "bucket_winrate": 0.0,
+            "expected_gross_before_cost": 0.0024102769971898973,
+            "expected_move_raw": 0.0025371336812525236,
+            "expected_move_scaled": 0.0024102769971898973,
+            "fee_rate": 0.0001,
+            "fee_round_trip_ratio": 0.0002,
+            "runtime_profile_age_sec": 414.765,
+            "runtime_profile_key": "BNBUSDTM|rolling_quote_window|n=146|span=414",
+            "runtime_profile_sample_size": 146,
+            "runtime_profile_source": "rolling_quote_window",
+            "runtime_profile_span_sec": 414.765,
+            "signal_horizon_ticks": 3.0,
+            "slippage_ratio": 5e-05,
+            "spread_ratio": 3.2034340813322783e-06,
+            "symbol_trade_count": 0,
+            "total_cost_ratio": 0.0002532034340813323,
+            "trendfollowing_tuple_concentration": 0.0,
+            "tuple_concentration": 0.0
+          },
+          "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260603_180101.db",
+          "entry_min_net_to_stop_ratio": null,
+          "entry_min_net_usdt": 0.12,
+          "entry_net_to_stop_ratio": null,
+          "estimated_stop_loss_net_usdt": 0.0592559324568451,
+          "event": "entry_reject_v2",
+          "expected_net_after_cost": 0.002157073563108565,
+          "expected_net_after_full_cost": 0.05386902950622281,
+          "final_notional_usdt": 24.973200000000002,
+          "probability_of_profit": 0.9999999965886697,
+          "reason_code": "entry_min_net_guard",
+          "requested_notional_usdt": 29.54098565584182,
+          "row_id": 770,
+          "run_id": "20260603_180101",
+          "side": "buy",
+          "strategy": "TrendFollowingV2",
+          "symbol": "BNBUSDTM",
+          "timestamp": "2026-06-03 16:37:11.914531"
+        },
+        "candidate_key": "BNBUSDTM:TrendFollowingV2:buy",
+        "event_count": 26,
+        "max_expected_net_after_full_cost": 0.05386902950622281,
+        "mean_expected_net_after_full_cost": 0.02714352086714488,
+        "qualified_event_count": 0,
+        "reason_counts": {
+          "entry_min_net_guard": 26
+        },
+        "side": "buy",
+        "strategy": "TrendFollowingV2",
+        "symbol": "BNBUSDTM"
+      },
+      "missing_evidence": [
+        "quote_source"
+      ],
+      "missing_fields": [
+        "quote_source"
+      ],
+      "position_open_count": 0,
+      "quote_sources": {},
+      "research": null,
+      "research_edge": null,
+      "runtime_edge_fails_due_to_decay_or_formula_cost_change": "inconclusive_source_mismatch_and_missing_research_timestamp",
+      "runtime_edge_filter_count": 342,
+      "runtime_max_edge": 0.023586173712315767,
+      "runtime_max_expected_net_after_full_cost": 0.023586173712315767,
+      "runtime_mean_expected_net_after_full_cost": 0.01982571080621421,
+      "runtime_min_net_guard_count": 10,
+      "runtime_observed_passes_effective_threshold": false,
+      "runtime_profile_exists": true,
+      "runtime_profile_keys_top": {
+        "BNBUSDTM|rolling_quote_window|n=180|span=478": 12,
+        "BNBUSDTM|rolling_quote_window|n=180|span=480": 15,
+        "BNBUSDTM|rolling_quote_window|n=180|span=482": 24,
+        "BNBUSDTM|rolling_quote_window|n=180|span=484": 9,
+        "BNBUSDTM|rolling_quote_window|n=180|span=518": 15
+      },
+      "runtime_profile_sources": {
+        "rolling_quote_window": 362
+      },
+      "runtime_stop_ratio_guard_count": 0,
+      "runtime_would_pass_at_research_value": false,
+      "side": "buy",
+      "strategy": "TrendFollowingV2",
+      "symbol": "BNBUSDTM",
+      "timestamp_freshness_delta": null
+    },
+    "DOTUSDTM:TrendFollowingV2:sell": {
+      "all_blocking_gates": {
+        "missing_fresh_runtime_smoke": 1
+      },
+      "blocker_classification": "missing_fresh_runtime_smoke",
+      "candidate": "DOTUSDTM:TrendFollowingV2:sell",
+      "canonical_candidate_key": "DOTUSDTM:TRENDFOLLOWING:sell",
+      "canonical_strategy": "TRENDFOLLOWING",
+      "data_source_mismatch": false,
+      "delta_absolute": null,
+      "delta_percent": null,
+      "effective_entry_min_net_usdt": 0.12,
+      "effective_threshold": 0.12,
+      "effective_threshold_source": "default_current_runtime_threshold",
+      "first_blocking_gate": "missing_fresh_runtime_smoke",
+      "historical_discovery": {
+        "best_event": {
+          "candidate_key": "DOTUSDTM:TrendFollowingV2:sell",
+          "confidence": 1.0,
+          "cost_breakdown": {
+            "bucket_expectancy": 0.0,
+            "bucket_trade_count": 0,
+            "bucket_winrate": 0.0,
+            "expected_gross_before_cost": 0.002575689109805834,
+            "expected_move_raw": 0.002711251694532457,
+            "expected_move_scaled": 0.002575689109805834,
+            "fee_rate": 0.0001,
+            "fee_round_trip_ratio": 0.0002,
+            "runtime_profile_age_sec": 313.318,
+            "runtime_profile_key": "DOTUSDTM|rolling_quote_window|n=24|span=313",
+            "runtime_profile_sample_size": 24,
+            "runtime_profile_source": "rolling_quote_window",
+            "runtime_profile_span_sec": 313.318,
+            "signal_horizon_ticks": 3.0,
+            "slippage_ratio": 5e-05,
+            "spread_ratio": 9.062075215225302e-05,
+            "symbol_trade_count": 0,
+            "total_cost_ratio": 0.00034062075215225305,
+            "trendfollowing_tuple_concentration": 0.0,
+            "tuple_concentration": 0.0
+          },
+          "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260603_191202.db",
+          "entry_min_net_to_stop_ratio": 1.1,
+          "entry_min_net_usdt": null,
+          "entry_net_to_stop_ratio": 0.9454525408571117,
+          "estimated_stop_loss_net_usdt": 0.06,
+          "event": "entry_reject_v2",
+          "expected_net_after_cost": 0.002235068357653581,
+          "expected_net_after_full_cost": 0.056727152451426704,
+          "final_notional_usdt": 25.380499999999998,
+          "probability_of_profit": 0.9999962003448889,
+          "reason_code": "entry_net_to_stop_guard",
+          "requested_notional_usdt": 25.42803225827081,
+          "row_id": 608,
+          "run_id": "20260603_191202",
+          "side": "sell",
+          "strategy": "TrendFollowingV2",
+          "symbol": "DOTUSDTM",
+          "timestamp": "2026-06-03 17:53:28.812661"
+        },
+        "candidate_key": "DOTUSDTM:TrendFollowingV2:sell",
+        "event_count": 14,
+        "max_expected_net_after_full_cost": 0.056727152451426704,
+        "mean_expected_net_after_full_cost": 0.036858342831175804,
+        "qualified_event_count": 0,
+        "reason_counts": {
+          "entry_min_net_guard": 11,
+          "entry_net_to_stop_guard": 3
+        },
+        "side": "sell",
+        "strategy": "TrendFollowingV2",
+        "symbol": "DOTUSDTM"
+      },
+      "missing_evidence": [
+        "fresh_runtime_smoke"
+      ],
+      "missing_fields": [
+        "fresh_runtime_smoke"
+      ],
+      "quote_sources": {},
+      "research": null,
+      "research_edge": null,
+      "runtime_edge_fails_due_to_decay_or_formula_cost_change": "not_proven",
+      "runtime_edge_filter_count": 0,
+      "runtime_max_edge": 0.056727152451426704,
+      "runtime_max_expected_net_after_full_cost": 0.056727152451426704,
+      "runtime_mean_expected_net_after_full_cost": 0.036858342831175804,
+      "runtime_min_net_guard_count": 11,
+      "runtime_observed_passes_effective_threshold": false,
+      "runtime_profile_exists": false,
+      "runtime_profile_sources": {},
+      "runtime_stop_ratio_guard_count": 3,
+      "runtime_would_pass_at_research_value": false,
+      "side": "sell",
+      "strategy": "TrendFollowingV2",
+      "symbol": "DOTUSDTM",
+      "timestamp_freshness_delta": null
+    }
+  },
+  "code_contract": {
+    "feature": {
+      "file": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\core\\runtime_v2\\feature_engine.py",
+      "profile_source_line": 68,
+      "ret_3_line": 43
+    },
+    "research_path": {
+      "file": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\scripts\\discover_new_alpha_search_space.py",
+      "research_min_net_line": 134,
+      "source_line": 185,
+      "uses_decision_engine_line": 132,
+      "uses_risk_engine_line": 133,
+      "uses_strategy_stack_line": 131
+    },
+    "runtime_formula": {
+      "decision_engine_file": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\core\\runtime_v2\\decision_engine.py",
+      "expected_edge_after_fee_line": 182,
+      "expected_net_after_cost_line": 183,
+      "formula": "expected_net_after_full_cost = (expected_move - total_cost_ratio) * final_notional_usdt",
+      "full_cost_line": 223,
+      "min_net_guard_line": 245,
+      "risk_engine_file": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\core\\runtime_v2\\risk_engine.py"
+    },
+    "runtime_source": {
+      "file": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\core\\runtime_v2\\data_feed.py",
+      "kucoin_quote_line": 6
+    },
+    "strategy": {
+      "TrendFollowingV2_line": 63,
+      "expected_move_formula_line": 76,
+      "file": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\core\\runtime_v2\\strategy_stack.py",
+      "formula": "expected_move = abs(ret_3) * 0.95",
+      "signal_horizon_line": 87,
+      "trend_input_line": 68
+    }
+  },
+  "edge_parity_classification": "RESEARCH_RUNTIME_SOURCE_MISMATCH",
+  "final_verdict": "SOURCE_PARITY_REPAIR_REQUIRED",
+  "formula_parity": {
+    "duplicated_formula_risk": "low_for_formula_high_for_source_path",
+    "formula_mismatch_exists": false,
+    "research_uses_runtime_decision_engine": true,
+    "research_uses_runtime_risk_engine": true,
+    "research_uses_runtime_strategy_stack": true,
+    "units": {
+      "ENTRY_MIN_NET_USDT": "USDT",
+      "expected_net_after_cost": "ratio",
+      "expected_net_after_full_cost": "USDT",
+      "fee_spread_slippage": "ratio/bps depending field"
+    }
+  },
+  "generated_at_utc": "2026-06-04T00:23:07.340681+00:00",
+  "overall_classification": "FRESH_RESEARCH_EDGE_NOT_RUNTIME_ADMISSIBLE_DUE_TO_SOURCE_MISMATCH",
+  "patch_decision": {
+    "execution_semantics_patch": false,
+    "readiness_patch": false,
+    "reason": "research uses KuCoin public kline path while runtime evidence uses rolling quote window; current artifacts cannot prove timestamp decay.",
+    "recommended_next_target": "source_parity_repair_or_source_label_enforcement",
+    "strategy_patch": false,
+    "threshold_patch": false
+  },
+  "research_edge_semantics": {
+    "candidate": {
+      "candidate": "AVAXUSDTM:TrendFollowingV2:buy",
+      "candle_window": {
+        "interval": null,
+        "profile_span_sec": 960.0,
+        "sample_count": 17
+      },
+      "canonical_candidate_key": "AVAXUSDTM:TRENDFOLLOWING:buy",
+      "canonical_strategy": "TRENDFOLLOWING",
+      "confidence": 1.0,
+      "data_source": "kucoin_public_futures_klines",
+      "expected_move": 0.009348978046933987,
+      "expected_net_after_cost": 0.009088978046933973,
+      "expected_net_after_full_cost": 0.1236719064890212,
+      "final_notional_usdt": 13.606800000000002,
+      "missing_fields": [
+        "timestamp",
+        "fee_estimate",
+        "slippage_estimate",
+        "candle_start",
+        "candle_end"
+      ],
+      "probability_of_profit": 0.9999998458849837,
+      "profile_span_sec": 960.0,
+      "sample_count": 17,
+      "side": "buy",
+      "source": "fresh_kucoin_public_klines_research",
+      "spread_bps": 1.0,
+      "strategy": "TrendFollowingV2",
+      "symbol": "AVAXUSDTM",
+      "timestamp": null
+    },
+    "formula": "StrategyStack -> DecisionEngineV2 -> RiskEngineV2: expected_net_after_full_cost = (expected_move - total_cost_ratio) * final_notional_usdt",
+    "source": "fresh_kucoin_public_klines_research",
+    "threshold_used_for_research_selection": 0.08
+  },
+  "runtime_edge_semantics": {
+    "formula": "DecisionEngineV2 expected_net_after_cost then RiskEngineV2 full-cost USDT sizing",
+    "primary_candidate": {
+      "all_blocking_gates": {
+        "entry_edge_filtered": 144,
+        "min_net_guard": 30
+      },
+      "blocker_classification": "entry_edge_filtered",
+      "candidate": "AVAXUSDTM:TrendFollowingV2:buy",
+      "canonical_candidate_key": "AVAXUSDTM:TRENDFOLLOWING:buy",
+      "canonical_strategy": "TRENDFOLLOWING",
+      "completed_clean_natural_trade_count": 0,
+      "data_source_mismatch": true,
+      "db_scan": {
+        "best_event": {
+          "cost_breakdown": {
+            "bucket_expectancy": 0.0,
+            "bucket_trade_count": 0,
+            "bucket_winrate": 0.0,
+            "expected_gross_before_cost": 0.0029446407538278206,
+            "expected_move_raw": 0.003099621846134548,
+            "expected_move_scaled": 0.0029446407538278206,
+            "fee_rate": 0.0001,
+            "fee_round_trip_ratio": 0.0002,
+            "runtime_profile_age_sec": 813.058,
+            "runtime_profile_key": "AVAXUSDTM|rolling_quote_window|n=120|span=813",
+            "runtime_profile_sample_size": 120,
+            "runtime_profile_source": "rolling_quote_window",
+            "runtime_profile_span_sec": 813.058,
+            "signal_horizon_ticks": 3.0,
+            "slippage_ratio": 5e-05,
+            "spread_ratio": 1.2360175514485456e-05,
+            "symbol_trade_count": 0,
+            "total_cost_ratio": 0.0002623601755144855,
+            "trendfollowing_tuple_concentration": 0.0,
+            "tuple_concentration": 0.0
+          },
+          "expected_edge_after_fee": 0.0027446407538278205,
+          "expected_move": 0.0029446407538278206,
+          "expected_move_raw": 0.003099621846134548,
+          "expected_move_scaled": 0.0029446407538278206,
+          "expected_net_after_cost": 0.002682280578313335,
+          "expected_net_after_full_cost": 0.06944317126030092,
+          "runtime_profile_age_sec": 813.058,
+          "runtime_profile_key": "AVAXUSDTM|rolling_quote_window|n=120|span=813",
+          "runtime_profile_sample_size": 120,
+          "runtime_profile_source": "rolling_quote_window",
+          "runtime_profile_span_sec": 813.058,
+          "signal_expected_move_formula": "abs(ret_3) * 0.95",
+          "signal_horizon_ticks": 3.0,
+          "sizing_trace": {
+            "capped_notional_usdt": 26.612742995938312,
+            "entry_min_net_usdt": 0.12,
+            "estimated_stop_loss_net_usdt": 0.06,
+            "estimated_take_profit_net_usdt": 0.03,
+            "expected_net_after_full_cost": 0.06944317126030092,
+            "final_notional_usdt": 25.889599999999998,
+            "quantity_contracts": 32.0,
+            "requested_notional_usdt": 26.612742995938312,
+            "risk_cap_usdt": 90.0
+          }
+        },
+        "db_exists": true,
+        "expected_net_after_full_cost_stats": {
+          "count": 15,
+          "max": 0.06944317126030092,
+          "mean": 0.03215126180322969,
+          "min": 0.017541233104811406
+        },
+        "first_timestamp": "2026-06-03 23:48:04.551167",
+        "last_timestamp": "2026-06-04 00:06:56.923210",
+        "missing_fields": [
+          "quote_source"
+        ],
+        "profile_sources": {
+          "rolling_quote_window": 204
+        },
+        "quote_sources": {},
+        "reason_counts": {
+          "allow": 30,
+          "entry_edge_filtered": 144,
+          "entry_min_net_guard": 30
+        },
+        "records": 15
+      },
+      "delta_absolute": -0.05422873522872028,
+      "delta_percent": -43.84887139548896,
+      "effective_entry_min_net_usdt": 0.12,
+      "effective_threshold": 0.12,
+      "effective_threshold_source": "effective_entry_min_net_usdt_values",
+      "first_blocking_gate": "entry_edge_filtered",
+      "historical_discovery": null,
+      "missing_evidence": [
+        "candle_end",
+        "candle_start",
+        "fee_estimate",
+        "quote_source",
+        "slippage_estimate",
+        "timestamp"
+      ],
+      "missing_fields": [
+        "quote_source"
+      ],
+      "position_open_count": 0,
+      "quote_sources": {},
+      "research": {
+        "candidate": "AVAXUSDTM:TrendFollowingV2:buy",
+        "candle_window": {
+          "interval": null,
+          "profile_span_sec": 960.0,
+          "sample_count": 17
+        },
+        "canonical_candidate_key": "AVAXUSDTM:TRENDFOLLOWING:buy",
+        "canonical_strategy": "TRENDFOLLOWING",
+        "confidence": 1.0,
+        "data_source": "kucoin_public_futures_klines",
+        "expected_move": 0.009348978046933987,
+        "expected_net_after_cost": 0.009088978046933973,
+        "expected_net_after_full_cost": 0.1236719064890212,
+        "final_notional_usdt": 13.606800000000002,
+        "missing_fields": [
+          "timestamp",
+          "fee_estimate",
+          "slippage_estimate",
+          "candle_start",
+          "candle_end"
+        ],
+        "probability_of_profit": 0.9999998458849837,
+        "profile_span_sec": 960.0,
+        "sample_count": 17,
+        "side": "buy",
+        "source": "fresh_kucoin_public_klines_research",
+        "spread_bps": 1.0,
+        "strategy": "TrendFollowingV2",
+        "symbol": "AVAXUSDTM",
+        "timestamp": null
+      },
+      "research_edge": 0.1236719064890212,
+      "runtime_edge_fails_due_to_decay_or_formula_cost_change": "inconclusive_source_mismatch_and_missing_research_timestamp",
+      "runtime_edge_filter_count": 144,
+      "runtime_max_edge": 0.06944317126030092,
+      "runtime_max_expected_net_after_full_cost": 0.06944317126030092,
+      "runtime_mean_expected_net_after_full_cost": 0.03215126180322969,
+      "runtime_min_net_guard_count": 30,
+      "runtime_observed_passes_effective_threshold": false,
+      "runtime_profile_exists": true,
+      "runtime_profile_keys_top": {
+        "AVAXUSDTM|rolling_quote_window|n=115|span=788": 4,
+        "AVAXUSDTM|rolling_quote_window|n=116|span=790": 4,
+        "AVAXUSDTM|rolling_quote_window|n=21|span=120": 4,
+        "AVAXUSDTM|rolling_quote_window|n=22|span=133": 4,
+        "AVAXUSDTM|rolling_quote_window|n=23|span=133": 4
+      },
+      "runtime_profile_sources": {
+        "rolling_quote_window": 204
+      },
+      "runtime_stop_ratio_guard_count": 0,
+      "runtime_would_pass_at_research_value": true,
+      "side": "buy",
+      "strategy": "TrendFollowingV2",
+      "symbol": "AVAXUSDTM",
+      "timestamp_freshness_delta": null
+    },
+    "threshold": 0.12
+  },
+  "scope": {
+    "execution_semantics_mutation": false,
+    "kucoin_only": true,
+    "live": false,
+    "paper_only": true,
+    "profitability_claim": false,
+    "readiness_mutation": false,
+    "strategy_patch": false,
+    "threshold_mutation": false,
+    "use_mock": false
+  },
+  "source_artifacts": {
+    "fresh_runtime": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\analysis\\fresh_alpha_candidate_runtime_smoke_current.json",
+    "historical_discovery": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\analysis\\v2_economic_candidate_discovery_current.json",
+    "next_runtime": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\analysis\\next_research_candidate_runtime_smoke_current.json",
+    "research": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\analysis\\new_alpha_research_validation_current.json"
+  },
+  "source_parity": {
+    "candidate_stale_by_smoke_time": "not_provable_without_research_candidate_timestamp",
+    "edge_decay_before_runtime": "not_provable_without_research_candidate_timestamp",
+    "quote_timestamps_overlap": "not_provable_from_current_artifacts",
+    "research_candidate_source": "fresh_kucoin_public_klines_research",
+    "research_market_data_source": "kucoin_public_futures_klines",
+    "runtime_profile_sources": {
+      "rolling_quote_window": 204
+    },
+    "runtime_quote_sources": {},
+    "source_mismatch": true
+  },
+  "strategy_classification": "TRENDFOLLOWINGV2_RUNTIME_EDGE_TOO_WEAK",
+  "strategy_semantics": {
+    "alias_mapping": {
+      "TRENDFOLLOWING": "TRENDFOLLOWING",
+      "TrendFollowing": "TRENDFOLLOWING",
+      "TrendFollowingV2": "TRENDFOLLOWING"
+    },
+    "avx_buy_same_family_in_research_and_runtime": true,
+    "runtime_edge_too_weak": true,
+    "signal_expected_move_formula": "abs(ret_3) * 0.95",
+    "signal_horizon_ticks": 3.0,
+    "strategy_family": "TRENDFOLLOWING"
+  },
+  "threshold_classification": "MIN_NET_THRESHOLD_APPLIED_CORRECTLY",
+  "threshold_semantics": {
+    "configured_entry_min_net_usdt": 0.12,
+    "hidden_stricter_guard_observed": false,
+    "runtime_effective_threshold": 0.12,
+    "threshold_mismatch": false,
+    "threshold_primary_visible_blocker": false,
+    "threshold_source": "effective_entry_min_net_usdt_values"
+  }
+}
