@@ -18,6 +18,7 @@ from core.runtime_v2.decision_engine import DecisionEngineV2
 from core.runtime_v2.execution_engine import PaperExecutionEngineV2
 from core.runtime_v2.exit_engine import ExitEngineV2
 from core.runtime_v2.feature_engine import FeatureEngine
+from core.runtime_v2.post_signal_trajectory import PostSignalTrajectoryTracker
 from core.runtime_v2.risk_engine import RiskEngineV2
 from core.runtime_v2.strategy_stack import StrategyStack
 from core.runtime_v2.telemetry import TelemetryV2
@@ -369,6 +370,10 @@ def run_bot_v2(simulate: bool = False) -> None:
         1.0,
         _env_float("V2_CALIBRATION_MAX_MISMATCH_RATIO", 2.5),
     )
+    post_signal_trajectory_enabled = _env_flag(
+        "RUNTIME_V2_POST_SIGNAL_TRAJECTORY",
+        "0",
+    )
     expected_move_calibration_profile = load_expected_move_calibration_profile(
         _resolve_expected_move_calibration_path()
     )
@@ -382,6 +387,9 @@ def run_bot_v2(simulate: bool = False) -> None:
     execution_engine = PaperExecutionEngineV2(base_balance_usdt=base_balance)
     exit_engine = ExitEngineV2()
     close_poller = _CloseRequestPoller(_sqlite_path_from_database_url())
+    post_signal_tracker = (
+        PostSignalTrajectoryTracker() if post_signal_trajectory_enabled else None
+    )
 
     telemetry._emit(
         "runtime_v2_started",
@@ -411,6 +419,7 @@ def run_bot_v2(simulate: bool = False) -> None:
             "calibration_gate_profile_path": expected_move_calibration_profile.get(
                 "source_path"
             ),
+            "post_signal_trajectory_enabled": bool(post_signal_trajectory_enabled),
         },
     )
 
@@ -565,6 +574,10 @@ def run_bot_v2(simulate: bool = False) -> None:
                 )
                 continue
 
+            if post_signal_tracker is not None:
+                for trajectory_payload in post_signal_tracker.observe_quote(quote):
+                    telemetry._emit("post_signal_trajectory_v2", trajectory_payload)
+
             feature = features.ingest(quote)
             signals = strategies.evaluate(feature)
             directional_signals = [
@@ -678,6 +691,19 @@ def run_bot_v2(simulate: bool = False) -> None:
                 feature=feature,
                 signals=signals,
             )
+            if post_signal_tracker is not None:
+                post_signal_tracker.observe_candidates(
+                    symbol=symbol,
+                    candidates=all_candidates[:3],
+                    reason_code=selection_reason,
+                    contamination_flags={
+                        "seed": 0,
+                        "fallback": 0,
+                        "mock": 0,
+                        "force_open": int(bool(diagnostic_force_open)),
+                        "forced_cycle": 0,
+                    },
+                )
             for candidate in all_candidates[:3]:
                 telemetry.emit_entry_eval(
                     symbol=symbol,

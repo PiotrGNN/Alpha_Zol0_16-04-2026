@@ -1,0 +1,763 @@
+{
+  "alpha_targets": [],
+  "baseline_candidates": [
+    {
+      "canonical_strategy": "TRENDFOLLOWING",
+      "horizon_ticks": 5,
+      "max_signed_net_move": 0.000355407841,
+      "mean_signed_net_move": 0.000355407841,
+      "p95_signed_net_move": 0.000355407841,
+      "sample_count": 1,
+      "side": "sell",
+      "symbol": "SOLUSDTM"
+    },
+    {
+      "canonical_strategy": "TRENDFOLLOWING",
+      "horizon_ticks": 5,
+      "max_signed_net_move": 0.000270353045,
+      "mean_signed_net_move": 0.00010719414350000001,
+      "p95_signed_net_move": 0.00025403715485,
+      "sample_count": 2,
+      "side": "sell",
+      "symbol": "BTCUSDTM"
+    },
+    {
+      "canonical_strategy": "TRENDFOLLOWING",
+      "horizon_ticks": 5,
+      "max_signed_net_move": 0.000150051781,
+      "mean_signed_net_move": 0.0001125106965,
+      "p95_signed_net_move": 0.00014629767255,
+      "sample_count": 2,
+      "side": "sell",
+      "symbol": "XRPUSDTM"
+    },
+    {
+      "canonical_strategy": "TRENDFOLLOWING",
+      "horizon_ticks": 1,
+      "max_signed_net_move": 0.000142822195,
+      "mean_signed_net_move": 0.000142822195,
+      "p95_signed_net_move": 0.000142822195,
+      "sample_count": 1,
+      "side": "buy",
+      "symbol": "SOLUSDTM"
+    },
+    {
+      "canonical_strategy": "TRENDFOLLOWING",
+      "horizon_ticks": 1,
+      "max_signed_net_move": 8.070982e-06,
+      "mean_signed_net_move": -0.00014224734333333333,
+      "p95_signed_net_move": 5.616867999999945e-07,
+      "sample_count": 3,
+      "side": "sell",
+      "symbol": "XRPUSDTM"
+    },
+    {
+      "canonical_strategy": "TRENDFOLLOWING",
+      "horizon_ticks": 3,
+      "max_signed_net_move": -5.9930097e-05,
+      "mean_signed_net_move": -5.9930097e-05,
+      "p95_signed_net_move": -5.9930097e-05,
+      "sample_count": 1,
+      "side": "sell",
+      "symbol": "SOLUSDTM"
+    },
+    {
+      "canonical_strategy": "TRENDFOLLOWING",
+      "horizon_ticks": 1,
+      "max_signed_net_move": -9.4779728e-05,
+      "mean_signed_net_move": -0.00029213651033333334,
+      "p95_signed_net_move": -9.54034528e-05,
+      "sample_count": 3,
+      "side": "sell",
+      "symbol": "BTCUSDTM"
+    },
+    {
+      "canonical_strategy": "TRENDFOLLOWING",
+      "horizon_ticks": 3,
+      "max_signed_net_move": -0.000150587702,
+      "mean_signed_net_move": -0.0001506005715,
+      "p95_signed_net_move": -0.00015058898895000002,
+      "sample_count": 2,
+      "side": "sell",
+      "symbol": "XRPUSDTM"
+    },
+    {
+      "canonical_strategy": "TRENDFOLLOWING",
+      "horizon_ticks": 3,
+      "max_signed_net_move": -0.000189558873,
+      "mean_signed_net_move": -0.00030867966133333333,
+      "p95_signed_net_move": -0.00020665191100000002,
+      "sample_count": 3,
+      "side": "sell",
+      "symbol": "BTCUSDTM"
+    },
+    {
+      "canonical_strategy": "TRENDFOLLOWING",
+      "horizon_ticks": 1,
+      "max_signed_net_move": -0.000228881122,
+      "mean_signed_net_move": -0.0003035137875,
+      "p95_signed_net_move": -0.00023634438855,
+      "sample_count": 2,
+      "side": "sell",
+      "symbol": "SOLUSDTM"
+    },
+    {
+      "canonical_strategy": "TRENDFOLLOWING",
+      "horizon_ticks": 3,
+      "max_signed_net_move": -0.000293646911,
+      "mean_signed_net_move": -0.000293646911,
+      "p95_signed_net_move": -0.000293646911,
+      "sample_count": 1,
+      "side": "buy",
+      "symbol": "SOLUSDTM"
+    },
+    {
+      "canonical_strategy": "TRENDFOLLOWING",
+      "horizon_ticks": 1,
+      "max_signed_net_move": -0.00101411606,
+      "mean_signed_net_move": -0.00101411606,
+      "p95_signed_net_move": -0.00101411606,
+      "sample_count": 1,
+      "side": "buy",
+      "symbol": "BNBUSDTM"
+    }
+  ],
+  "classification": "POST_SIGNAL_TRAJECTORY_NO_TARGETS",
+  "inputs": {
+    "db_paths": [
+      "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260604_020000.db",
+      "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260604_014651.db",
+      "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260604_012213.db",
+      "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260604_010148.db",
+      "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260603_211001.db",
+      "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260603_205001.db",
+      "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260603_203001.db",
+      "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260603_191203.db",
+      "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260603_191202.db",
+      "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260603_191201.db",
+      "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260603_182201.db",
+      "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260603_180101.db",
+      "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260603_142706.db",
+      "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260603_112131.db",
+      "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260603_105249.db",
+      "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260602_222423.db",
+      "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260602_220321.db",
+      "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260602_213756.db",
+      "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260602_211507.db",
+      "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260602_204821.db",
+      "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260602_202318.db",
+      "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260602_195855.db",
+      "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260601_195917.db",
+      "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260601_194258.db",
+      "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260601_193609.db",
+      "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260601_191649.db",
+      "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260601_185702.db",
+      "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260601_181044.db",
+      "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260601_180551.db",
+      "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260601_173123.db"
+    ],
+    "min_p95_signed_net": 0.12,
+    "min_samples": 20,
+    "runtime_source_required": "rolling_quote_window"
+  },
+  "ranked_family_buckets": [
+    {
+      "canonical_strategy": "MEANREVERSION",
+      "horizon_ticks": 1,
+      "max_signed_net_move": 0.000510836592,
+      "mean_signed_net_move": 0.000510836592,
+      "p95_signed_net_move": 0.000510836592,
+      "sample_count": 1,
+      "side": "sell",
+      "symbol": "BNBUSDTM"
+    },
+    {
+      "canonical_strategy": "TRENDFOLLOWING",
+      "horizon_ticks": 5,
+      "max_signed_net_move": 0.000355407841,
+      "mean_signed_net_move": 0.000355407841,
+      "p95_signed_net_move": 0.000355407841,
+      "sample_count": 1,
+      "side": "sell",
+      "symbol": "SOLUSDTM"
+    },
+    {
+      "canonical_strategy": "MOMENTUM",
+      "horizon_ticks": 5,
+      "max_signed_net_move": 0.000355407841,
+      "mean_signed_net_move": 0.000355407841,
+      "p95_signed_net_move": 0.000355407841,
+      "sample_count": 1,
+      "side": "sell",
+      "symbol": "SOLUSDTM"
+    },
+    {
+      "canonical_strategy": "MOMENTUM",
+      "horizon_ticks": 5,
+      "max_signed_net_move": 0.000270353045,
+      "mean_signed_net_move": 0.000270353045,
+      "p95_signed_net_move": 0.000270353045,
+      "sample_count": 1,
+      "side": "sell",
+      "symbol": "BTCUSDTM"
+    },
+    {
+      "canonical_strategy": "TRENDFOLLOWING",
+      "horizon_ticks": 5,
+      "max_signed_net_move": 0.000270353045,
+      "mean_signed_net_move": 0.00010719414350000001,
+      "p95_signed_net_move": 0.00025403715485,
+      "sample_count": 2,
+      "side": "sell",
+      "symbol": "BTCUSDTM"
+    },
+    {
+      "canonical_strategy": "UNIVERSALV2",
+      "horizon_ticks": 2,
+      "max_signed_net_move": 0.000209784403,
+      "mean_signed_net_move": -6.758243549999999e-05,
+      "p95_signed_net_move": 0.00018204771914999998,
+      "sample_count": 2,
+      "side": "sell",
+      "symbol": "BTCUSDTM"
+    },
+    {
+      "canonical_strategy": "UNIVERSALV2",
+      "horizon_ticks": 2,
+      "max_signed_net_move": 0.000164011618,
+      "mean_signed_net_move": 0.000164011618,
+      "p95_signed_net_move": 0.000164011618,
+      "sample_count": 1,
+      "side": "sell",
+      "symbol": "SOLUSDTM"
+    },
+    {
+      "canonical_strategy": "TRENDFOLLOWING",
+      "horizon_ticks": 5,
+      "max_signed_net_move": 0.000150051781,
+      "mean_signed_net_move": 0.0001125106965,
+      "p95_signed_net_move": 0.00014629767255,
+      "sample_count": 2,
+      "side": "sell",
+      "symbol": "XRPUSDTM"
+    },
+    {
+      "canonical_strategy": "TRENDFOLLOWING",
+      "horizon_ticks": 1,
+      "max_signed_net_move": 0.000142822195,
+      "mean_signed_net_move": 0.000142822195,
+      "p95_signed_net_move": 0.000142822195,
+      "sample_count": 1,
+      "side": "buy",
+      "symbol": "SOLUSDTM"
+    },
+    {
+      "canonical_strategy": "MOMENTUM",
+      "horizon_ticks": 5,
+      "max_signed_net_move": 7.4969612e-05,
+      "mean_signed_net_move": 7.4969612e-05,
+      "p95_signed_net_move": 7.4969612e-05,
+      "sample_count": 1,
+      "side": "sell",
+      "symbol": "XRPUSDTM"
+    },
+    {
+      "canonical_strategy": "MOMENTUM",
+      "horizon_ticks": 1,
+      "max_signed_net_move": 5.1941286e-05,
+      "mean_signed_net_move": 5.1941286e-05,
+      "p95_signed_net_move": 5.1941286e-05,
+      "sample_count": 1,
+      "side": "sell",
+      "symbol": "BNBUSDTM"
+    },
+    {
+      "canonical_strategy": "UNIVERSALV2",
+      "horizon_ticks": 1,
+      "max_signed_net_move": 5.1941286e-05,
+      "mean_signed_net_move": 5.1941286e-05,
+      "p95_signed_net_move": 5.1941286e-05,
+      "sample_count": 1,
+      "side": "sell",
+      "symbol": "BNBUSDTM"
+    },
+    {
+      "canonical_strategy": "TRENDFOLLOWING",
+      "horizon_ticks": 1,
+      "max_signed_net_move": 8.070982e-06,
+      "mean_signed_net_move": -0.00014224734333333333,
+      "p95_signed_net_move": 5.616867999999945e-07,
+      "sample_count": 3,
+      "side": "sell",
+      "symbol": "XRPUSDTM"
+    },
+    {
+      "canonical_strategy": "UNIVERSALV2",
+      "horizon_ticks": 2,
+      "max_signed_net_move": -2.5255553e-05,
+      "mean_signed_net_move": -2.5255553e-05,
+      "p95_signed_net_move": -2.5255553e-05,
+      "sample_count": 1,
+      "side": "sell",
+      "symbol": "XRPUSDTM"
+    },
+    {
+      "canonical_strategy": "TRENDFOLLOWING",
+      "horizon_ticks": 3,
+      "max_signed_net_move": -5.9930097e-05,
+      "mean_signed_net_move": -5.9930097e-05,
+      "p95_signed_net_move": -5.9930097e-05,
+      "sample_count": 1,
+      "side": "sell",
+      "symbol": "SOLUSDTM"
+    },
+    {
+      "canonical_strategy": "MOMENTUM",
+      "horizon_ticks": 3,
+      "max_signed_net_move": -5.9930097e-05,
+      "mean_signed_net_move": -5.9930097e-05,
+      "p95_signed_net_move": -5.9930097e-05,
+      "sample_count": 1,
+      "side": "sell",
+      "symbol": "SOLUSDTM"
+    },
+    {
+      "canonical_strategy": "UNIVERSALV2",
+      "horizon_ticks": 1,
+      "max_signed_net_move": -6.702197e-05,
+      "mean_signed_net_move": -0.000138041695,
+      "p95_signed_net_move": -7.41239425e-05,
+      "sample_count": 2,
+      "side": "sell",
+      "symbol": "XRPUSDTM"
+    },
+    {
+      "canonical_strategy": "TRENDFOLLOWING",
+      "horizon_ticks": 1,
+      "max_signed_net_move": -9.4779728e-05,
+      "mean_signed_net_move": -0.00029213651033333334,
+      "p95_signed_net_move": -9.54034528e-05,
+      "sample_count": 3,
+      "side": "sell",
+      "symbol": "BTCUSDTM"
+    },
+    {
+      "canonical_strategy": "MOMENTUM",
+      "horizon_ticks": 1,
+      "max_signed_net_move": -9.4779728e-05,
+      "mean_signed_net_move": -0.00034702881533333333,
+      "p95_signed_net_move": -0.00011187114430000002,
+      "sample_count": 3,
+      "side": "sell",
+      "symbol": "BTCUSDTM"
+    },
+    {
+      "canonical_strategy": "MOMENTUM",
+      "horizon_ticks": 3,
+      "max_signed_net_move": -0.000150587702,
+      "mean_signed_net_move": -0.000150587702,
+      "p95_signed_net_move": -0.000150587702,
+      "sample_count": 1,
+      "side": "sell",
+      "symbol": "XRPUSDTM"
+    },
+    {
+      "canonical_strategy": "TRENDFOLLOWING",
+      "horizon_ticks": 3,
+      "max_signed_net_move": -0.000150587702,
+      "mean_signed_net_move": -0.0001506005715,
+      "p95_signed_net_move": -0.00015058898895000002,
+      "sample_count": 2,
+      "side": "sell",
+      "symbol": "XRPUSDTM"
+    },
+    {
+      "canonical_strategy": "MEANREVERSION",
+      "horizon_ticks": 1,
+      "max_signed_net_move": -0.000133879753,
+      "mean_signed_net_move": -0.0003594233863333333,
+      "p95_signed_net_move": -0.00016395668390000004,
+      "sample_count": 3,
+      "side": "buy",
+      "symbol": "XRPUSDTM"
+    },
+    {
+      "canonical_strategy": "MOMENTUM",
+      "horizon_ticks": 3,
+      "max_signed_net_move": -0.000124319847,
+      "mean_signed_net_move": -0.000584889888,
+      "p95_signed_net_move": -0.00017037685110000004,
+      "sample_count": 2,
+      "side": "buy",
+      "symbol": "BTCUSDTM"
+    },
+    {
+      "canonical_strategy": "MOMENTUM",
+      "horizon_ticks": 3,
+      "max_signed_net_move": -0.000189558873,
+      "mean_signed_net_move": -0.000275024063,
+      "p95_signed_net_move": -0.00019810539200000002,
+      "sample_count": 2,
+      "side": "sell",
+      "symbol": "BTCUSDTM"
+    },
+    {
+      "canonical_strategy": "TRENDFOLLOWING",
+      "horizon_ticks": 3,
+      "max_signed_net_move": -0.000189558873,
+      "mean_signed_net_move": -0.00030867966133333333,
+      "p95_signed_net_move": -0.00020665191100000002,
+      "sample_count": 3,
+      "side": "sell",
+      "symbol": "BTCUSDTM"
+    },
+    {
+      "canonical_strategy": "UNIVERSALV2",
+      "horizon_ticks": 1,
+      "max_signed_net_move": -0.000209070311,
+      "mean_signed_net_move": -0.000209070311,
+      "p95_signed_net_move": -0.000209070311,
+      "sample_count": 1,
+      "side": "buy",
+      "symbol": "XRPUSDTM"
+    },
+    {
+      "canonical_strategy": "MOMENTUM",
+      "horizon_ticks": 1,
+      "max_signed_net_move": -0.00020906142,
+      "mean_signed_net_move": -0.000288426231,
+      "p95_signed_net_move": -0.0002169979011,
+      "sample_count": 2,
+      "side": "sell",
+      "symbol": "XRPUSDTM"
+    },
+    {
+      "canonical_strategy": "MOMENTUM",
+      "horizon_ticks": 1,
+      "max_signed_net_move": -0.000209070311,
+      "mean_signed_net_move": -0.0003594058275,
+      "p95_signed_net_move": -0.00022410386265,
+      "sample_count": 2,
+      "side": "buy",
+      "symbol": "XRPUSDTM"
+    },
+    {
+      "canonical_strategy": "TRENDFOLLOWING",
+      "horizon_ticks": 1,
+      "max_signed_net_move": -0.000228881122,
+      "mean_signed_net_move": -0.0003035137875,
+      "p95_signed_net_move": -0.00023634438855,
+      "sample_count": 2,
+      "side": "sell",
+      "symbol": "SOLUSDTM"
+    },
+    {
+      "canonical_strategy": "MOMENTUM",
+      "horizon_ticks": 1,
+      "max_signed_net_move": -0.000228881122,
+      "mean_signed_net_move": -0.0003035137875,
+      "p95_signed_net_move": -0.00023634438855,
+      "sample_count": 2,
+      "side": "sell",
+      "symbol": "SOLUSDTM"
+    },
+    {
+      "canonical_strategy": "MEANREVERSION",
+      "horizon_ticks": 1,
+      "max_signed_net_move": -0.00028519813,
+      "mean_signed_net_move": -0.00028519813,
+      "p95_signed_net_move": -0.00028519813,
+      "sample_count": 1,
+      "side": "buy",
+      "symbol": "SOLUSDTM"
+    },
+    {
+      "canonical_strategy": "UNIVERSALV2",
+      "horizon_ticks": 1,
+      "max_signed_net_move": -0.000265693891,
+      "mean_signed_net_move": -0.000473153359,
+      "p95_signed_net_move": -0.00028643983780000004,
+      "sample_count": 2,
+      "side": "sell",
+      "symbol": "BTCUSDTM"
+    },
+    {
+      "canonical_strategy": "TRENDFOLLOWING",
+      "horizon_ticks": 3,
+      "max_signed_net_move": -0.000293646911,
+      "mean_signed_net_move": -0.000293646911,
+      "p95_signed_net_move": -0.000293646911,
+      "sample_count": 1,
+      "side": "buy",
+      "symbol": "SOLUSDTM"
+    },
+    {
+      "canonical_strategy": "MEANREVERSION",
+      "horizon_ticks": 3,
+      "max_signed_net_move": -0.000310751878,
+      "mean_signed_net_move": -0.000310751878,
+      "p95_signed_net_move": -0.000310751878,
+      "sample_count": 1,
+      "side": "buy",
+      "symbol": "BTCUSDTM"
+    },
+    {
+      "canonical_strategy": "MEANREVERSION",
+      "horizon_ticks": 3,
+      "max_signed_net_move": -0.000351056922,
+      "mean_signed_net_move": -0.00035107000749999995,
+      "p95_signed_net_move": -0.00035105823055,
+      "sample_count": 2,
+      "side": "buy",
+      "symbol": "XRPUSDTM"
+    },
+    {
+      "canonical_strategy": "MOMENTUM",
+      "horizon_ticks": 3,
+      "max_signed_net_move": -0.000351056922,
+      "mean_signed_net_move": -0.000430417575,
+      "p95_signed_net_move": -0.0003589929873,
+      "sample_count": 2,
+      "side": "buy",
+      "symbol": "XRPUSDTM"
+    },
+    {
+      "canonical_strategy": "UNIVERSALV2",
+      "horizon_ticks": 3,
+      "max_signed_net_move": -0.000360489253,
+      "mean_signed_net_move": -0.000360489253,
+      "p95_signed_net_move": -0.000360489253,
+      "sample_count": 1,
+      "side": "sell",
+      "symbol": "BTCUSDTM"
+    },
+    {
+      "canonical_strategy": "UNIVERSALV2",
+      "horizon_ticks": 1,
+      "max_signed_net_move": -0.000378146453,
+      "mean_signed_net_move": -0.000378146453,
+      "p95_signed_net_move": -0.000378146453,
+      "sample_count": 1,
+      "side": "sell",
+      "symbol": "SOLUSDTM"
+    },
+    {
+      "canonical_strategy": "MEANREVERSION",
+      "horizon_ticks": 1,
+      "max_signed_net_move": -0.000405531023,
+      "mean_signed_net_move": -0.000405531023,
+      "p95_signed_net_move": -0.000405531023,
+      "sample_count": 1,
+      "side": "buy",
+      "symbol": "BTCUSDTM"
+    },
+    {
+      "canonical_strategy": "MOMENTUM",
+      "horizon_ticks": 1,
+      "max_signed_net_move": -0.000399293729,
+      "mean_signed_net_move": -0.000492484094,
+      "p95_signed_net_move": -0.0004086127655,
+      "sample_count": 2,
+      "side": "buy",
+      "symbol": "BTCUSDTM"
+    },
+    {
+      "canonical_strategy": "MOMENTUM",
+      "horizon_ticks": 5,
+      "max_signed_net_move": -0.000444345947,
+      "mean_signed_net_move": -0.000444345947,
+      "p95_signed_net_move": -0.000444345947,
+      "sample_count": 1,
+      "side": "buy",
+      "symbol": "BTCUSDTM"
+    },
+    {
+      "canonical_strategy": "MEANREVERSION",
+      "horizon_ticks": 3,
+      "max_signed_net_move": -0.000454149156,
+      "mean_signed_net_move": -0.000454149156,
+      "p95_signed_net_move": -0.000454149156,
+      "sample_count": 1,
+      "side": "buy",
+      "symbol": "SOLUSDTM"
+    },
+    {
+      "canonical_strategy": "UNIVERSALV2",
+      "horizon_ticks": 2,
+      "max_signed_net_move": -0.00046801324,
+      "mean_signed_net_move": -0.00046801324,
+      "p95_signed_net_move": -0.00046801324,
+      "sample_count": 1,
+      "side": "buy",
+      "symbol": "XRPUSDTM"
+    },
+    {
+      "canonical_strategy": "UNIVERSALV2",
+      "horizon_ticks": 3,
+      "max_signed_net_move": -0.000509778228,
+      "mean_signed_net_move": -0.000509778228,
+      "p95_signed_net_move": -0.000509778228,
+      "sample_count": 1,
+      "side": "buy",
+      "symbol": "XRPUSDTM"
+    },
+    {
+      "canonical_strategy": "UNIVERSALV2",
+      "horizon_ticks": 2,
+      "max_signed_net_move": -0.000570141167,
+      "mean_signed_net_move": -0.000570141167,
+      "p95_signed_net_move": -0.000570141167,
+      "sample_count": 1,
+      "side": "buy",
+      "symbol": "BTCUSDTM"
+    },
+    {
+      "canonical_strategy": "MEANREVERSION",
+      "horizon_ticks": 5,
+      "max_signed_net_move": -0.000576640407,
+      "mean_signed_net_move": -0.0006141812755000001,
+      "p95_signed_net_move": -0.00058039449385,
+      "sample_count": 2,
+      "side": "buy",
+      "symbol": "XRPUSDTM"
+    },
+    {
+      "canonical_strategy": "UNIVERSALV2",
+      "horizon_ticks": 1,
+      "max_signed_net_move": -0.000585674459,
+      "mean_signed_net_move": -0.000585674459,
+      "p95_signed_net_move": -0.000585674459,
+      "sample_count": 1,
+      "side": "buy",
+      "symbol": "BTCUSDTM"
+    },
+    {
+      "canonical_strategy": "MOMENTUM",
+      "horizon_ticks": 5,
+      "max_signed_net_move": -0.000651722144,
+      "mean_signed_net_move": -0.000651722144,
+      "p95_signed_net_move": -0.000651722144,
+      "sample_count": 1,
+      "side": "buy",
+      "symbol": "XRPUSDTM"
+    },
+    {
+      "canonical_strategy": "UNIVERSALV2",
+      "horizon_ticks": 2,
+      "max_signed_net_move": -0.000687704514,
+      "mean_signed_net_move": -0.000687704514,
+      "p95_signed_net_move": -0.000687704514,
+      "sample_count": 1,
+      "side": "buy",
+      "symbol": "SOLUSDTM"
+    },
+    {
+      "canonical_strategy": "MEANREVERSION",
+      "horizon_ticks": 5,
+      "max_signed_net_move": -0.000770663796,
+      "mean_signed_net_move": -0.000770663796,
+      "p95_signed_net_move": -0.000770663796,
+      "sample_count": 1,
+      "side": "buy",
+      "symbol": "BTCUSDTM"
+    },
+    {
+      "canonical_strategy": "MOMENTUM",
+      "horizon_ticks": 1,
+      "max_signed_net_move": -0.000793497392,
+      "mean_signed_net_move": -0.000803934404,
+      "p95_signed_net_move": -0.0007945410932,
+      "sample_count": 2,
+      "side": "buy",
+      "symbol": "SOLUSDTM"
+    },
+    {
+      "canonical_strategy": "UNIVERSALV2",
+      "horizon_ticks": 1,
+      "max_signed_net_move": -0.000814371416,
+      "mean_signed_net_move": -0.000814371416,
+      "p95_signed_net_move": -0.000814371416,
+      "sample_count": 1,
+      "side": "buy",
+      "symbol": "SOLUSDTM"
+    },
+    {
+      "canonical_strategy": "MEANREVERSION",
+      "horizon_ticks": 5,
+      "max_signed_net_move": -0.000869487093,
+      "mean_signed_net_move": -0.000869487093,
+      "p95_signed_net_move": -0.000869487093,
+      "sample_count": 1,
+      "side": "buy",
+      "symbol": "SOLUSDTM"
+    },
+    {
+      "canonical_strategy": "TRENDFOLLOWING",
+      "horizon_ticks": 1,
+      "max_signed_net_move": -0.00101411606,
+      "mean_signed_net_move": -0.00101411606,
+      "p95_signed_net_move": -0.00101411606,
+      "sample_count": 1,
+      "side": "buy",
+      "symbol": "BNBUSDTM"
+    },
+    {
+      "canonical_strategy": "UNIVERSALV2",
+      "horizon_ticks": 1,
+      "max_signed_net_move": -0.00101411606,
+      "mean_signed_net_move": -0.00101411606,
+      "p95_signed_net_move": -0.00101411606,
+      "sample_count": 1,
+      "side": "buy",
+      "symbol": "BNBUSDTM"
+    },
+    {
+      "canonical_strategy": "UNIVERSALV2",
+      "horizon_ticks": 3,
+      "max_signed_net_move": -0.001045459929,
+      "mean_signed_net_move": -0.001045459929,
+      "p95_signed_net_move": -0.001045459929,
+      "sample_count": 1,
+      "side": "buy",
+      "symbol": "BTCUSDTM"
+    },
+    {
+      "canonical_strategy": "MOMENTUM",
+      "horizon_ticks": 3,
+      "max_signed_net_move": -0.00122955737,
+      "mean_signed_net_move": -0.00122955737,
+      "p95_signed_net_move": -0.00122955737,
+      "sample_count": 1,
+      "side": "buy",
+      "symbol": "SOLUSDTM"
+    },
+    {
+      "canonical_strategy": "UNIVERSALV2",
+      "horizon_ticks": 3,
+      "max_signed_net_move": -0.00122955737,
+      "mean_signed_net_move": -0.00122955737,
+      "p95_signed_net_move": -0.00122955737,
+      "sample_count": 1,
+      "side": "buy",
+      "symbol": "SOLUSDTM"
+    },
+    {
+      "canonical_strategy": "UNIVERSALV2",
+      "horizon_ticks": 2,
+      "max_signed_net_move": -0.001325665527,
+      "mean_signed_net_move": -0.001325665527,
+      "p95_signed_net_move": -0.001325665527,
+      "sample_count": 1,
+      "side": "buy",
+      "symbol": "BNBUSDTM"
+    }
+  ],
+  "summary": {
+    "alpha_target_count": 0,
+    "clean_event_count": 86,
+    "contaminated_event_count": 0,
+    "db_count": 30,
+    "family_bucket_count": 59,
+    "trajectory_event_count": 86
+  }
+}
