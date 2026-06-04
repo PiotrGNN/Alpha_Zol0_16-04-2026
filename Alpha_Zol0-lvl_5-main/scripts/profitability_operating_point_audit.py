@@ -231,10 +231,10 @@ def audit_operating_point(runtime_artifact: Path | str, blocker_artifact: Path |
     )
     buckets = _bucket_summary(clean)
     passing = [row for row in buckets if row["passes_operating_point"]]
-    cost_dominated = bool(buckets) and all(
+    sample_eligible_buckets = [row for row in buckets if row["sample_count"] >= 20]
+    cost_dominated = bool(sample_eligible_buckets) and all(
         row["median_positive_gross"] <= row["median_cost"]
-        for row in buckets
-        if row["sample_count"] >= 20
+        for row in sample_eligible_buckets
     )
     if contaminated:
         classification = CLASS_CONTAMINATED

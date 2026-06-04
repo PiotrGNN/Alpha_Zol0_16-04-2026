@@ -141,3 +141,18 @@ def test_no_operating_point_when_winrate_and_payoff_fail(tmp_path: Path) -> None
 
     assert report["classification"] == CLASS_NO_OPERATING_POINT
     assert report["best_operating_point"] is None
+
+
+def test_insufficient_sample_is_not_cost_dominated(tmp_path: Path) -> None:
+    db_path = tmp_path / "run.db"
+    runtime_path = tmp_path / "runtime.json"
+    blocker_path = tmp_path / "blockers.json"
+    payloads = [_payload("BTCUSDTM", "MEANREVERSION", "sell", 10, 0.002) for _ in range(11)]
+    _write_db(db_path, payloads)
+    _write_runtime_artifact(runtime_path, db_path)
+    _write_blocker_artifact(blocker_path)
+
+    report = audit_operating_point(runtime_path, blocker_path)
+
+    assert report["classification"] == CLASS_NO_OPERATING_POINT
+    assert report["summary"]["passing_bucket_count"] == 0
