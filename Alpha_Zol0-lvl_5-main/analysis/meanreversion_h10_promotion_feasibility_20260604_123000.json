@@ -1,0 +1,72 @@
+{
+  "classification": "MEANREVERSION_H10_PROMOTION_PATCH_REQUIRED",
+  "decision": {
+    "next_step": "test_first_meanreversion_h10_strategy_calibration_patch",
+    "patch_execution": false,
+    "patch_readiness": false,
+    "patch_risk": false,
+    "patch_strategy": true,
+    "patch_threshold": false,
+    "reason": "clean h10 MEANREVERSION sell operating point exists but runtime is blocked by entry edge filtering while strategy still estimates MeanReversionV2 on ret_3 horizon"
+  },
+  "inputs": {
+    "blocker_artifact": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\analysis\\stronger_alpha_observation_blockers_20260604_123000.json",
+    "operating_point_artifact": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\analysis\\profitability_operating_point_20260604_123000.json",
+    "strategy_source_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\core\\runtime_v2\\strategy_stack.py"
+  },
+  "minimal_patch_boundary": {
+    "allowed_candidate": "core/runtime_v2/strategy_stack.py::MeanReversionV2",
+    "allowed_change": "calibrate MeanReversionV2 expected_move and signal_horizon_ticks to the observed h10 operating point",
+    "forbidden_changes": [
+      "ENTRY_MIN_NET_USDT threshold",
+      "V2_MIN_EXPECTED_NET_RATIO threshold",
+      "risk gate semantics",
+      "readiness gate semantics",
+      "execution semantics",
+      "LIVE mode",
+      "seed/fallback/force-open paths"
+    ],
+    "paper_validation_path": "BTCUSDTM/BNBUSDTM MEANREVERSION sell h10 PAPER-only admission and natural trade validation"
+  },
+  "profitability_claim": false,
+  "selected_operating_point": {
+    "avg_loss_abs": 0.0008260466508421052,
+    "avg_win_net": 0.0011443842766666666,
+    "candidate_key": "BTCUSDTM:MEANREVERSION:sell:h10",
+    "canonical_strategy": "MEANREVERSION",
+    "cost_to_gross_ratio": 0.18531629700698496,
+    "expectancy_per_signal": 0.00042441913007692307,
+    "horizon_ticks": 10,
+    "loss_count": 19,
+    "median_cost": 0.0002501559355,
+    "median_positive_gross": 0.001349886327,
+    "operating_point_score": 0.022069794764,
+    "p05_signed_net": -0.0014191893491499999,
+    "p50_signed_net": 0.0003746719725,
+    "p95_signed_net": 0.0021297594093499994,
+    "passes_operating_point": true,
+    "payoff_ratio": 1.3853748762252533,
+    "sample_count": 52,
+    "side": "sell",
+    "symbol": "BTCUSDTM",
+    "win_count": 33,
+    "win_rate": 0.634615
+  },
+  "strategy_source": {
+    "formula_uses_h10": false,
+    "formula_uses_ret3": true,
+    "meanreversion_formula": "abs(ret_3) * 0.65",
+    "meanreversion_found": true,
+    "meanreversion_signal_horizon_ticks": 3,
+    "path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\core\\runtime_v2\\strategy_stack.py"
+  },
+  "summary": {
+    "blocker_classification": "STRONGER_ALPHA_OBSERVATION_BLOCKED_BY_ENTRY_EDGE_FILTER",
+    "blocker_contaminated_event_count": 0,
+    "entry_edge_filtered_count": 328,
+    "operating_clean_event_count": 1255,
+    "operating_contaminated_event_count": 0,
+    "operating_point_classification": "PROFITABILITY_OPERATING_POINT_CANDIDATE_FOUND",
+    "position_open_count": 0
+  }
+}
