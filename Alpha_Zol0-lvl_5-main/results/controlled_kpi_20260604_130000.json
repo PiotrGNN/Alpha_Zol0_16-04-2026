@@ -1,0 +1,3877 @@
+{
+  "run_id": "20260604_130000",
+  "engine_version": "v2",
+  "params": {
+    "variant_only": "after",
+    "engine": "v2",
+    "symbols": [
+      "BTCUSDTM",
+      "BNBUSDTM",
+      "SOLUSDTM",
+      "XRPUSDTM"
+    ],
+    "market_type": "futures",
+    "timeframe": "1",
+    "use_mock": false,
+    "paper_auto_open": true,
+    "paper_auto_close_sec": 90,
+    "equity_snapshot_sec": 10,
+    "quality_profile": false,
+    "before_min": 30,
+    "after_min": 8,
+    "alpha_bootstrap_source_db_url": "sqlite:///D:/Alpha_Zol0-lvl_5-main/Alpha_Zol0-lvl_5-main/tmp/alpha_history_auto_recent.db",
+    "alpha_bootstrap_source_db_glob": "D:/Alpha_Zol0-lvl_5-main/Alpha_Zol0-lvl_5-main/tmp/alpha_history_auto_recent.db",
+    "alpha_bootstrap_auto_refresh": true,
+    "alpha_bootstrap_build_output": "tmp/alpha_history_auto_recent.db",
+    "alpha_bootstrap_build_glob": "artifacts/diagnostics/alpha_bootstrap_bundle_20260506_positive_side_filtered/alpha_history_live_candidate.db,zol0.db,tmp/controlled_kpi_after_*.db,tmp/controlled_kpi_before_*.db",
+    "alpha_bootstrap_build_max_sources": 35,
+    "alpha_bootstrap_build_max_per_source": 320,
+    "alpha_bootstrap_build_max_total": 3000,
+    "alpha_bootstrap_build_min_abs_pnl": 0.0,
+    "alpha_bootstrap_build_min_pair_trades": 10,
+    "alpha_bootstrap_build_min_pair_winrate": 0.4,
+    "alpha_bootstrap_build_min_pair_expectancy": 0.0,
+    "alpha_bootstrap_build_fallback_top_pairs": 0,
+    "alpha_bootstrap_build_fallback_positive_side_pairs": 2,
+    "alpha_bootstrap_build_min_side_trades": 2,
+    "alpha_bootstrap_build_min_side_winrate": 0.45,
+    "alpha_bootstrap_build_min_side_expectancy": 0.0,
+    "alpha_bootstrap_build_report_json": "tmp/alpha_history_auto_recent_report.json",
+    "alpha_bootstrap_accepted_scorecard": "analysis/zol0_profitability_audit_scorecard.json",
+    "before_env_overrides_cli": {},
+    "after_env_overrides_cli": {
+      "LIVE": "0",
+      "USE_MOCK": "0",
+      "RUNTIME_V2_POST_SIGNAL_TRAJECTORY": "1",
+      "ENTRY_MIN_NET_USDT": "0.12",
+      "V2_MEANREV_H10_CALIBRATION_ENABLE": "1",
+      "V2_MEANREV_H10_EXPECTED_MOVE_MULT": "1.25",
+      "V2_MEANREV_MIN_EXTREME": "0.0012",
+      "V2_BASE_NOTIONAL_USDT": "180",
+      "V2_MAX_NOTIONAL_USDT": "240",
+      "V2_RISK_CAP_FRACTION": "0.08",
+      "PAPER_AUTO_OPEN_STARTUP_ENABLE": "0",
+      "PAPER_AUTO_OPEN_FALLBACK_ENABLE": "0",
+      "SEED_TRADES_ENABLE": "0",
+      "SEED_TRADES_LIMIT": "0",
+      "DIAGNOSTIC_FORCE_OPEN": "0",
+      "DIAGNOSTIC_MODE": "0",
+      "ENTRY_EDGE_COLDSTART_MODE": "fail_closed",
+      "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST": "1",
+      "ENTRY_STRATEGY_ALLOWLIST": "MeanReversionV2",
+      "ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST": "BTCUSDTM:MeanReversionV2:sell,BNBUSDTM:MeanReversionV2:sell,SOLUSDTM:MeanReversionV2:sell,XRPUSDTM:MeanReversionV2:sell"
+    },
+    "auto_after_overrides": {},
+    "before_env_overrides": {},
+    "after_env_overrides": {
+      "LIVE": "0",
+      "USE_MOCK": "0",
+      "RUNTIME_V2_POST_SIGNAL_TRAJECTORY": "1",
+      "ENTRY_MIN_NET_USDT": "0.12",
+      "V2_MEANREV_H10_CALIBRATION_ENABLE": "1",
+      "V2_MEANREV_H10_EXPECTED_MOVE_MULT": "1.25",
+      "V2_MEANREV_MIN_EXTREME": "0.0012",
+      "V2_BASE_NOTIONAL_USDT": "180",
+      "V2_MAX_NOTIONAL_USDT": "240",
+      "V2_RISK_CAP_FRACTION": "0.08",
+      "PAPER_AUTO_OPEN_STARTUP_ENABLE": "0",
+      "PAPER_AUTO_OPEN_FALLBACK_ENABLE": "0",
+      "SEED_TRADES_ENABLE": "0",
+      "SEED_TRADES_LIMIT": "0",
+      "DIAGNOSTIC_FORCE_OPEN": "0",
+      "DIAGNOSTIC_MODE": "0",
+      "ENTRY_EDGE_COLDSTART_MODE": "fail_closed",
+      "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST": "1",
+      "ENTRY_STRATEGY_ALLOWLIST": "MeanReversionV2",
+      "ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST": "BTCUSDTM:MeanReversionV2:sell,BNBUSDTM:MeanReversionV2:sell,SOLUSDTM:MeanReversionV2:sell,XRPUSDTM:MeanReversionV2:sell",
+      "ALPHA_WHITELIST_ENABLE": "0",
+      "ALPHA_WHITELIST_COLDSTART_ALLOW": "0",
+      "ALPHA_WHITELIST_FALLBACK_ENABLE": "0",
+      "ENTRY_ALLOWLIST_DIAGNOSTIC_FORCE_OPEN": "0",
+      "ENTRY_SYMBOL_STRATEGY_BLOCKLIST": "",
+      "ENTRY_SYMBOL_BLOCKLIST": "",
+      "ENTRY_STRATEGY_SIDE_BLOCKLIST": "",
+      "ENTRY_SYMBOL_STRATEGY_SIDE_BLOCKLIST": ""
+    }
+  },
+  "alpha_bootstrap_refresh": {
+    "enabled": true,
+    "ran": true,
+    "success": true,
+    "returncode": 0,
+    "output_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\alpha_history_auto_recent.db",
+    "output_exists": true,
+    "report_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\alpha_history_auto_recent_report.json",
+    "report": {
+      "output": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\alpha_history_auto_recent.db",
+      "sources_scanned": 110,
+      "sources_used": 35,
+      "source_paths": [
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260528_181349.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_110627.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_111044.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_111129.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_111947.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_112016.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_112050.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_112123.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_112936.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_113709.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_114216.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_114513.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_114526.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_114834.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_114852.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_115243.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_120058.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_120301.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_120722.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_121135.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_121246.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_121658.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_121714.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_121830.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_122240.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_122253.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_122411.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_122822.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_123234.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_123337.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_123749.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_123923.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_124332.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_124518.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_124838.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_124928.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_125046.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_125229.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_125639.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_130054.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_130503.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_130712.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_131124.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_131534.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_131550.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_131607.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_131639.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_132052.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_132505.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_132518.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_132534.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_132945.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_141902.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_141916.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_141929.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_141943.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_142356.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_142610.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_142625.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_142641.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_143055.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_143108.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_143121.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_143531.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_143544.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_145036.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_145446.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_145857.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_145912.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_150322.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_171720.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260601_164725.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260601_171633.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260601_173123.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260601_180551.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260601_181044.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260601_185702.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260601_191649.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260601_193609.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260601_194258.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260601_195917.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260602_195855.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260602_202318.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260602_204821.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260602_211507.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260602_213756.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260602_220321.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260602_222423.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260603_105249.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260603_112131.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260603_142706.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260603_180101.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260603_182201.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260603_191201.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260603_191202.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260603_191203.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260603_203001.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260603_205001.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260603_211001.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260604_010148.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260604_012213.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260604_014651.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260604_020000.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260604_120300.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260604_121000.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260604_122000.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260604_123000.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260604_124000.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260604_125000.db",
+        "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\zol0.db"
+      ],
+      "max_sources": 35,
+      "max_scan_sources": 280,
+      "rows_scanned": 413,
+      "rows_inserted": 3,
+      "rejected_count": 26,
+      "reject_reasons": [
+        "min_pair_expectancy",
+        "min_pair_trades",
+        "min_pair_winrate",
+        "net_pnl_nonpositive"
+      ],
+      "malformed_rows": 107,
+      "dedup_size": 306,
+      "quality_filter": true,
+      "min_pair_trades": 10,
+      "min_pair_winrate": 0.4,
+      "min_pair_expectancy": 0.0,
+      "fallback_top_pairs": 0,
+      "fallback_positive_side_pairs": 2,
+      "min_side_trades": 2,
+      "min_side_winrate": 0.45,
+      "min_side_expectancy": 0.0,
+      "exclude_strategies": [
+        "auto_test",
+        "exchangesync"
+      ],
+      "fallback_used": false,
+      "positive_side_fallback_used": true,
+      "positive_side_fallback_pairs": [
+        "BNBUSDTM:MeanReversionV2"
+      ],
+      "positive_side_fallback_side_tokens": [
+        "BNBUSDTM:MeanReversionV2:sell"
+      ],
+      "pairs_total": 18,
+      "pairs_selected": 1,
+      "pairs_rejected_per_rule": {
+        "rejected_min_trades": 12,
+        "rejected_min_winrate": 17,
+        "rejected_min_expectancy": 17
+      },
+      "strict_rejection_breakdown": {
+        "min_pair_winrate": 26,
+        "min_pair_expectancy": 26,
+        "net_pnl_nonpositive": 26,
+        "min_pair_trades": 16
+      },
+      "strict_rejected_rows": [
+        {
+          "source_paths": [
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260604_125000.db"
+          ],
+          "symbol": "XRPUSDTM",
+          "side": "sell",
+          "strategy": "MeanReversionV2",
+          "trade_count": 10,
+          "side_trade_count": 5,
+          "winrate": 0.3,
+          "side_winrate": 0.4,
+          "expectancy": -0.012489288499996568,
+          "side_expectancy": -0.022097196999993473,
+          "net_pnl": -0.12489288499996568,
+          "side_net_pnl": -0.11048598499996737,
+          "profit_factor": 0.5569025661043391,
+          "side_profit_factor": 0.5829461743018886,
+          "missing_fields": [],
+          "rejection_reasons": [
+            "min_pair_winrate",
+            "min_pair_expectancy",
+            "net_pnl_nonpositive"
+          ],
+          "quality_filter_values_used": {
+            "min_pair_trades": 10,
+            "min_pair_winrate": 0.4,
+            "min_pair_expectancy": 0.0,
+            "fallback_top_pairs": 0,
+            "fallback_positive_side_pairs": 2,
+            "min_side_trades": 2,
+            "min_side_winrate": 0.45,
+            "min_side_expectancy": 0.0
+          }
+        },
+        {
+          "source_paths": [
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260604_125000.db"
+          ],
+          "symbol": "SOLUSDTM",
+          "side": "sell",
+          "strategy": "MeanReversionV2",
+          "trade_count": 3,
+          "side_trade_count": 3,
+          "winrate": 0.3333333333333333,
+          "side_winrate": 0.3333333333333333,
+          "expectancy": -0.008847230000005988,
+          "side_expectancy": -0.008847230000005988,
+          "net_pnl": -0.026541690000017965,
+          "side_net_pnl": -0.026541690000017965,
+          "profit_factor": 0.8870406990194205,
+          "side_profit_factor": 0.8870406990194205,
+          "missing_fields": [],
+          "rejection_reasons": [
+            "min_pair_trades",
+            "min_pair_winrate",
+            "min_pair_expectancy",
+            "net_pnl_nonpositive"
+          ],
+          "quality_filter_values_used": {
+            "min_pair_trades": 10,
+            "min_pair_winrate": 0.4,
+            "min_pair_expectancy": 0.0,
+            "fallback_top_pairs": 0,
+            "fallback_positive_side_pairs": 2,
+            "min_side_trades": 2,
+            "min_side_winrate": 0.45,
+            "min_side_expectancy": 0.0
+          }
+        },
+        {
+          "source_paths": [
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260604_125000.db"
+          ],
+          "symbol": "BTCUSDTM",
+          "side": "sell",
+          "strategy": "MeanReversionV2",
+          "trade_count": 3,
+          "side_trade_count": 3,
+          "winrate": 0.3333333333333333,
+          "side_winrate": 0.3333333333333333,
+          "expectancy": -0.008329298333325583,
+          "side_expectancy": -0.008329298333325583,
+          "net_pnl": -0.02498789499997675,
+          "side_net_pnl": -0.02498789499997675,
+          "profit_factor": 0.858842051992699,
+          "side_profit_factor": 0.858842051992699,
+          "missing_fields": [],
+          "rejection_reasons": [
+            "min_pair_trades",
+            "min_pair_winrate",
+            "min_pair_expectancy",
+            "net_pnl_nonpositive"
+          ],
+          "quality_filter_values_used": {
+            "min_pair_trades": 10,
+            "min_pair_winrate": 0.4,
+            "min_pair_expectancy": 0.0,
+            "fallback_top_pairs": 0,
+            "fallback_positive_side_pairs": 2,
+            "min_side_trades": 2,
+            "min_side_winrate": 0.45,
+            "min_side_expectancy": 0.0
+          }
+        },
+        {
+          "source_paths": [
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260602_222423.db"
+          ],
+          "symbol": "BTCUSDTM",
+          "side": "buy",
+          "strategy": "TrendFollowingV2",
+          "trade_count": 2,
+          "side_trade_count": 2,
+          "winrate": 0.0,
+          "side_winrate": 0.0,
+          "expectancy": -0.01862505499999418,
+          "side_expectancy": -0.01862505499999418,
+          "net_pnl": -0.03725010999998836,
+          "side_net_pnl": -0.03725010999998836,
+          "profit_factor": 0.0,
+          "side_profit_factor": 0.0,
+          "missing_fields": [],
+          "rejection_reasons": [
+            "min_pair_trades",
+            "min_pair_winrate",
+            "min_pair_expectancy",
+            "net_pnl_nonpositive"
+          ],
+          "quality_filter_values_used": {
+            "min_pair_trades": 10,
+            "min_pair_winrate": 0.4,
+            "min_pair_expectancy": 0.0,
+            "fallback_top_pairs": 0,
+            "fallback_positive_side_pairs": 2,
+            "min_side_trades": 2,
+            "min_side_winrate": 0.45,
+            "min_side_expectancy": 0.0
+          }
+        },
+        {
+          "source_paths": [
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_110627.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_111129.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260602_204821.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260602_211507.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260602_213756.db"
+          ],
+          "symbol": "SOLUSDTM",
+          "side": "buy",
+          "strategy": "TrendFollowingV2",
+          "trade_count": 31,
+          "side_trade_count": 28,
+          "winrate": 0.3548387096774194,
+          "side_winrate": 0.39285714285714285,
+          "expectancy": -0.0023400758064518155,
+          "side_expectancy": -0.002384817857143148,
+          "net_pnl": -0.07254235000000628,
+          "side_net_pnl": -0.06677490000000814,
+          "profit_factor": 0.6021736933235559,
+          "side_profit_factor": 0.6218419436837493,
+          "missing_fields": [],
+          "rejection_reasons": [
+            "min_pair_winrate",
+            "min_pair_expectancy",
+            "net_pnl_nonpositive"
+          ],
+          "quality_filter_values_used": {
+            "min_pair_trades": 10,
+            "min_pair_winrate": 0.4,
+            "min_pair_expectancy": 0.0,
+            "fallback_top_pairs": 0,
+            "fallback_positive_side_pairs": 2,
+            "min_side_trades": 2,
+            "min_side_winrate": 0.45,
+            "min_side_expectancy": 0.0
+          }
+        },
+        {
+          "source_paths": [
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260601_195917.db"
+          ],
+          "symbol": "BTCUSDTM",
+          "side": "sell",
+          "strategy": "TrendFollowing",
+          "trade_count": 4,
+          "side_trade_count": 3,
+          "winrate": 0.0,
+          "side_winrate": 0.0,
+          "expectancy": -0.0019167365848726018,
+          "side_expectancy": -0.0015722104227984162,
+          "net_pnl": -0.007666946339490407,
+          "side_net_pnl": -0.0047166312683952485,
+          "profit_factor": 0.0,
+          "side_profit_factor": 0.0,
+          "missing_fields": [],
+          "rejection_reasons": [
+            "min_pair_trades",
+            "min_pair_winrate",
+            "min_pair_expectancy",
+            "net_pnl_nonpositive"
+          ],
+          "quality_filter_values_used": {
+            "min_pair_trades": 10,
+            "min_pair_winrate": 0.4,
+            "min_pair_expectancy": 0.0,
+            "fallback_top_pairs": 0,
+            "fallback_positive_side_pairs": 2,
+            "min_side_trades": 2,
+            "min_side_winrate": 0.45,
+            "min_side_expectancy": 0.0
+          }
+        },
+        {
+          "source_paths": [
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260601_195917.db"
+          ],
+          "symbol": "BTCUSDTM",
+          "side": "sell",
+          "strategy": "Momentum",
+          "trade_count": 5,
+          "side_trade_count": 2,
+          "winrate": 0.0,
+          "side_winrate": 0.0,
+          "expectancy": -0.006863283249016504,
+          "side_expectancy": -0.0030098708723288663,
+          "net_pnl": -0.03431641624508252,
+          "side_net_pnl": -0.0060197417446577325,
+          "profit_factor": 0.0,
+          "side_profit_factor": 0.0,
+          "missing_fields": [],
+          "rejection_reasons": [
+            "min_pair_trades",
+            "min_pair_winrate",
+            "min_pair_expectancy",
+            "net_pnl_nonpositive"
+          ],
+          "quality_filter_values_used": {
+            "min_pair_trades": 10,
+            "min_pair_winrate": 0.4,
+            "min_pair_expectancy": 0.0,
+            "fallback_top_pairs": 0,
+            "fallback_positive_side_pairs": 2,
+            "min_side_trades": 2,
+            "min_side_winrate": 0.45,
+            "min_side_expectancy": 0.0
+          }
+        },
+        {
+          "source_paths": [
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260601_194258.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260601_195917.db"
+          ],
+          "symbol": "BTCUSDTM",
+          "side": "buy",
+          "strategy": "Momentum",
+          "trade_count": 5,
+          "side_trade_count": 3,
+          "winrate": 0.0,
+          "side_winrate": 0.0,
+          "expectancy": -0.006863283249016504,
+          "side_expectancy": -0.00943222483347493,
+          "net_pnl": -0.03431641624508252,
+          "side_net_pnl": -0.028296674500424786,
+          "profit_factor": 0.0,
+          "side_profit_factor": 0.0,
+          "missing_fields": [],
+          "rejection_reasons": [
+            "min_pair_trades",
+            "min_pair_winrate",
+            "min_pair_expectancy",
+            "net_pnl_nonpositive"
+          ],
+          "quality_filter_values_used": {
+            "min_pair_trades": 10,
+            "min_pair_winrate": 0.4,
+            "min_pair_expectancy": 0.0,
+            "fallback_top_pairs": 0,
+            "fallback_positive_side_pairs": 2,
+            "min_side_trades": 2,
+            "min_side_winrate": 0.45,
+            "min_side_expectancy": 0.0
+          }
+        },
+        {
+          "source_paths": [
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260601_194258.db"
+          ],
+          "symbol": "BTCUSDTM",
+          "side": "buy",
+          "strategy": "TrendFollowing",
+          "trade_count": 4,
+          "side_trade_count": 1,
+          "winrate": 0.0,
+          "side_winrate": 0.0,
+          "expectancy": -0.0019167365848726018,
+          "side_expectancy": -0.002950315071095159,
+          "net_pnl": -0.007666946339490407,
+          "side_net_pnl": -0.002950315071095159,
+          "profit_factor": 0.0,
+          "side_profit_factor": 0.0,
+          "missing_fields": [],
+          "rejection_reasons": [
+            "min_pair_trades",
+            "min_pair_winrate",
+            "min_pair_expectancy",
+            "net_pnl_nonpositive"
+          ],
+          "quality_filter_values_used": {
+            "min_pair_trades": 10,
+            "min_pair_winrate": 0.4,
+            "min_pair_expectancy": 0.0,
+            "fallback_top_pairs": 0,
+            "fallback_positive_side_pairs": 2,
+            "min_side_trades": 2,
+            "min_side_winrate": 0.45,
+            "min_side_expectancy": 0.0
+          }
+        },
+        {
+          "source_paths": [
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_113709.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_131534.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_131550.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_131607.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_131639.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_132945.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_171720.db"
+          ],
+          "symbol": "XRPUSDTM",
+          "side": "buy",
+          "strategy": "DiagnosticForceOpenV2",
+          "trade_count": 80,
+          "side_trade_count": 80,
+          "winrate": 0.0625,
+          "side_winrate": 0.0625,
+          "expectancy": -0.0023783717499999447,
+          "side_expectancy": -0.0023783717499999447,
+          "net_pnl": -0.19026973999999558,
+          "side_net_pnl": -0.19026973999999558,
+          "profit_factor": 0.04973436525721015,
+          "side_profit_factor": 0.04973436525721015,
+          "missing_fields": [],
+          "rejection_reasons": [
+            "min_pair_winrate",
+            "min_pair_expectancy",
+            "net_pnl_nonpositive"
+          ],
+          "quality_filter_values_used": {
+            "min_pair_trades": 10,
+            "min_pair_winrate": 0.4,
+            "min_pair_expectancy": 0.0,
+            "fallback_top_pairs": 0,
+            "fallback_positive_side_pairs": 2,
+            "min_side_trades": 2,
+            "min_side_winrate": 0.45,
+            "min_side_expectancy": 0.0
+          }
+        },
+        {
+          "source_paths": [
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_113709.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_115243.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_120058.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_122253.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_122411.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_123234.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_124518.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_130503.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_130712.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_131639.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_132052.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_132945.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_141943.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_142356.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_142641.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_171720.db"
+          ],
+          "symbol": "XRPUSDTM",
+          "side": "buy",
+          "strategy": "TrendFollowingV2",
+          "trade_count": 82,
+          "side_trade_count": 55,
+          "winrate": 0.13414634146341464,
+          "side_winrate": 0.14545454545454545,
+          "expectancy": -0.002433843292682875,
+          "side_expectancy": -0.0022513254545452957,
+          "net_pnl": -0.19957514999999576,
+          "side_net_pnl": -0.12382289999999126,
+          "profit_factor": 0.1501397557552604,
+          "side_profit_factor": 0.20618873642048796,
+          "missing_fields": [],
+          "rejection_reasons": [
+            "min_pair_winrate",
+            "min_pair_expectancy",
+            "net_pnl_nonpositive"
+          ],
+          "quality_filter_values_used": {
+            "min_pair_trades": 10,
+            "min_pair_winrate": 0.4,
+            "min_pair_expectancy": 0.0,
+            "fallback_top_pairs": 0,
+            "fallback_positive_side_pairs": 2,
+            "min_side_trades": 2,
+            "min_side_winrate": 0.45,
+            "min_side_expectancy": 0.0
+          }
+        },
+        {
+          "source_paths": [
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_113709.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_115243.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_121830.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_122411.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_123234.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_130503.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_130712.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_131639.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_132052.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_132945.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_142641.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_171720.db"
+          ],
+          "symbol": "XRPUSDTM",
+          "side": "buy",
+          "strategy": "MomentumV2",
+          "trade_count": 37,
+          "side_trade_count": 19,
+          "winrate": 0.0,
+          "side_winrate": 0.0,
+          "expectancy": -0.002726594324324308,
+          "side_expectancy": -0.002816041052631623,
+          "net_pnl": -0.1008839899999994,
+          "side_net_pnl": -0.05350478000000084,
+          "profit_factor": 0.0,
+          "side_profit_factor": 0.0,
+          "missing_fields": [],
+          "rejection_reasons": [
+            "min_pair_winrate",
+            "min_pair_expectancy",
+            "net_pnl_nonpositive"
+          ],
+          "quality_filter_values_used": {
+            "min_pair_trades": 10,
+            "min_pair_winrate": 0.4,
+            "min_pair_expectancy": 0.0,
+            "fallback_top_pairs": 0,
+            "fallback_positive_side_pairs": 2,
+            "min_side_trades": 2,
+            "min_side_winrate": 0.45,
+            "min_side_expectancy": 0.0
+          }
+        },
+        {
+          "source_paths": [
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_141943.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_142356.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_142641.db"
+          ],
+          "symbol": "XRPUSDTM",
+          "side": "buy",
+          "strategy": "MeanReversionV2",
+          "trade_count": 10,
+          "side_trade_count": 5,
+          "winrate": 0.3,
+          "side_winrate": 0.2,
+          "expectancy": -0.012489288499996568,
+          "side_expectancy": -0.0028813799999996654,
+          "net_pnl": -0.12489288499996568,
+          "side_net_pnl": -0.014406899999998326,
+          "profit_factor": 0.5569025661043391,
+          "side_profit_factor": 0.14968674471237517,
+          "missing_fields": [],
+          "rejection_reasons": [
+            "min_pair_winrate",
+            "min_pair_expectancy",
+            "net_pnl_nonpositive"
+          ],
+          "quality_filter_values_used": {
+            "min_pair_trades": 10,
+            "min_pair_winrate": 0.4,
+            "min_pair_expectancy": 0.0,
+            "fallback_top_pairs": 0,
+            "fallback_positive_side_pairs": 2,
+            "min_side_trades": 2,
+            "min_side_winrate": 0.45,
+            "min_side_expectancy": 0.0
+          }
+        },
+        {
+          "source_paths": [
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_113709.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_115243.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_120058.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_121830.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_123234.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_123337.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_131639.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_141943.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_142356.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_142641.db"
+          ],
+          "symbol": "XRPUSDTM",
+          "side": "sell",
+          "strategy": "TrendFollowingV2",
+          "trade_count": 82,
+          "side_trade_count": 27,
+          "winrate": 0.13414634146341464,
+          "side_winrate": 0.1111111111111111,
+          "expectancy": -0.002433843292682875,
+          "side_expectancy": -0.002805638888889056,
+          "net_pnl": -0.19957514999999576,
+          "side_net_pnl": -0.07575225000000452,
+          "profit_factor": 0.1501397557552604,
+          "side_profit_factor": 0.039257255675121505,
+          "missing_fields": [],
+          "rejection_reasons": [
+            "min_pair_winrate",
+            "min_pair_expectancy",
+            "net_pnl_nonpositive"
+          ],
+          "quality_filter_values_used": {
+            "min_pair_trades": 10,
+            "min_pair_winrate": 0.4,
+            "min_pair_expectancy": 0.0,
+            "fallback_top_pairs": 0,
+            "fallback_positive_side_pairs": 2,
+            "min_side_trades": 2,
+            "min_side_winrate": 0.45,
+            "min_side_expectancy": 0.0
+          }
+        },
+        {
+          "source_paths": [
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_113709.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_115243.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_120058.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_123234.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_124518.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_124838.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_131639.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_132945.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_142356.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_142641.db"
+          ],
+          "symbol": "XRPUSDTM",
+          "side": "sell",
+          "strategy": "MomentumV2",
+          "trade_count": 37,
+          "side_trade_count": 18,
+          "winrate": 0.0,
+          "side_winrate": 0.0,
+          "expectancy": -0.002726594324324308,
+          "side_expectancy": -0.0026321783333332527,
+          "net_pnl": -0.1008839899999994,
+          "side_net_pnl": -0.04737920999999855,
+          "profit_factor": 0.0,
+          "side_profit_factor": 0.0,
+          "missing_fields": [],
+          "rejection_reasons": [
+            "min_pair_winrate",
+            "min_pair_expectancy",
+            "net_pnl_nonpositive"
+          ],
+          "quality_filter_values_used": {
+            "min_pair_trades": 10,
+            "min_pair_winrate": 0.4,
+            "min_pair_expectancy": 0.0,
+            "fallback_top_pairs": 0,
+            "fallback_positive_side_pairs": 2,
+            "min_side_trades": 2,
+            "min_side_winrate": 0.45,
+            "min_side_expectancy": 0.0
+          }
+        },
+        {
+          "source_paths": [
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_110627.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_111044.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_111129.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_112050.db"
+          ],
+          "symbol": "ADAUSDTM",
+          "side": "buy",
+          "strategy": "DiagnosticForceOpenV2",
+          "trade_count": 6,
+          "side_trade_count": 6,
+          "winrate": 0.0,
+          "side_winrate": 0.0,
+          "expectancy": -0.002222980000000106,
+          "side_expectancy": -0.002222980000000106,
+          "net_pnl": -0.013337880000000637,
+          "side_net_pnl": -0.013337880000000637,
+          "profit_factor": 0.0,
+          "side_profit_factor": 0.0,
+          "missing_fields": [],
+          "rejection_reasons": [
+            "min_pair_trades",
+            "min_pair_winrate",
+            "min_pair_expectancy",
+            "net_pnl_nonpositive"
+          ],
+          "quality_filter_values_used": {
+            "min_pair_trades": 10,
+            "min_pair_winrate": 0.4,
+            "min_pair_expectancy": 0.0,
+            "fallback_top_pairs": 0,
+            "fallback_positive_side_pairs": 2,
+            "min_side_trades": 2,
+            "min_side_winrate": 0.45,
+            "min_side_expectancy": 0.0
+          }
+        },
+        {
+          "source_paths": [
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_110627.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_111044.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_111129.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_111947.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_112016.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_112050.db"
+          ],
+          "symbol": "SOLUSDTM",
+          "side": "buy",
+          "strategy": "DiagnosticForceOpenV2",
+          "trade_count": 19,
+          "side_trade_count": 19,
+          "winrate": 0.05263157894736842,
+          "side_winrate": 0.05263157894736842,
+          "expectancy": -0.001787414736842061,
+          "side_expectancy": -0.001787414736842061,
+          "net_pnl": -0.03396087999999916,
+          "side_net_pnl": -0.03396087999999916,
+          "profit_factor": 0.012895964953485507,
+          "side_profit_factor": 0.012895964953485507,
+          "missing_fields": [],
+          "rejection_reasons": [
+            "min_pair_winrate",
+            "min_pair_expectancy",
+            "net_pnl_nonpositive"
+          ],
+          "quality_filter_values_used": {
+            "min_pair_trades": 10,
+            "min_pair_winrate": 0.4,
+            "min_pair_expectancy": 0.0,
+            "fallback_top_pairs": 0,
+            "fallback_positive_side_pairs": 2,
+            "min_side_trades": 2,
+            "min_side_winrate": 0.45,
+            "min_side_expectancy": 0.0
+          }
+        },
+        {
+          "source_paths": [
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_110627.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_111129.db"
+          ],
+          "symbol": "ADAUSDTM",
+          "side": "buy",
+          "strategy": "MomentumV2",
+          "trade_count": 7,
+          "side_trade_count": 2,
+          "winrate": 0.0,
+          "side_winrate": 0.0,
+          "expectancy": -0.0020373371428572813,
+          "side_expectancy": -0.0011857950000000001,
+          "net_pnl": -0.014261360000000969,
+          "side_net_pnl": -0.0023715900000000002,
+          "profit_factor": 0.0,
+          "side_profit_factor": 0.0,
+          "missing_fields": [],
+          "rejection_reasons": [
+            "min_pair_trades",
+            "min_pair_winrate",
+            "min_pair_expectancy",
+            "net_pnl_nonpositive"
+          ],
+          "quality_filter_values_used": {
+            "min_pair_trades": 10,
+            "min_pair_winrate": 0.4,
+            "min_pair_expectancy": 0.0,
+            "fallback_top_pairs": 0,
+            "fallback_positive_side_pairs": 2,
+            "min_side_trades": 2,
+            "min_side_winrate": 0.45,
+            "min_side_expectancy": 0.0
+          }
+        },
+        {
+          "source_paths": [
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_110627.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_111129.db"
+          ],
+          "symbol": "SOLUSDTM",
+          "side": "buy",
+          "strategy": "MomentumV2",
+          "trade_count": 5,
+          "side_trade_count": 3,
+          "winrate": 0.0,
+          "side_winrate": 0.0,
+          "expectancy": -0.0021160119999996388,
+          "side_expectancy": -0.0017894366666663562,
+          "net_pnl": -0.010580059999998195,
+          "side_net_pnl": -0.005368309999999069,
+          "profit_factor": 0.0,
+          "side_profit_factor": 0.0,
+          "missing_fields": [],
+          "rejection_reasons": [
+            "min_pair_trades",
+            "min_pair_winrate",
+            "min_pair_expectancy",
+            "net_pnl_nonpositive"
+          ],
+          "quality_filter_values_used": {
+            "min_pair_trades": 10,
+            "min_pair_winrate": 0.4,
+            "min_pair_expectancy": 0.0,
+            "fallback_top_pairs": 0,
+            "fallback_positive_side_pairs": 2,
+            "min_side_trades": 2,
+            "min_side_winrate": 0.45,
+            "min_side_expectancy": 0.0
+          }
+        },
+        {
+          "source_paths": [
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_111129.db"
+          ],
+          "symbol": "DOGEUSDTM",
+          "side": "buy",
+          "strategy": "MomentumV2",
+          "trade_count": 2,
+          "side_trade_count": 2,
+          "winrate": 0.0,
+          "side_winrate": 0.0,
+          "expectancy": -0.0020147000000000003,
+          "side_expectancy": -0.0020147000000000003,
+          "net_pnl": -0.004029400000000001,
+          "side_net_pnl": -0.004029400000000001,
+          "profit_factor": 0.0,
+          "side_profit_factor": 0.0,
+          "missing_fields": [],
+          "rejection_reasons": [
+            "min_pair_trades",
+            "min_pair_winrate",
+            "min_pair_expectancy",
+            "net_pnl_nonpositive"
+          ],
+          "quality_filter_values_used": {
+            "min_pair_trades": 10,
+            "min_pair_winrate": 0.4,
+            "min_pair_expectancy": 0.0,
+            "fallback_top_pairs": 0,
+            "fallback_positive_side_pairs": 2,
+            "min_side_trades": 2,
+            "min_side_winrate": 0.45,
+            "min_side_expectancy": 0.0
+          }
+        },
+        {
+          "source_paths": [
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_110627.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_111129.db"
+          ],
+          "symbol": "ADAUSDTM",
+          "side": "sell",
+          "strategy": "MomentumV2",
+          "trade_count": 7,
+          "side_trade_count": 5,
+          "winrate": 0.0,
+          "side_winrate": 0.0,
+          "expectancy": -0.0020373371428572813,
+          "side_expectancy": -0.002377954000000194,
+          "net_pnl": -0.014261360000000969,
+          "side_net_pnl": -0.01188977000000097,
+          "profit_factor": 0.0,
+          "side_profit_factor": 0.0,
+          "missing_fields": [],
+          "rejection_reasons": [
+            "min_pair_trades",
+            "min_pair_winrate",
+            "min_pair_expectancy",
+            "net_pnl_nonpositive"
+          ],
+          "quality_filter_values_used": {
+            "min_pair_trades": 10,
+            "min_pair_winrate": 0.4,
+            "min_pair_expectancy": 0.0,
+            "fallback_top_pairs": 0,
+            "fallback_positive_side_pairs": 2,
+            "min_side_trades": 2,
+            "min_side_winrate": 0.45,
+            "min_side_expectancy": 0.0
+          }
+        },
+        {
+          "source_paths": [
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_110627.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_111129.db"
+          ],
+          "symbol": "SOLUSDTM",
+          "side": "sell",
+          "strategy": "TrendFollowingV2",
+          "trade_count": 31,
+          "side_trade_count": 3,
+          "winrate": 0.3548387096774194,
+          "side_winrate": 0.0,
+          "expectancy": -0.0023400758064518155,
+          "side_expectancy": -0.0019224833333327123,
+          "net_pnl": -0.07254235000000628,
+          "side_net_pnl": -0.005767449999998137,
+          "profit_factor": 0.6021736933235559,
+          "side_profit_factor": 0.0,
+          "missing_fields": [],
+          "rejection_reasons": [
+            "min_pair_winrate",
+            "min_pair_expectancy",
+            "net_pnl_nonpositive"
+          ],
+          "quality_filter_values_used": {
+            "min_pair_trades": 10,
+            "min_pair_winrate": 0.4,
+            "min_pair_expectancy": 0.0,
+            "fallback_top_pairs": 0,
+            "fallback_positive_side_pairs": 2,
+            "min_side_trades": 2,
+            "min_side_winrate": 0.45,
+            "min_side_expectancy": 0.0
+          }
+        },
+        {
+          "source_paths": [
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_110627.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_111129.db"
+          ],
+          "symbol": "ADAUSDTM",
+          "side": "sell",
+          "strategy": "TrendFollowingV2",
+          "trade_count": 5,
+          "side_trade_count": 4,
+          "winrate": 0.2,
+          "side_winrate": 0.25,
+          "expectancy": -0.0018179300000001337,
+          "side_expectancy": -0.001691522499999942,
+          "net_pnl": -0.009089650000000669,
+          "side_net_pnl": -0.006766089999999768,
+          "profit_factor": 0.039782426813613714,
+          "side_profit_factor": 0.05272390755292688,
+          "missing_fields": [],
+          "rejection_reasons": [
+            "min_pair_trades",
+            "min_pair_winrate",
+            "min_pair_expectancy",
+            "net_pnl_nonpositive"
+          ],
+          "quality_filter_values_used": {
+            "min_pair_trades": 10,
+            "min_pair_winrate": 0.4,
+            "min_pair_expectancy": 0.0,
+            "fallback_top_pairs": 0,
+            "fallback_positive_side_pairs": 2,
+            "min_side_trades": 2,
+            "min_side_winrate": 0.45,
+            "min_side_expectancy": 0.0
+          }
+        },
+        {
+          "source_paths": [
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_110627.db",
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_111129.db"
+          ],
+          "symbol": "SOLUSDTM",
+          "side": "sell",
+          "strategy": "MomentumV2",
+          "trade_count": 5,
+          "side_trade_count": 2,
+          "winrate": 0.0,
+          "side_winrate": 0.0,
+          "expectancy": -0.0021160119999996388,
+          "side_expectancy": -0.0026058749999995625,
+          "net_pnl": -0.010580059999998195,
+          "side_net_pnl": -0.005211749999999125,
+          "profit_factor": 0.0,
+          "side_profit_factor": 0.0,
+          "missing_fields": [],
+          "rejection_reasons": [
+            "min_pair_trades",
+            "min_pair_winrate",
+            "min_pair_expectancy",
+            "net_pnl_nonpositive"
+          ],
+          "quality_filter_values_used": {
+            "min_pair_trades": 10,
+            "min_pair_winrate": 0.4,
+            "min_pair_expectancy": 0.0,
+            "fallback_top_pairs": 0,
+            "fallback_positive_side_pairs": 2,
+            "min_side_trades": 2,
+            "min_side_winrate": 0.45,
+            "min_side_expectancy": 0.0
+          }
+        },
+        {
+          "source_paths": [
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_110627.db"
+          ],
+          "symbol": "ADAUSDTM",
+          "side": "buy",
+          "strategy": "TrendFollowingV2",
+          "trade_count": 5,
+          "side_trade_count": 1,
+          "winrate": 0.2,
+          "side_winrate": 0.0,
+          "expectancy": -0.0018179300000001337,
+          "side_expectancy": -0.0023235600000009,
+          "net_pnl": -0.009089650000000669,
+          "side_net_pnl": -0.0023235600000009,
+          "profit_factor": 0.039782426813613714,
+          "side_profit_factor": 0.0,
+          "missing_fields": [],
+          "rejection_reasons": [
+            "min_pair_trades",
+            "min_pair_winrate",
+            "min_pair_expectancy",
+            "net_pnl_nonpositive"
+          ],
+          "quality_filter_values_used": {
+            "min_pair_trades": 10,
+            "min_pair_winrate": 0.4,
+            "min_pair_expectancy": 0.0,
+            "fallback_top_pairs": 0,
+            "fallback_positive_side_pairs": 2,
+            "min_side_trades": 2,
+            "min_side_winrate": 0.45,
+            "min_side_expectancy": 0.0
+          }
+        },
+        {
+          "source_paths": [
+            "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260531_110627.db"
+          ],
+          "symbol": "DOGEUSDTM",
+          "side": "sell",
+          "strategy": "TrendFollowingV2",
+          "trade_count": 2,
+          "side_trade_count": 2,
+          "winrate": 0.0,
+          "side_winrate": 0.0,
+          "expectancy": -0.0030133999999996126,
+          "side_expectancy": -0.0030133999999996126,
+          "net_pnl": -0.006026799999999225,
+          "side_net_pnl": -0.006026799999999225,
+          "profit_factor": 0.0,
+          "side_profit_factor": 0.0,
+          "missing_fields": [],
+          "rejection_reasons": [
+            "min_pair_trades",
+            "min_pair_winrate",
+            "min_pair_expectancy",
+            "net_pnl_nonpositive"
+          ],
+          "quality_filter_values_used": {
+            "min_pair_trades": 10,
+            "min_pair_winrate": 0.4,
+            "min_pair_expectancy": 0.0,
+            "fallback_top_pairs": 0,
+            "fallback_positive_side_pairs": 2,
+            "min_side_trades": 2,
+            "min_side_winrate": 0.45,
+            "min_side_expectancy": 0.0
+          }
+        }
+      ],
+      "strict_zero_rows_root_cause": null,
+      "source_stats_top": [
+        [
+          "controlled_kpi_after_20260604_125000.db",
+          14,
+          14,
+          14
+        ],
+        [
+          "controlled_kpi_after_20260602_222423.db",
+          2,
+          2,
+          2
+        ],
+        [
+          "controlled_kpi_after_20260602_213756.db",
+          2,
+          2,
+          2
+        ],
+        [
+          "controlled_kpi_after_20260602_211507.db",
+          18,
+          18,
+          18
+        ],
+        [
+          "controlled_kpi_after_20260602_204821.db",
+          2,
+          2,
+          2
+        ],
+        [
+          "controlled_kpi_after_20260601_195917.db",
+          7,
+          7,
+          7
+        ],
+        [
+          "controlled_kpi_after_20260601_194258.db",
+          2,
+          2,
+          2
+        ],
+        [
+          "controlled_kpi_after_20260531_171720.db",
+          28,
+          28,
+          28
+        ],
+        [
+          "controlled_kpi_after_20260531_142641.db",
+          9,
+          9,
+          9
+        ],
+        [
+          "controlled_kpi_after_20260531_142356.db",
+          8,
+          8,
+          8
+        ],
+        [
+          "controlled_kpi_after_20260531_141943.db",
+          9,
+          9,
+          9
+        ],
+        [
+          "controlled_kpi_after_20260531_132945.db",
+          35,
+          35,
+          35
+        ],
+        [
+          "controlled_kpi_after_20260531_132052.db",
+          2,
+          2,
+          2
+        ],
+        [
+          "controlled_kpi_after_20260531_131639.db",
+          36,
+          36,
+          36
+        ],
+        [
+          "controlled_kpi_after_20260531_131607.db",
+          1,
+          1,
+          1
+        ],
+        [
+          "controlled_kpi_after_20260531_131550.db",
+          1,
+          1,
+          1
+        ],
+        [
+          "controlled_kpi_after_20260531_131534.db",
+          1,
+          1,
+          1
+        ],
+        [
+          "controlled_kpi_after_20260531_130712.db",
+          4,
+          4,
+          4
+        ],
+        [
+          "controlled_kpi_after_20260531_130503.db",
+          5,
+          5,
+          5
+        ],
+        [
+          "controlled_kpi_after_20260531_124838.db",
+          1,
+          1,
+          1
+        ],
+        [
+          "controlled_kpi_after_20260531_124518.db",
+          3,
+          3,
+          3
+        ],
+        [
+          "controlled_kpi_after_20260531_123337.db",
+          1,
+          1,
+          1
+        ],
+        [
+          "controlled_kpi_after_20260531_123234.db",
+          7,
+          7,
+          7
+        ],
+        [
+          "controlled_kpi_after_20260531_122411.db",
+          4,
+          4,
+          4
+        ],
+        [
+          "controlled_kpi_after_20260531_122253.db",
+          4,
+          4,
+          4
+        ],
+        [
+          "controlled_kpi_after_20260531_121830.db",
+          3,
+          3,
+          3
+        ],
+        [
+          "controlled_kpi_after_20260531_120058.db",
+          9,
+          9,
+          9
+        ],
+        [
+          "controlled_kpi_after_20260531_115243.db",
+          10,
+          10,
+          10
+        ],
+        [
+          "controlled_kpi_after_20260531_113709.db",
+          23,
+          23,
+          23
+        ],
+        [
+          "controlled_kpi_after_20260531_112050.db",
+          3,
+          3,
+          3
+        ]
+      ],
+      "pair_stats_top": [
+        {
+          "symbol": "BNBUSDTM",
+          "strategy": "MeanReversionV2",
+          "trade_count": 3,
+          "winrate": 0.6666666666666666,
+          "expectancy": 0.016324005000011365,
+          "net_pnl": 0.04897201500003409,
+          "gross_pnl": 0.1612500000000341,
+          "fee_total": 0.0,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0,
+          "fee_to_abs_gross_ratio": 0.0,
+          "gross_positive_net_negative_count": 1,
+          "gross_nonpositive_count": 0,
+          "selected": true,
+          "inserted_rows": 3
+        },
+        {
+          "symbol": "SOLUSDTM",
+          "strategy": "DiagnosticForceOpenV2",
+          "trade_count": 19,
+          "winrate": 0.05263157894736842,
+          "expectancy": -0.001787414736842061,
+          "net_pnl": -0.03396087999999916,
+          "gross_pnl": -0.022371579999999145,
+          "fee_total": 0.0,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0,
+          "fee_to_abs_gross_ratio": 0.0,
+          "gross_positive_net_negative_count": 1,
+          "gross_nonpositive_count": 17,
+          "selected": false,
+          "inserted_rows": 0
+        },
+        {
+          "symbol": "ADAUSDTM",
+          "strategy": "TrendFollowingV2",
+          "trade_count": 5,
+          "winrate": 0.2,
+          "expectancy": -0.0018179300000001337,
+          "net_pnl": -0.009089650000000669,
+          "gross_pnl": -0.004819150000000667,
+          "fee_total": 0.0,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0,
+          "fee_to_abs_gross_ratio": 0.0,
+          "gross_positive_net_negative_count": 0,
+          "gross_nonpositive_count": 4,
+          "selected": false,
+          "inserted_rows": 0
+        },
+        {
+          "symbol": "BTCUSDTM",
+          "strategy": "TrendFollowing",
+          "trade_count": 4,
+          "winrate": 0.0,
+          "expectancy": -0.0019167365848726018,
+          "net_pnl": -0.007666946339490407,
+          "gross_pnl": 0.003058467660396203,
+          "fee_total": 0.010725413999888363,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0026813534999720907,
+          "fee_to_abs_gross_ratio": 3.5067933327432863,
+          "gross_positive_net_negative_count": 3,
+          "gross_nonpositive_count": 1,
+          "selected": false,
+          "inserted_rows": 0
+        },
+        {
+          "symbol": "DOGEUSDTM",
+          "strategy": "MomentumV2",
+          "trade_count": 2,
+          "winrate": 0.0,
+          "expectancy": -0.0020147000000000003,
+          "net_pnl": -0.004029400000000001,
+          "gross_pnl": -0.004029400000000001,
+          "fee_total": 0.0,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0,
+          "fee_to_abs_gross_ratio": 0.0,
+          "gross_positive_net_negative_count": 0,
+          "gross_nonpositive_count": 2,
+          "selected": false,
+          "inserted_rows": 0
+        },
+        {
+          "symbol": "ADAUSDTM",
+          "strategy": "MomentumV2",
+          "trade_count": 7,
+          "winrate": 0.0,
+          "expectancy": -0.0020373371428572813,
+          "net_pnl": -0.014261360000000969,
+          "gross_pnl": -0.00809452000000097,
+          "fee_total": 0.0,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0,
+          "fee_to_abs_gross_ratio": 0.0,
+          "gross_positive_net_negative_count": 1,
+          "gross_nonpositive_count": 6,
+          "selected": false,
+          "inserted_rows": 0
+        },
+        {
+          "symbol": "SOLUSDTM",
+          "strategy": "MomentumV2",
+          "trade_count": 5,
+          "winrate": 0.0,
+          "expectancy": -0.0021160119999996388,
+          "net_pnl": -0.010580059999998195,
+          "gross_pnl": -0.0022999999999981924,
+          "fee_total": 0.0,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0,
+          "fee_to_abs_gross_ratio": 0.0,
+          "gross_positive_net_negative_count": 2,
+          "gross_nonpositive_count": 3,
+          "selected": false,
+          "inserted_rows": 0
+        },
+        {
+          "symbol": "ADAUSDTM",
+          "strategy": "DiagnosticForceOpenV2",
+          "trade_count": 6,
+          "winrate": 0.0,
+          "expectancy": -0.002222980000000106,
+          "net_pnl": -0.013337880000000637,
+          "gross_pnl": -0.007647120000000637,
+          "fee_total": 0.0,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0,
+          "fee_to_abs_gross_ratio": 0.0,
+          "gross_positive_net_negative_count": 1,
+          "gross_nonpositive_count": 5,
+          "selected": false,
+          "inserted_rows": 0
+        },
+        {
+          "symbol": "SOLUSDTM",
+          "strategy": "TrendFollowingV2",
+          "trade_count": 31,
+          "winrate": 0.3548387096774194,
+          "expectancy": -0.0023400758064518155,
+          "net_pnl": -0.07254235000000628,
+          "gross_pnl": 0.03469999999999376,
+          "fee_total": 0.0,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0,
+          "fee_to_abs_gross_ratio": 0.0,
+          "gross_positive_net_negative_count": 7,
+          "gross_nonpositive_count": 13,
+          "selected": false,
+          "inserted_rows": 0
+        },
+        {
+          "symbol": "XRPUSDTM",
+          "strategy": "DiagnosticForceOpenV2",
+          "trade_count": 80,
+          "winrate": 0.0625,
+          "expectancy": -0.0023783717499999447,
+          "net_pnl": -0.19026973999999558,
+          "gross_pnl": -0.09381981999999553,
+          "fee_total": 0.0,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0,
+          "fee_to_abs_gross_ratio": 0.0,
+          "gross_positive_net_negative_count": 20,
+          "gross_nonpositive_count": 55,
+          "selected": false,
+          "inserted_rows": 0
+        },
+        {
+          "symbol": "XRPUSDTM",
+          "strategy": "TrendFollowingV2",
+          "trade_count": 82,
+          "winrate": 0.13414634146341464,
+          "expectancy": -0.002433843292682875,
+          "net_pnl": -0.19957514999999576,
+          "gross_pnl": -0.0361251699999958,
+          "fee_total": 0.0,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0,
+          "fee_to_abs_gross_ratio": 0.0,
+          "gross_positive_net_negative_count": 17,
+          "gross_nonpositive_count": 54,
+          "selected": false,
+          "inserted_rows": 0
+        },
+        {
+          "symbol": "XRPUSDTM",
+          "strategy": "MomentumV2",
+          "trade_count": 37,
+          "winrate": 0.0,
+          "expectancy": -0.002726594324324308,
+          "net_pnl": -0.1008839899999994,
+          "gross_pnl": -0.04456541999999938,
+          "fee_total": 0.0,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0,
+          "fee_to_abs_gross_ratio": 0.0,
+          "gross_positive_net_negative_count": 10,
+          "gross_nonpositive_count": 27,
+          "selected": false,
+          "inserted_rows": 0
+        },
+        {
+          "symbol": "DOGEUSDTM",
+          "strategy": "TrendFollowingV2",
+          "trade_count": 2,
+          "winrate": 0.0,
+          "expectancy": -0.0030133999999996126,
+          "net_pnl": -0.006026799999999225,
+          "gross_pnl": -0.0019999999999992246,
+          "fee_total": 0.0,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0,
+          "fee_to_abs_gross_ratio": 0.0,
+          "gross_positive_net_negative_count": 0,
+          "gross_nonpositive_count": 2,
+          "selected": false,
+          "inserted_rows": 0
+        },
+        {
+          "symbol": "BTCUSDTM",
+          "strategy": "Momentum",
+          "trade_count": 5,
+          "winrate": 0.0,
+          "expectancy": -0.006863283249016504,
+          "net_pnl": -0.03431641624508252,
+          "gross_pnl": -0.01083178943215704,
+          "fee_total": 0.023484626812926526,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.004696925362585305,
+          "fee_to_abs_gross_ratio": 2.1681206932629413,
+          "gross_positive_net_negative_count": 1,
+          "gross_nonpositive_count": 4,
+          "selected": false,
+          "inserted_rows": 0
+        },
+        {
+          "symbol": "BTCUSDTM",
+          "strategy": "MeanReversionV2",
+          "trade_count": 3,
+          "winrate": 0.3333333333333333,
+          "expectancy": -0.008329298333325583,
+          "net_pnl": -0.02498789499997675,
+          "gross_pnl": 0.07765000000002328,
+          "fee_total": 0.0,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0,
+          "fee_to_abs_gross_ratio": 0.0,
+          "gross_positive_net_negative_count": 0,
+          "gross_nonpositive_count": 2,
+          "selected": false,
+          "inserted_rows": 0
+        },
+        {
+          "symbol": "SOLUSDTM",
+          "strategy": "MeanReversionV2",
+          "trade_count": 3,
+          "winrate": 0.3333333333333333,
+          "expectancy": -0.008847230000005988,
+          "net_pnl": -0.026541690000017965,
+          "gross_pnl": 0.08849999999998204,
+          "fee_total": 0.0,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0,
+          "fee_to_abs_gross_ratio": 0.0,
+          "gross_positive_net_negative_count": 0,
+          "gross_nonpositive_count": 2,
+          "selected": false,
+          "inserted_rows": 0
+        },
+        {
+          "symbol": "XRPUSDTM",
+          "strategy": "MeanReversionV2",
+          "trade_count": 10,
+          "winrate": 0.3,
+          "expectancy": -0.012489288499996568,
+          "net_pnl": -0.12489288499996568,
+          "gross_pnl": 0.07845000000003433,
+          "fee_total": 0.0,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0,
+          "fee_to_abs_gross_ratio": 0.0,
+          "gross_positive_net_negative_count": 2,
+          "gross_nonpositive_count": 5,
+          "selected": false,
+          "inserted_rows": 0
+        },
+        {
+          "symbol": "BTCUSDTM",
+          "strategy": "TrendFollowingV2",
+          "trade_count": 2,
+          "winrate": 0.0,
+          "expectancy": -0.01862505499999418,
+          "net_pnl": -0.03725010999998836,
+          "gross_pnl": -0.010299999999988358,
+          "fee_total": 0.0,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0,
+          "fee_to_abs_gross_ratio": 0.0,
+          "gross_positive_net_negative_count": 0,
+          "gross_nonpositive_count": 2,
+          "selected": false,
+          "inserted_rows": 0
+        }
+      ],
+      "pair_side_stats_top": [
+        {
+          "symbol": "BNBUSDTM",
+          "strategy": "MeanReversionV2",
+          "side": "sell",
+          "trade_count": 3,
+          "winrate": 0.6666666666666666,
+          "expectancy": 0.016324005000011365,
+          "net_pnl": 0.04897201500003409,
+          "gross_pnl": 0.1612500000000341,
+          "fee_total": 0.0,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0,
+          "fee_to_abs_gross_ratio": 0.0,
+          "gross_positive_net_negative_count": 1,
+          "gross_nonpositive_count": 0
+        },
+        {
+          "symbol": "ADAUSDTM",
+          "strategy": "MomentumV2",
+          "side": "buy",
+          "trade_count": 2,
+          "winrate": 0.0,
+          "expectancy": -0.0011857950000000001,
+          "net_pnl": -0.0023715900000000002,
+          "gross_pnl": -0.0023715900000000002,
+          "fee_total": 0.0,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0,
+          "fee_to_abs_gross_ratio": 0.0,
+          "gross_positive_net_negative_count": 0,
+          "gross_nonpositive_count": 2
+        },
+        {
+          "symbol": "BTCUSDTM",
+          "strategy": "TrendFollowing",
+          "side": "sell",
+          "trade_count": 3,
+          "winrate": 0.0,
+          "expectancy": -0.0015722104227984162,
+          "net_pnl": -0.0047166312683952485,
+          "gross_pnl": -0.00012049741740709812,
+          "fee_total": 0.0045961338509883445,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0015320446169961148,
+          "fee_to_abs_gross_ratio": 38.1430071273677,
+          "gross_positive_net_negative_count": 2,
+          "gross_nonpositive_count": 1
+        },
+        {
+          "symbol": "ADAUSDTM",
+          "strategy": "TrendFollowingV2",
+          "side": "sell",
+          "trade_count": 4,
+          "winrate": 0.25,
+          "expectancy": -0.001691522499999942,
+          "net_pnl": -0.006766089999999768,
+          "gross_pnl": -0.003919149999999767,
+          "fee_total": 0.0,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0,
+          "fee_to_abs_gross_ratio": 0.0,
+          "gross_positive_net_negative_count": 0,
+          "gross_nonpositive_count": 3
+        },
+        {
+          "symbol": "SOLUSDTM",
+          "strategy": "DiagnosticForceOpenV2",
+          "side": "buy",
+          "trade_count": 19,
+          "winrate": 0.05263157894736842,
+          "expectancy": -0.001787414736842061,
+          "net_pnl": -0.03396087999999916,
+          "gross_pnl": -0.022371579999999145,
+          "fee_total": 0.0,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0,
+          "fee_to_abs_gross_ratio": 0.0,
+          "gross_positive_net_negative_count": 1,
+          "gross_nonpositive_count": 17
+        },
+        {
+          "symbol": "SOLUSDTM",
+          "strategy": "MomentumV2",
+          "side": "buy",
+          "trade_count": 3,
+          "winrate": 0.0,
+          "expectancy": -0.0017894366666663562,
+          "net_pnl": -0.005368309999999069,
+          "gross_pnl": -0.0003999999999990678,
+          "fee_total": 0.0,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0,
+          "fee_to_abs_gross_ratio": 0.0,
+          "gross_positive_net_negative_count": 1,
+          "gross_nonpositive_count": 2
+        },
+        {
+          "symbol": "SOLUSDTM",
+          "strategy": "TrendFollowingV2",
+          "side": "sell",
+          "trade_count": 3,
+          "winrate": 0.0,
+          "expectancy": -0.0019224833333327123,
+          "net_pnl": -0.005767449999998137,
+          "gross_pnl": -0.000799999999998136,
+          "fee_total": 0.0,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0,
+          "fee_to_abs_gross_ratio": 0.0,
+          "gross_positive_net_negative_count": 2,
+          "gross_nonpositive_count": 1
+        },
+        {
+          "symbol": "DOGEUSDTM",
+          "strategy": "MomentumV2",
+          "side": "buy",
+          "trade_count": 2,
+          "winrate": 0.0,
+          "expectancy": -0.0020147000000000003,
+          "net_pnl": -0.004029400000000001,
+          "gross_pnl": -0.004029400000000001,
+          "fee_total": 0.0,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0,
+          "fee_to_abs_gross_ratio": 0.0,
+          "gross_positive_net_negative_count": 0,
+          "gross_nonpositive_count": 2
+        },
+        {
+          "symbol": "ADAUSDTM",
+          "strategy": "DiagnosticForceOpenV2",
+          "side": "buy",
+          "trade_count": 6,
+          "winrate": 0.0,
+          "expectancy": -0.002222980000000106,
+          "net_pnl": -0.013337880000000637,
+          "gross_pnl": -0.007647120000000637,
+          "fee_total": 0.0,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0,
+          "fee_to_abs_gross_ratio": 0.0,
+          "gross_positive_net_negative_count": 1,
+          "gross_nonpositive_count": 5
+        },
+        {
+          "symbol": "XRPUSDTM",
+          "strategy": "TrendFollowingV2",
+          "side": "buy",
+          "trade_count": 55,
+          "winrate": 0.14545454545454545,
+          "expectancy": -0.0022513254545452957,
+          "net_pnl": -0.12382289999999126,
+          "gross_pnl": -0.021974089999991283,
+          "fee_total": 0.0,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0,
+          "fee_to_abs_gross_ratio": 0.0,
+          "gross_positive_net_negative_count": 10,
+          "gross_nonpositive_count": 37
+        },
+        {
+          "symbol": "ADAUSDTM",
+          "strategy": "TrendFollowingV2",
+          "side": "buy",
+          "trade_count": 1,
+          "winrate": 0.0,
+          "expectancy": -0.0023235600000009,
+          "net_pnl": -0.0023235600000009,
+          "gross_pnl": -0.0009000000000009001,
+          "fee_total": 0.0,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0,
+          "fee_to_abs_gross_ratio": 0.0,
+          "gross_positive_net_negative_count": 0,
+          "gross_nonpositive_count": 1
+        },
+        {
+          "symbol": "ADAUSDTM",
+          "strategy": "MomentumV2",
+          "side": "sell",
+          "trade_count": 5,
+          "winrate": 0.0,
+          "expectancy": -0.002377954000000194,
+          "net_pnl": -0.01188977000000097,
+          "gross_pnl": -0.00572293000000097,
+          "fee_total": 0.0,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0,
+          "fee_to_abs_gross_ratio": 0.0,
+          "gross_positive_net_negative_count": 1,
+          "gross_nonpositive_count": 4
+        },
+        {
+          "symbol": "XRPUSDTM",
+          "strategy": "DiagnosticForceOpenV2",
+          "side": "buy",
+          "trade_count": 80,
+          "winrate": 0.0625,
+          "expectancy": -0.0023783717499999447,
+          "net_pnl": -0.19026973999999558,
+          "gross_pnl": -0.09381981999999553,
+          "fee_total": 0.0,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0,
+          "fee_to_abs_gross_ratio": 0.0,
+          "gross_positive_net_negative_count": 20,
+          "gross_nonpositive_count": 55
+        },
+        {
+          "symbol": "SOLUSDTM",
+          "strategy": "TrendFollowingV2",
+          "side": "buy",
+          "trade_count": 28,
+          "winrate": 0.39285714285714285,
+          "expectancy": -0.002384817857143148,
+          "net_pnl": -0.06677490000000814,
+          "gross_pnl": 0.035499999999991885,
+          "fee_total": 0.0,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0,
+          "fee_to_abs_gross_ratio": 0.0,
+          "gross_positive_net_negative_count": 5,
+          "gross_nonpositive_count": 12
+        },
+        {
+          "symbol": "SOLUSDTM",
+          "strategy": "MomentumV2",
+          "side": "sell",
+          "trade_count": 2,
+          "winrate": 0.0,
+          "expectancy": -0.0026058749999995625,
+          "net_pnl": -0.005211749999999125,
+          "gross_pnl": -0.0018999999999991246,
+          "fee_total": 0.0,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0,
+          "fee_to_abs_gross_ratio": 0.0,
+          "gross_positive_net_negative_count": 1,
+          "gross_nonpositive_count": 1
+        },
+        {
+          "symbol": "XRPUSDTM",
+          "strategy": "MomentumV2",
+          "side": "sell",
+          "trade_count": 18,
+          "winrate": 0.0,
+          "expectancy": -0.0026321783333332527,
+          "net_pnl": -0.04737920999999855,
+          "gross_pnl": -0.025966279999998548,
+          "fee_total": 0.0,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0,
+          "fee_to_abs_gross_ratio": 0.0,
+          "gross_positive_net_negative_count": 5,
+          "gross_nonpositive_count": 13
+        },
+        {
+          "symbol": "XRPUSDTM",
+          "strategy": "TrendFollowingV2",
+          "side": "sell",
+          "trade_count": 27,
+          "winrate": 0.1111111111111111,
+          "expectancy": -0.002805638888889056,
+          "net_pnl": -0.07575225000000452,
+          "gross_pnl": -0.01415108000000451,
+          "fee_total": 0.0,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0,
+          "fee_to_abs_gross_ratio": 0.0,
+          "gross_positive_net_negative_count": 7,
+          "gross_nonpositive_count": 17
+        },
+        {
+          "symbol": "XRPUSDTM",
+          "strategy": "MomentumV2",
+          "side": "buy",
+          "trade_count": 19,
+          "winrate": 0.0,
+          "expectancy": -0.002816041052631623,
+          "net_pnl": -0.05350478000000084,
+          "gross_pnl": -0.01859914000000084,
+          "fee_total": 0.0,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0,
+          "fee_to_abs_gross_ratio": 0.0,
+          "gross_positive_net_negative_count": 5,
+          "gross_nonpositive_count": 14
+        },
+        {
+          "symbol": "XRPUSDTM",
+          "strategy": "MeanReversionV2",
+          "side": "buy",
+          "trade_count": 5,
+          "winrate": 0.2,
+          "expectancy": -0.0028813799999996654,
+          "net_pnl": -0.014406899999998326,
+          "gross_pnl": -0.0010999999999983245,
+          "fee_total": 0.0,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0,
+          "fee_to_abs_gross_ratio": 0.0,
+          "gross_positive_net_negative_count": 1,
+          "gross_nonpositive_count": 3
+        },
+        {
+          "symbol": "BTCUSDTM",
+          "strategy": "TrendFollowing",
+          "side": "buy",
+          "trade_count": 1,
+          "winrate": 0.0,
+          "expectancy": -0.002950315071095159,
+          "net_pnl": -0.002950315071095159,
+          "gross_pnl": 0.0031789650778033013,
+          "fee_total": 0.006129280148900018,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.006129280148900018,
+          "fee_to_abs_gross_ratio": 1.9280740740742632,
+          "gross_positive_net_negative_count": 1,
+          "gross_nonpositive_count": 0
+        },
+        {
+          "symbol": "BTCUSDTM",
+          "strategy": "Momentum",
+          "side": "sell",
+          "trade_count": 2,
+          "winrate": 0.0,
+          "expectancy": -0.0030098708723288663,
+          "net_pnl": -0.0060197417446577325,
+          "gross_pnl": -0.000915002739726493,
+          "fee_total": 0.005104739004931507,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0025523695024657535,
+          "fee_to_abs_gross_ratio": 5.5789330275200975,
+          "gross_positive_net_negative_count": 1,
+          "gross_nonpositive_count": 1
+        },
+        {
+          "symbol": "DOGEUSDTM",
+          "strategy": "TrendFollowingV2",
+          "side": "sell",
+          "trade_count": 2,
+          "winrate": 0.0,
+          "expectancy": -0.0030133999999996126,
+          "net_pnl": -0.006026799999999225,
+          "gross_pnl": -0.0019999999999992246,
+          "fee_total": 0.0,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0,
+          "fee_to_abs_gross_ratio": 0.0,
+          "gross_positive_net_negative_count": 0,
+          "gross_nonpositive_count": 2
+        },
+        {
+          "symbol": "BTCUSDTM",
+          "strategy": "MeanReversionV2",
+          "side": "sell",
+          "trade_count": 3,
+          "winrate": 0.3333333333333333,
+          "expectancy": -0.008329298333325583,
+          "net_pnl": -0.02498789499997675,
+          "gross_pnl": 0.07765000000002328,
+          "fee_total": 0.0,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0,
+          "fee_to_abs_gross_ratio": 0.0,
+          "gross_positive_net_negative_count": 0,
+          "gross_nonpositive_count": 2
+        },
+        {
+          "symbol": "SOLUSDTM",
+          "strategy": "MeanReversionV2",
+          "side": "sell",
+          "trade_count": 3,
+          "winrate": 0.3333333333333333,
+          "expectancy": -0.008847230000005988,
+          "net_pnl": -0.026541690000017965,
+          "gross_pnl": 0.08849999999998204,
+          "fee_total": 0.0,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0,
+          "fee_to_abs_gross_ratio": 0.0,
+          "gross_positive_net_negative_count": 0,
+          "gross_nonpositive_count": 2
+        },
+        {
+          "symbol": "BTCUSDTM",
+          "strategy": "Momentum",
+          "side": "buy",
+          "trade_count": 3,
+          "winrate": 0.0,
+          "expectancy": -0.00943222483347493,
+          "net_pnl": -0.028296674500424786,
+          "gross_pnl": -0.009916786692430547,
+          "fee_total": 0.018379887807995016,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.006126629269331672,
+          "fee_to_abs_gross_ratio": 1.8534116320182956,
+          "gross_positive_net_negative_count": 0,
+          "gross_nonpositive_count": 3
+        },
+        {
+          "symbol": "BTCUSDTM",
+          "strategy": "TrendFollowingV2",
+          "side": "buy",
+          "trade_count": 2,
+          "winrate": 0.0,
+          "expectancy": -0.01862505499999418,
+          "net_pnl": -0.03725010999998836,
+          "gross_pnl": -0.010299999999988358,
+          "fee_total": 0.0,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0,
+          "fee_to_abs_gross_ratio": 0.0,
+          "gross_positive_net_negative_count": 0,
+          "gross_nonpositive_count": 2
+        },
+        {
+          "symbol": "XRPUSDTM",
+          "strategy": "MeanReversionV2",
+          "side": "sell",
+          "trade_count": 5,
+          "winrate": 0.4,
+          "expectancy": -0.022097196999993473,
+          "net_pnl": -0.11048598499996737,
+          "gross_pnl": 0.07955000000003265,
+          "fee_total": 0.0,
+          "funding_total": 0.0,
+          "avg_fee_total": 0.0,
+          "fee_to_abs_gross_ratio": 0.0,
+          "gross_positive_net_negative_count": 1,
+          "gross_nonpositive_count": 2
+        }
+      ]
+    },
+    "stdout_tail": "ALPHA_HISTORY_PAIR_SIDE symbol=BTCUSDTM strategy=Momentum side=sell trades=2 winrate=0.0000 expectancy=-0.003010 net=-0.006020\nALPHA_HISTORY_PAIR_SIDE symbol=DOGEUSDTM strategy=TrendFollowingV2 side=sell trades=2 winrate=0.0000 expectancy=-0.003013 net=-0.006027\nALPHA_HISTORY_PAIR_SIDE symbol=BTCUSDTM strategy=MeanReversionV2 side=sell trades=3 winrate=0.3333 expectancy=-0.008329 net=-0.024988\nALPHA_HISTORY_PAIR_SIDE symbol=SOLUSDTM strategy=MeanReversionV2 side=sell trades=3 winrate=0.3333 expectancy=-0.008847 net=-0.026542\nALPHA_HISTORY_PAIR_SIDE symbol=BTCUSDTM strategy=Momentum side=buy trades=3 winrate=0.0000 expectancy=-0.009432 net=-0.028297\nALPHA_HISTORY_PAIR_SIDE symbol=BTCUSDTM strategy=TrendFollowingV2 side=buy trades=2 winrate=0.0000 expectancy=-0.018625 net=-0.037250\nALPHA_HISTORY_PAIR_SIDE symbol=XRPUSDTM strategy=MeanReversionV2 side=sell trades=5 winrate=0.4000 expectancy=-0.022097 net=-0.110486\nALPHA_HISTORY_REPORT_JSON=D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\alpha_history_auto_recent_report.json",
+    "stderr_tail": "",
+    "exact_source_contract": {
+      "active": true,
+      "scorecard_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\analysis\\zol0_profitability_audit_scorecard.json",
+      "resolved_scorecard_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\analysis\\zol0_profitability_audit_scorecard.json",
+      "prebuilt_manifest_path": null,
+      "accepted_run_ids": [
+        "20260410_232659",
+        "20260410_232542",
+        "20260410_232429",
+        "20260410_232242",
+        "20260410_231900",
+        "20260410_231303",
+        "20260410_231152",
+        "20260410_231036",
+        "20260410_230845",
+        "20260410_230416",
+        "20260410_225649",
+        "20260410_225536",
+        "20260410_225421",
+        "20260410_224948",
+        "20260410_224834",
+        "20260410_224720",
+        "20260410_224512",
+        "20260410_224358",
+        "20260410_224243",
+        "20260410_222319",
+        "20260410_222207",
+        "20260410_222022",
+        "20260410_220939",
+        "20260410_220037",
+        "20260410_215026",
+        "20260410_214612",
+        "20260410_213454",
+        "20260410_210410",
+        "20260410_205101",
+        "20260410_203231",
+        "20260410_192939",
+        "20260410_185724",
+        "20260410_183617",
+        "20260410_181612",
+        "20260410_175510",
+        "20260410_173519",
+        "20260410_162046",
+        "20260410_160237",
+        "20260410_154613",
+        "20260410_152944",
+        "20260410_151006",
+        "20260410_143345",
+        "20260410_141547",
+        "20260410_104651",
+        "20260410_101117",
+        "20260410_095322",
+        "20260410_093335",
+        "20260410_093201",
+        "20260410_074046",
+        "20260410_072235",
+        "20260410_070454",
+        "20260410_064827",
+        "20260410_054244",
+        "20260410_052621",
+        "20260410_051059",
+        "20260410_045435",
+        "20260410_042645",
+        "20260410_041224",
+        "20260410_035858",
+        "20260410_034454"
+      ],
+      "exact_after_db_patterns": [
+        "tmp/controlled_kpi_after_20260410_232659.db",
+        "tmp/controlled_kpi_after_20260410_232542.db",
+        "tmp/controlled_kpi_after_20260410_232429.db",
+        "tmp/controlled_kpi_after_20260410_232242.db",
+        "tmp/controlled_kpi_after_20260410_231900.db",
+        "tmp/controlled_kpi_after_20260410_231303.db",
+        "tmp/controlled_kpi_after_20260410_231152.db",
+        "tmp/controlled_kpi_after_20260410_231036.db",
+        "tmp/controlled_kpi_after_20260410_230845.db",
+        "tmp/controlled_kpi_after_20260410_230416.db",
+        "tmp/controlled_kpi_after_20260410_225649.db",
+        "tmp/controlled_kpi_after_20260410_225536.db",
+        "tmp/controlled_kpi_after_20260410_225421.db",
+        "tmp/controlled_kpi_after_20260410_224948.db",
+        "tmp/controlled_kpi_after_20260410_224834.db",
+        "tmp/controlled_kpi_after_20260410_224720.db",
+        "tmp/controlled_kpi_after_20260410_224512.db",
+        "tmp/controlled_kpi_after_20260410_224358.db",
+        "tmp/controlled_kpi_after_20260410_224243.db",
+        "tmp/controlled_kpi_after_20260410_222319.db",
+        "tmp/controlled_kpi_after_20260410_222207.db",
+        "tmp/controlled_kpi_after_20260410_222022.db",
+        "tmp/controlled_kpi_after_20260410_220939.db",
+        "tmp/controlled_kpi_after_20260410_220037.db",
+        "tmp/controlled_kpi_after_20260410_215026.db",
+        "tmp/controlled_kpi_after_20260410_214612.db",
+        "tmp/controlled_kpi_after_20260410_213454.db",
+        "tmp/controlled_kpi_after_20260410_210410.db",
+        "tmp/controlled_kpi_after_20260410_205101.db",
+        "tmp/controlled_kpi_after_20260410_203231.db",
+        "tmp/controlled_kpi_after_20260410_192939.db",
+        "tmp/controlled_kpi_after_20260410_185724.db",
+        "tmp/controlled_kpi_after_20260410_183617.db",
+        "tmp/controlled_kpi_after_20260410_181612.db",
+        "tmp/controlled_kpi_after_20260410_175510.db",
+        "tmp/controlled_kpi_after_20260410_173519.db",
+        "tmp/controlled_kpi_after_20260410_162046.db",
+        "tmp/controlled_kpi_after_20260410_160237.db",
+        "tmp/controlled_kpi_after_20260410_154613.db",
+        "tmp/controlled_kpi_after_20260410_152944.db",
+        "tmp/controlled_kpi_after_20260410_151006.db",
+        "tmp/controlled_kpi_after_20260410_143345.db",
+        "tmp/controlled_kpi_after_20260410_141547.db",
+        "tmp/controlled_kpi_after_20260410_104651.db",
+        "tmp/controlled_kpi_after_20260410_101117.db",
+        "tmp/controlled_kpi_after_20260410_095322.db",
+        "tmp/controlled_kpi_after_20260410_093335.db",
+        "tmp/controlled_kpi_after_20260410_093201.db",
+        "tmp/controlled_kpi_after_20260410_074046.db",
+        "tmp/controlled_kpi_after_20260410_072235.db",
+        "tmp/controlled_kpi_after_20260410_070454.db",
+        "tmp/controlled_kpi_after_20260410_064827.db",
+        "tmp/controlled_kpi_after_20260410_054244.db",
+        "tmp/controlled_kpi_after_20260410_052621.db",
+        "tmp/controlled_kpi_after_20260410_051059.db",
+        "tmp/controlled_kpi_after_20260410_045435.db",
+        "tmp/controlled_kpi_after_20260410_042645.db",
+        "tmp/controlled_kpi_after_20260410_041224.db",
+        "tmp/controlled_kpi_after_20260410_035858.db",
+        "tmp/controlled_kpi_after_20260410_034454.db"
+      ],
+      "existing_run_ids": [
+        "20260410_232659",
+        "20260410_232542",
+        "20260410_232429",
+        "20260410_232242",
+        "20260410_231900",
+        "20260410_231303",
+        "20260410_231152",
+        "20260410_231036",
+        "20260410_230845",
+        "20260410_230416",
+        "20260410_225649",
+        "20260410_225536",
+        "20260410_225421",
+        "20260410_224948",
+        "20260410_224834",
+        "20260410_224720",
+        "20260410_224512",
+        "20260410_224358",
+        "20260410_224243",
+        "20260410_222319",
+        "20260410_222207",
+        "20260410_222022",
+        "20260410_220939",
+        "20260410_220037",
+        "20260410_215026",
+        "20260410_214612",
+        "20260410_213454",
+        "20260410_210410",
+        "20260410_205101",
+        "20260410_203231",
+        "20260410_192939",
+        "20260410_185724",
+        "20260410_183617",
+        "20260410_181612",
+        "20260410_175510",
+        "20260410_173519",
+        "20260410_162046",
+        "20260410_160237",
+        "20260410_154613",
+        "20260410_152944",
+        "20260410_151006",
+        "20260410_143345",
+        "20260410_141547",
+        "20260410_104651",
+        "20260410_101117",
+        "20260410_095322",
+        "20260410_093335",
+        "20260410_093201",
+        "20260410_074046",
+        "20260410_072235",
+        "20260410_070454",
+        "20260410_064827",
+        "20260410_054244",
+        "20260410_052621",
+        "20260410_051059",
+        "20260410_045435",
+        "20260410_042645",
+        "20260410_041224",
+        "20260410_035858",
+        "20260410_034454"
+      ],
+      "missing_run_ids": [],
+      "nonzero_run_ids": [
+        "20260410_232659",
+        "20260410_232542",
+        "20260410_232429",
+        "20260410_232242",
+        "20260410_231900",
+        "20260410_231303",
+        "20260410_231152",
+        "20260410_231036",
+        "20260410_230845",
+        "20260410_230416",
+        "20260410_225649",
+        "20260410_225536",
+        "20260410_225421",
+        "20260410_224948",
+        "20260410_224834",
+        "20260410_224720",
+        "20260410_224512",
+        "20260410_224358",
+        "20260410_224243",
+        "20260410_222319",
+        "20260410_222207",
+        "20260410_222022",
+        "20260410_220939",
+        "20260410_220037",
+        "20260410_215026",
+        "20260410_214612",
+        "20260410_213454",
+        "20260410_210410",
+        "20260410_205101",
+        "20260410_203231",
+        "20260410_192939",
+        "20260410_185724",
+        "20260410_183617",
+        "20260410_181612",
+        "20260410_175510",
+        "20260410_173519",
+        "20260410_162046",
+        "20260410_160237",
+        "20260410_154613",
+        "20260410_152944",
+        "20260410_151006",
+        "20260410_143345",
+        "20260410_141547",
+        "20260410_104651",
+        "20260410_101117",
+        "20260410_095322",
+        "20260410_093335",
+        "20260410_093201",
+        "20260410_074046",
+        "20260410_072235",
+        "20260410_070454",
+        "20260410_064827",
+        "20260410_054244",
+        "20260410_052621",
+        "20260410_051059",
+        "20260410_045435",
+        "20260410_042645",
+        "20260410_041224",
+        "20260410_035858",
+        "20260410_034454"
+      ],
+      "source_mode": "prebuilt_alpha_history_db",
+      "prebuilt_alpha_history_db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\artifacts\\diagnostics\\alpha_bootstrap_bundle_20260506_positive_side_filtered\\alpha_history_live_candidate.db",
+      "prebuilt_alpha_history_report_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\artifacts\\diagnostics\\alpha_bootstrap_bundle_20260506_positive_side_filtered\\alpha_history_live_candidate_report.json",
+      "prebuilt_alpha_history_rows_inserted": 4,
+      "reason_codes": [],
+      "status": "PASS"
+    },
+    "status": "PASS",
+    "reason_codes": [],
+    "runtime_contract": {
+      "status": "PASS",
+      "active": true,
+      "source_fail_closed": false,
+      "refresh_status": "PASS",
+      "reason_codes": []
+    }
+  },
+  "alpha_bootstrap_runtime_contract": {
+    "status": "PASS",
+    "active": true,
+    "source_fail_closed": false,
+    "refresh_status": "PASS",
+    "reason_codes": []
+  },
+  "alpha_bootstrap_strict_bucket_gate": {
+    "overrides": {
+      "ALPHA_WHITELIST_ENABLE": "0",
+      "ALPHA_WHITELIST_COLDSTART_ALLOW": "0",
+      "ALPHA_WHITELIST_FALLBACK_ENABLE": "0",
+      "ENTRY_ALLOWLIST_DIAGNOSTIC_FORCE_OPEN": "0",
+      "ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST": "BNBUSDTM:MEANREVERSIONV2:sell,BNBUSDTM:UNIVERSAL:sell",
+      "ENTRY_SYMBOL_STRATEGY_BLOCKLIST": "",
+      "ENTRY_EDGE_COLDSTART_MODE": "fail_open",
+      "ENTRY_SYMBOL_BLOCKLIST": "",
+      "ENTRY_STRATEGY_SIDE_BLOCKLIST": "",
+      "ENTRY_SYMBOL_STRATEGY_SIDE_BLOCKLIST": ""
+    },
+    "positive_side_allowlist": [
+      "BNBUSDTM:MEANREVERSIONV2:sell"
+    ],
+    "toxic_pair_blocklist": [],
+    "toxic_side_blocklist": [],
+    "cost_burden_side_blocklist": [],
+    "blocked_contract_fallback_side_tokens": []
+  },
+  "positive_side_allowlist_contract": {
+    "status": "PASS",
+    "positive_side_allowlist": [
+      "BNBUSDTM:MEANREVERSIONV2:sell"
+    ],
+    "reason_codes": [
+      "POSITIVE_SIDE_ALLOWLIST_PRESENT"
+    ],
+    "source": "strict_profitability_bucket_gate"
+  },
+  "entry_admission_contract": {
+    "status": "PASS",
+    "validation_classification": "PAPER_VALIDATION_CANDIDATE",
+    "reason_codes": [
+      "EXPLICIT_SIDE_ALLOWLIST_PRESENT"
+    ],
+    "variant_only": "after",
+    "after_requested": true,
+    "paper_auto_open": true,
+    "require_explicit_side_allowlist": true,
+    "explicit_side_allowlist": [
+      "BTCUSDTM:MeanReversionV2:sell",
+      "BNBUSDTM:MeanReversionV2:sell",
+      "SOLUSDTM:MeanReversionV2:sell",
+      "XRPUSDTM:MeanReversionV2:sell"
+    ],
+    "explicit_side_blocklist": [],
+    "positive_side_allowlist": [
+      "BNBUSDTM:MEANREVERSIONV2:sell"
+    ],
+    "conflicting_side_tokens": [],
+    "alpha_bootstrap_runtime_status": "PASS",
+    "profit_valid": true,
+    "invalid_reason": "",
+    "allowlist_contract_type": "explicit_side_allowlist",
+    "one_sided_allowlist_detected": true,
+    "allowlist_side_coverage": [
+      "sell"
+    ],
+    "allow_one_sided_validation": false,
+    "symbol_scope_count": 4,
+    "symbol_scope_type": "multi_symbol"
+  },
+  "profit_valid": true,
+  "invalid_reason": "",
+  "allowlist_contract_type": "explicit_side_allowlist",
+  "one_sided_allowlist_detected": true,
+  "data_check": {
+    "skipped": false,
+    "symbols": [
+      "BTCUSDTM",
+      "BNBUSDTM",
+      "SOLUSDTM",
+      "XRPUSDTM"
+    ],
+    "market_type": "futures",
+    "timeframe": "1",
+    "results": {
+      "BTCUSDTM": {
+        "ok": true,
+        "count": 120,
+        "monotonic_ts": true,
+        "unique_ts_ratio": 1.0,
+        "bad_ohlc_count": 0,
+        "bad_volume_count": 0,
+        "stale_sec": 9.275,
+        "last_ts": 1780583340000
+      },
+      "BNBUSDTM": {
+        "ok": true,
+        "count": 120,
+        "monotonic_ts": true,
+        "unique_ts_ratio": 1.0,
+        "bad_ohlc_count": 0,
+        "bad_volume_count": 0,
+        "stale_sec": 9.275,
+        "last_ts": 1780583340000
+      },
+      "SOLUSDTM": {
+        "ok": true,
+        "count": 120,
+        "monotonic_ts": true,
+        "unique_ts_ratio": 1.0,
+        "bad_ohlc_count": 0,
+        "bad_volume_count": 0,
+        "stale_sec": 9.275,
+        "last_ts": 1780583340000
+      },
+      "XRPUSDTM": {
+        "ok": true,
+        "count": 120,
+        "monotonic_ts": true,
+        "unique_ts_ratio": 1.0,
+        "bad_ohlc_count": 0,
+        "bad_volume_count": 0,
+        "stale_sec": 9.275,
+        "last_ts": 1780583340000
+      }
+    }
+  },
+  "variants_run": [
+    "after"
+  ],
+  "summary_json": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\results\\controlled_kpi_20260604_130000_after_summary.json",
+  "entry_gate_report_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\results\\controlled_kpi_20260604_130000_after_summary.json",
+  "summary": {
+    "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260604_130000.db",
+    "hours": null,
+    "event": "entry_gate_decision_summary",
+    "rows": 344,
+    "risk_decision_rows": 344,
+    "count_alignment": {
+      "entry_gate_decision_summary": 344,
+      "risk_decision": 344,
+      "delta": 0,
+      "count_matches": true
+    },
+    "ordering": {
+      "summary_before_risk_pairs": 344,
+      "risk_without_summary": 0,
+      "summary_without_risk": 0,
+      "trailing_summary_rows": 0,
+      "symbol_mismatch_pairs": 0,
+      "all_pairs_in_order": true
+    },
+    "payload_completeness": {
+      "required_keys": [
+        "ts",
+        "symbol",
+        "side",
+        "final_allow",
+        "entry_gate_bucket",
+        "global_block_reason",
+        "local_gate_reason",
+        "effective_gate_reason",
+        "effective_gate_reason_origin",
+        "paper_gate_active",
+        "paper_gate_reason",
+        "paper_gate_mode",
+        "risk_allow_before_paper_gate",
+        "paper_gate_override",
+        "entry_decision_raw",
+        "entry_decision_final",
+        "entry_reason",
+        "entry_reason_classification",
+        "entry_live_edge",
+        "entry_edge_over_fee",
+        "entry_edge_after_execution",
+        "spread",
+        "liquidity_ok",
+        "confidence",
+        "fee_estimate",
+        "current_edge",
+        "realtime_edge",
+        "max_positions_blocked"
+      ],
+      "required_spread_keys": [
+        "abs",
+        "pct",
+        "bps"
+      ],
+      "complete_rows": 344,
+      "incomplete_rows": 0,
+      "all_complete": true,
+      "sample_incomplete_rows": []
+    },
+    "admitted_vs_blocked": {
+      "admitted": 0,
+      "blocked": 344
+    },
+    "top_global_block_reason": [],
+    "top_local_gate_reason": [
+      [
+        "symbol_strategy_side_allowlist",
+        313
+      ],
+      [
+        "no_runtime_profile",
+        13
+      ],
+      [
+        "missing_expected_move_calibration_profile",
+        8
+      ],
+      [
+        "net_target_guard",
+        4
+      ],
+      [
+        "current_side",
+        3
+      ],
+      [
+        "side_expectancy",
+        3
+      ]
+    ],
+    "paper_gate_overrides": 0,
+    "last_entry_gate_decision_summary": {
+      "symbol": "XRPUSDTM",
+      "side": null,
+      "final_allow": false,
+      "paper_gate_active": false,
+      "missing_keys": [],
+      "missing_spread_keys": []
+    },
+    "last_risk_decision": {
+      "symbol": "XRPUSDTM",
+      "entry_decision": "hold",
+      "allow": false
+    },
+    "position_open_rows": 0,
+    "position_open_truth_classification_counts": [],
+    "natural_entry_candidate_contract": {
+      "classification": "NATURAL_ENTRY_CANDIDATE_PRESENT",
+      "usable_strategy_economics": false,
+      "strategy_evidence_classification": "NO_NATURAL_ADMISSION",
+      "assisted_seed_evidence_only": false,
+      "router_candidate_rows": 11,
+      "rejected_candidate_count": 344,
+      "empty_assignment_rows": 0,
+      "final_surviving_candidate_count": 11,
+      "natural_admitted_count": 0,
+      "assisted_seed_admitted_count": 0,
+      "assisted_seed_open_count": 0,
+      "fallback_open_count": 0,
+      "router_candidate_sides": [
+        {
+          "symbol": "BNBUSDTM",
+          "strategy": null,
+          "side": null,
+          "count": 83
+        },
+        {
+          "symbol": "BNBUSDTM",
+          "strategy": "MeanReversionV2",
+          "side": "sell",
+          "count": 3
+        },
+        {
+          "symbol": "BTCUSDTM",
+          "strategy": null,
+          "side": null,
+          "count": 84
+        },
+        {
+          "symbol": "BTCUSDTM",
+          "strategy": "MeanReversionV2",
+          "side": "sell",
+          "count": 2
+        },
+        {
+          "symbol": "SOLUSDTM",
+          "strategy": null,
+          "side": null,
+          "count": 83
+        },
+        {
+          "symbol": "SOLUSDTM",
+          "strategy": "MeanReversionV2",
+          "side": "sell",
+          "count": 3
+        },
+        {
+          "symbol": "XRPUSDTM",
+          "strategy": null,
+          "side": null,
+          "count": 83
+        },
+        {
+          "symbol": "XRPUSDTM",
+          "strategy": "MeanReversionV2",
+          "side": "sell",
+          "count": 3
+        }
+      ],
+      "allowed_sides": [
+        {
+          "symbol": "BNBUSDTM",
+          "strategy": "MeanReversionV2",
+          "side": "sell",
+          "count": 3
+        },
+        {
+          "symbol": "BTCUSDTM",
+          "strategy": "MeanReversionV2",
+          "side": "sell",
+          "count": 2
+        },
+        {
+          "symbol": "SOLUSDTM",
+          "strategy": "MeanReversionV2",
+          "side": "sell",
+          "count": 3
+        },
+        {
+          "symbol": "XRPUSDTM",
+          "strategy": "MeanReversionV2",
+          "side": "sell",
+          "count": 3
+        }
+      ],
+      "assisted_seed_allowed_sides": [],
+      "blocked_sides": [
+        {
+          "symbol": "BNBUSDTM",
+          "strategy": null,
+          "side": null,
+          "reason": "symbol_strategy_side_allowlist",
+          "count": 70
+        },
+        {
+          "symbol": "BTCUSDTM",
+          "strategy": null,
+          "side": null,
+          "reason": "symbol_strategy_side_allowlist",
+          "count": 82
+        },
+        {
+          "symbol": "SOLUSDTM",
+          "strategy": null,
+          "side": null,
+          "reason": "symbol_strategy_side_allowlist",
+          "count": 80
+        },
+        {
+          "symbol": "XRPUSDTM",
+          "strategy": null,
+          "side": null,
+          "reason": "symbol_strategy_side_allowlist",
+          "count": 81
+        }
+      ],
+      "guard_rejected_sides": [
+        {
+          "symbol": "BNBUSDTM",
+          "strategy": null,
+          "side": null,
+          "reason": "net_target_guard",
+          "count": 1
+        },
+        {
+          "symbol": "BNBUSDTM",
+          "strategy": "MeanReversionV2",
+          "side": "sell",
+          "reason": "side_expectancy",
+          "count": 1
+        },
+        {
+          "symbol": "BTCUSDTM",
+          "strategy": null,
+          "side": null,
+          "reason": "net_target_guard",
+          "count": 1
+        },
+        {
+          "symbol": "SOLUSDTM",
+          "strategy": null,
+          "side": null,
+          "reason": "net_target_guard",
+          "count": 1
+        },
+        {
+          "symbol": "SOLUSDTM",
+          "strategy": "MeanReversionV2",
+          "side": "sell",
+          "reason": "side_expectancy",
+          "count": 1
+        },
+        {
+          "symbol": "XRPUSDTM",
+          "strategy": null,
+          "side": null,
+          "reason": "net_target_guard",
+          "count": 1
+        },
+        {
+          "symbol": "XRPUSDTM",
+          "strategy": "MeanReversionV2",
+          "side": "sell",
+          "reason": "side_expectancy",
+          "count": 1
+        }
+      ],
+      "invalid_side_candidates": [],
+      "raw_side_value_counts_top20": [
+        {
+          "raw_side": "sell",
+          "count": 22
+        }
+      ],
+      "rejection_reason_counts": [
+        [
+          "symbol_strategy_side_allowlist",
+          313
+        ],
+        [
+          "no_runtime_profile",
+          13
+        ],
+        [
+          "missing_expected_move_calibration_profile",
+          8
+        ],
+        [
+          "net_target_guard",
+          4
+        ],
+        [
+          "current_side",
+          3
+        ],
+        [
+          "side_expectancy",
+          3
+        ]
+      ],
+      "reason_codes": [
+        "ROUTER_CANDIDATES_EXIST",
+        "NO_NATURAL_ADMISSION",
+        "ALLOWLIST_BLOCKLIST_REJECTIONS_PRESENT",
+        "GUARD_REJECTIONS_PRESENT"
+      ]
+    },
+    "last_position_open": {
+      "symbol": null,
+      "strategy": null,
+      "entry_main_strategy": null,
+      "side": null,
+      "selection_source": null,
+      "decision_router_path": null,
+      "override_reason": null,
+      "canonical_bucket": null,
+      "canonical_bucket_key": null,
+      "entry_reason": null,
+      "entry_open_truth_classification": "UNKNOWN_REQUIRES_REVIEW"
+    },
+    "metrics": {
+      "admitted": {
+        "current_edge": {
+          "count": 0,
+          "mean": null,
+          "median": null
+        },
+        "realtime_edge": {
+          "count": 0,
+          "mean": null,
+          "median": null
+        },
+        "spread_bps": {
+          "count": 0,
+          "mean": null,
+          "median": null
+        },
+        "confidence": {
+          "count": 0,
+          "mean": null,
+          "median": null
+        }
+      },
+      "blocked": {
+        "current_edge": {
+          "count": 11,
+          "mean": 0.002040052410027802,
+          "median": 0.0020400318582307953
+        },
+        "realtime_edge": {
+          "count": 11,
+          "mean": 0.001987441196281366,
+          "median": 0.0019834065994316294
+        },
+        "spread_bps": {
+          "count": 344,
+          "mean": 0.008349811398487521,
+          "median": 0.0
+        },
+        "confidence": {
+          "count": 344,
+          "mean": 0.03115551332254562,
+          "median": 0.0
+        }
+      }
+    }
+  },
+  "before": null,
+  "after": {
+    "db_exists": true,
+    "trade_count": 8,
+    "net_pnl": -0.25109261999998256,
+    "winrate": 0.5,
+    "win_rate": 0.5,
+    "avg_win": 0.0743854850000032,
+    "avg_loss": -0.13715863999999883,
+    "expectancy": -0.03138657749999782,
+    "max_drawdown": 0.0005485539243229937,
+    "profit_factor": 0.5423317481130159,
+    "gross_profit": 0.2975419400000128,
+    "gross_loss_abs": 0.5486345599999953,
+    "green_to_red_share": 0.0,
+    "fee_inversion_share": 0.0,
+    "share_ever_profitable": 0.0,
+    "exit_reason_distribution": {
+      "protective_exit": 4,
+      "take_profit_net": 4
+    },
+    "time_to_first_MFE": null,
+    "time_to_first_MFE_median": null,
+    "time_to_first_MFE_count": 0,
+    "time_from_peak_to_close": null,
+    "time_from_peak_to_close_median": null,
+    "time_from_peak_to_close_count": 0,
+    "decisions_count": 344,
+    "equity_points": 44,
+    "symbol_stats": {
+      "SOLUSDTM": {
+        "trade_count": 2,
+        "net_pnl": -0.08312561000001117,
+        "winrate": 0.5,
+        "win_rate": 0.5,
+        "avg_win": 0.06767409999997931,
+        "avg_loss": -0.15079970999999048,
+        "expectancy": -0.04156280500000559,
+        "gross_profit": 0.06767409999997931,
+        "gross_loss_abs": 0.15079970999999048,
+        "profit_factor": 0.4487681043947868,
+        "wins": 1,
+        "losses": 1
+      },
+      "XRPUSDTM": {
+        "trade_count": 2,
+        "net_pnl": -0.07062437999999302,
+        "winrate": 0.5,
+        "win_rate": 0.5,
+        "avg_win": 0.04727040000002264,
+        "avg_loss": -0.11789478000001566,
+        "expectancy": -0.03531218999999651,
+        "gross_profit": 0.04727040000002264,
+        "gross_loss_abs": 0.11789478000001566,
+        "profit_factor": 0.40095413893657006,
+        "wins": 1,
+        "losses": 1
+      },
+      "BNBUSDTM": {
+        "trade_count": 2,
+        "net_pnl": -0.10593039999997836,
+        "winrate": 0.5,
+        "win_rate": 0.5,
+        "avg_win": 0.03205231000001082,
+        "avg_loss": -0.13798270999998918,
+        "expectancy": -0.05296519999998918,
+        "gross_profit": 0.03205231000001082,
+        "gross_loss_abs": 0.13798270999998918,
+        "profit_factor": 0.23229221980067888,
+        "wins": 1,
+        "losses": 1
+      },
+      "BTCUSDTM": {
+        "trade_count": 2,
+        "net_pnl": 0.008587769999999995,
+        "winrate": 0.5,
+        "win_rate": 0.5,
+        "avg_win": 0.15054513,
+        "avg_loss": -0.14195736,
+        "expectancy": 0.004293884999999997,
+        "gross_profit": 0.15054513,
+        "gross_loss_abs": 0.14195736,
+        "profit_factor": 1.0604954191878462,
+        "wins": 1,
+        "losses": 1
+      }
+    },
+    "event_counts": {
+      "runtime_v2_started": 1,
+      "entry_gate_decision_summary": 344,
+      "risk_decision": 344,
+      "entry_reject_v2": 344,
+      "pre_entry_candidate_rejection_trace": 344,
+      "entry_eval_v2": 19,
+      "exit_eval_v2": 11,
+      "position_close_v2": 8,
+      "position_close": 8,
+      "post_signal_trajectory_v2": 44,
+      "runtime_v2_stopped": 1
+    },
+    "variant": "after",
+    "engine_version": "v2",
+    "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260604_130000.db",
+    "out_log": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260604_130000.out.log",
+    "err_log": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260604_130000.err.log",
+    "started_at_utc": "2026-06-04T14:29:16.182677+00:00",
+    "ended_at_utc": "2026-06-04T14:37:23.447586+00:00",
+    "duration_sec_target": 480,
+    "duration_sec_actual": 487,
+    "log_health": {
+      "error_count": 0,
+      "warning_count": 0,
+      "sample_errors": []
+    },
+    "diagnostic_env_flags": {
+      "DIAGNOSTIC_MODE": "0",
+      "DIAG_DISABLE_NET_TARGET_GUARD": null,
+      "DIAG_ALLOW_REENTRY_WHILE_IN_POSITION": null,
+      "DIAG_DISABLE_SIDE_GUARD": null,
+      "DIAG_DISABLE_SIDE_EXPECTANCY": null,
+      "LIVE": "0"
+    },
+    "effective_env_values": {
+      "ALPHA_WHITELIST_ENABLE": "0",
+      "ALPHA_WHITELIST_COLDSTART_ALLOW": "0",
+      "ALPHA_WHITELIST_FALLBACK_ENABLE": "0",
+      "SEED_TRADES_ENABLE": "0",
+      "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST": "1",
+      "ALPHA_BOOTSTRAP_REQUIRE_EXTERNAL_SOURCE": "1",
+      "LOSS_COOLDOWN_SEC": "30",
+      "ENTRY_MIN_NET_USDT": "0.12",
+      "ENTRY_MIN_NET_TO_STOP_RATIO": "1.10",
+      "ENTRY_SYMBOL_STRATEGY_BLOCKLIST": "",
+      "ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST": "BTCUSDTM:MeanReversionV2:sell,BNBUSDTM:MeanReversionV2:sell,SOLUSDTM:MeanReversionV2:sell,XRPUSDTM:MeanReversionV2:sell",
+      "ENTRY_SYMBOL_STRATEGY_SIDE_BLOCKLIST": "",
+      "DIAG_DISABLE_SIDE_EXPECTANCY": null,
+      "DIAG_DISABLE_NET_TARGET_GUARD": null,
+      "DIAG_ALLOW_REENTRY_WHILE_IN_POSITION": null,
+      "RESEARCH_POST_CLOSE_SUMMARY_GRACE_TICKS": "1",
+      "RESEARCH_POST_CLOSE_SUMMARY_GRACE_TIMEOUT_SEC": null,
+      "POST_PROMOTION_OBSERVATION_ENABLED": null,
+      "POST_PROMOTION_OBSERVATION_MAX_SEC": null,
+      "POST_PROMOTION_OBSERVATION_MAX_CYCLES": null
+    },
+    "reevaluation_probe": {
+      "promotion_count": 0,
+      "promoted_buckets": [],
+      "promotion_runtime_seq": null,
+      "reeval_runtime_seq": null,
+      "real_post_promotion_read_count": 0,
+      "real_post_promotion_read_buckets": [],
+      "gate_read_after_promotion_runtime_seq": null,
+      "timing_replay_only_buckets": [],
+      "observed_real_post_promotion_read": false
+    },
+    "research_post_promotion_reeval_grace_sec": 0.0,
+    "research_post_close_summary_grace_ticks": 1,
+    "research_post_close_summary_grace_timeout_sec": 90.0,
+    "post_close_summary_grace_release_reason": null,
+    "post_promotion_observation_enabled": true,
+    "post_promotion_observation_max_sec": 15.0,
+    "post_promotion_observation_max_cycles": 3,
+    "post_promotion_window_armed": false,
+    "post_promotion_window_cycle_count": 0,
+    "post_promotion_window_exit_reason": null,
+    "post_promotion_reeval_requested": false,
+    "post_promotion_reeval_dispatch_entered": false,
+    "post_promotion_reeval_completed": false,
+    "post_promotion_reeval_result": null,
+    "post_promotion_reeval_exit_reason": null,
+    "post_promotion_reeval_runtime_seq": null,
+    "post_promotion_forced_cycle_trigger_mode": null,
+    "post_promotion_forced_cycle_request_reason": null,
+    "post_promotion_forced_cycle_trigger_contract": {
+      "active": false,
+      "expected_mode": "after_unknown",
+      "expected_request_reason": "post_promotion_forced_cycle",
+      "observed_mode": "",
+      "observed_request_reason": "",
+      "status": "inactive",
+      "ok": true,
+      "reason_codes": []
+    },
+    "shutdown_classification": "close_flush_done_pending_positions_zero",
+    "post_close_extra_tick_triggered": true,
+    "post_close_extra_tick_count": 1,
+    "evaluation_phase": "post_close_extra_tick",
+    "runner_shutdown_reason": "close_flush_done_pending_positions_zero",
+    "runner_shutdown_ts": "2026-06-04T14:37:23.447586+00:00",
+    "runner_termination_trace": [
+      {
+        "event": "position_close_request_enqueue_skipped",
+        "run_ts": "2026-06-04T14:37:16.344941+00:00",
+        "reason": "no_pending_open_symbols",
+        "symbols": [
+          "BTCUSDTM",
+          "BNBUSDTM",
+          "SOLUSDTM",
+          "XRPUSDTM"
+        ],
+        "requested_symbols": [
+          "BTCUSDTM",
+          "BNBUSDTM",
+          "SOLUSDTM",
+          "XRPUSDTM"
+        ],
+        "pending_open_symbols": [],
+        "skipped_symbols": [
+          "BTCUSDTM",
+          "BNBUSDTM",
+          "SOLUSDTM",
+          "XRPUSDTM"
+        ],
+        "symbol_filter_state": "pending_open_symbols_filtered",
+        "inserted": 0
+      },
+      {
+        "event": "runner_close_requests_enqueued",
+        "run_ts": "2026-06-04T14:37:16.345031+00:00",
+        "close_requested": true,
+        "req_count": 0,
+        "close_wait_deadline": 1780583881.341046,
+        "post_close_deadline": 1780583881.3410463,
+        "pending_positions": 0,
+        "drain_tick_after_enqueue": false,
+        "termination_reason": null,
+        "close_deferral_bypassed": false
+      },
+      {
+        "event": "runner_close_wait_tick",
+        "run_ts": "2026-06-04T14:37:19.032783+00:00",
+        "close_requested": true,
+        "close_wait_deadline": 1780583881.341046,
+        "post_close_deadline": 1780583881.3410463,
+        "pending_positions": 0,
+        "close_request_backlog": 0,
+        "close_request_backlog_raw": 0,
+        "duplicate_close_request_count": 0,
+        "close_count": 8,
+        "open_count": 0,
+        "drain_tick_after_enqueue": true,
+        "termination_reason": null
+      },
+      {
+        "event": "post_close_summary_grace_armed",
+        "run_ts": "2026-06-04T14:37:21.430701+00:00",
+        "close_requested": true,
+        "close_wait_deadline": 1780583881.341046,
+        "post_close_deadline": 1780583881.3410463,
+        "post_close_summary_grace_ticks": 1,
+        "post_close_summary_grace_timeout_sec": 90.0,
+        "post_close_summary_grace_armed_at": 1780583841.4306834,
+        "post_close_summary_grace_deadline": 1780583931.4306834,
+        "post_close_eval_count": 0,
+        "summary_emit_done_count": 0,
+        "entry_gate_decision_summary_count": 147,
+        "risk_decision_count": 147,
+        "require_fresh_tail_cycle": false,
+        "pending_positions": 0,
+        "close_request_backlog": 0,
+        "close_count": 8,
+        "open_count": 0,
+        "drain_tick_after_enqueue": true,
+        "termination_reason": null
+      },
+      {
+        "event": "post_close_summary_grace_tick_consumed",
+        "run_ts": "2026-06-04T14:37:21.430799+00:00",
+        "close_requested": true,
+        "close_wait_deadline": 1780583881.341046,
+        "post_close_deadline": 1780583881.3410463,
+        "post_close_summary_grace_tick_count": 1,
+        "post_close_summary_grace_ticks": 1,
+        "post_close_summary_grace_timeout_sec": 90.0,
+        "post_close_summary_grace_deadline": 1780583931.4306834,
+        "post_close_eval_count": 0,
+        "summary_emit_done_count": 0,
+        "entry_gate_decision_summary_count": 147,
+        "risk_decision_count": 147,
+        "require_fresh_tail_cycle": false,
+        "pending_positions": 0,
+        "close_request_backlog": 0,
+        "close_count": 8,
+        "open_count": 0,
+        "drain_tick_after_enqueue": true,
+        "termination_reason": null
+      },
+      {
+        "event": "runner_shutdown_deferred",
+        "run_ts": "2026-06-04T14:37:21.430819+00:00",
+        "close_requested": true,
+        "close_wait_deadline": 1780583881.341046,
+        "post_close_deadline": 1780583881.3410463,
+        "post_close_summary_grace_tick_count": 1,
+        "post_close_summary_grace_ticks": 1,
+        "post_close_summary_grace_timeout_sec": 90.0,
+        "post_close_summary_grace_deadline": 1780583931.4306834,
+        "deferred_reason": "post_close_summary_pending",
+        "pending_positions": 0,
+        "close_request_backlog": 0,
+        "close_count": 8,
+        "open_count": 0,
+        "drain_tick_after_enqueue": true,
+        "termination_reason": null
+      },
+      {
+        "event": "post_close_extra_tick_triggered",
+        "run_ts": "2026-06-04T14:37:21.430837+00:00",
+        "close_requested": true,
+        "close_wait_deadline": 1780583881.341046,
+        "post_close_deadline": 1780583881.3410463,
+        "pending_positions": 0,
+        "close_request_backlog": 0,
+        "close_count": 8,
+        "open_count": 0,
+        "drain_tick_after_enqueue": true,
+        "termination_reason": null
+      },
+      {
+        "event": "post_close_extra_tick_consumed",
+        "run_ts": "2026-06-04T14:37:21.434622+00:00",
+        "close_requested": true,
+        "close_wait_deadline": 1780583881.341046,
+        "post_close_deadline": 1780583881.3410463,
+        "pending_positions": 0,
+        "close_request_backlog": 0,
+        "close_count": 8,
+        "open_count": 0,
+        "drain_tick_after_enqueue": true,
+        "termination_reason": null
+      },
+      {
+        "event": "runner_termination",
+        "run_ts": "2026-06-04T14:37:23.446872+00:00",
+        "close_requested": true,
+        "close_wait_deadline": 1780583881.341046,
+        "post_close_deadline": 1780583881.3410463,
+        "final_drain_deadline": null,
+        "pending_positions": 0,
+        "close_drain_snapshot": {
+          "position_open_count": 0,
+          "position_close_request_count": 0,
+          "position_close_request_count_raw": 0,
+          "position_close_count": 8,
+          "pending_positions": 0,
+          "close_request_backlog": 0,
+          "close_request_backlog_raw": 0,
+          "duplicate_close_request_count": 0,
+          "pending_position_symbols": [],
+          "effective_close_request_symbols": [],
+          "duplicate_close_request_symbols": [],
+          "progress_complete": true
+        },
+        "drain_tick_after_enqueue": true,
+        "termination_reason": "proc_exited"
+      }
+    ],
+    "runner_diagnostics": [
+      {
+        "event": "position_close_request_enqueue_skipped",
+        "run_ts": "2026-06-04T14:37:16.344941+00:00",
+        "reason": "no_pending_open_symbols",
+        "symbols": [
+          "BTCUSDTM",
+          "BNBUSDTM",
+          "SOLUSDTM",
+          "XRPUSDTM"
+        ],
+        "requested_symbols": [
+          "BTCUSDTM",
+          "BNBUSDTM",
+          "SOLUSDTM",
+          "XRPUSDTM"
+        ],
+        "pending_open_symbols": [],
+        "skipped_symbols": [
+          "BTCUSDTM",
+          "BNBUSDTM",
+          "SOLUSDTM",
+          "XRPUSDTM"
+        ],
+        "symbol_filter_state": "pending_open_symbols_filtered",
+        "inserted": 0
+      },
+      {
+        "event": "runner_close_requests_enqueued",
+        "run_ts": "2026-06-04T14:37:16.345031+00:00",
+        "close_requested": true,
+        "req_count": 0,
+        "close_wait_deadline": 1780583881.341046,
+        "post_close_deadline": 1780583881.3410463,
+        "pending_positions": 0,
+        "drain_tick_after_enqueue": false,
+        "termination_reason": null,
+        "close_deferral_bypassed": false
+      },
+      {
+        "event": "runner_close_wait_tick",
+        "run_ts": "2026-06-04T14:37:19.032783+00:00",
+        "close_requested": true,
+        "close_wait_deadline": 1780583881.341046,
+        "post_close_deadline": 1780583881.3410463,
+        "pending_positions": 0,
+        "close_request_backlog": 0,
+        "close_request_backlog_raw": 0,
+        "duplicate_close_request_count": 0,
+        "close_count": 8,
+        "open_count": 0,
+        "drain_tick_after_enqueue": true,
+        "termination_reason": null
+      },
+      {
+        "event": "post_close_summary_grace_armed",
+        "run_ts": "2026-06-04T14:37:21.430701+00:00",
+        "close_requested": true,
+        "close_wait_deadline": 1780583881.341046,
+        "post_close_deadline": 1780583881.3410463,
+        "post_close_summary_grace_ticks": 1,
+        "post_close_summary_grace_timeout_sec": 90.0,
+        "post_close_summary_grace_armed_at": 1780583841.4306834,
+        "post_close_summary_grace_deadline": 1780583931.4306834,
+        "post_close_eval_count": 0,
+        "summary_emit_done_count": 0,
+        "entry_gate_decision_summary_count": 147,
+        "risk_decision_count": 147,
+        "require_fresh_tail_cycle": false,
+        "pending_positions": 0,
+        "close_request_backlog": 0,
+        "close_count": 8,
+        "open_count": 0,
+        "drain_tick_after_enqueue": true,
+        "termination_reason": null
+      },
+      {
+        "event": "post_close_summary_grace_tick_consumed",
+        "run_ts": "2026-06-04T14:37:21.430799+00:00",
+        "close_requested": true,
+        "close_wait_deadline": 1780583881.341046,
+        "post_close_deadline": 1780583881.3410463,
+        "post_close_summary_grace_tick_count": 1,
+        "post_close_summary_grace_ticks": 1,
+        "post_close_summary_grace_timeout_sec": 90.0,
+        "post_close_summary_grace_deadline": 1780583931.4306834,
+        "post_close_eval_count": 0,
+        "summary_emit_done_count": 0,
+        "entry_gate_decision_summary_count": 147,
+        "risk_decision_count": 147,
+        "require_fresh_tail_cycle": false,
+        "pending_positions": 0,
+        "close_request_backlog": 0,
+        "close_count": 8,
+        "open_count": 0,
+        "drain_tick_after_enqueue": true,
+        "termination_reason": null
+      },
+      {
+        "event": "runner_shutdown_deferred",
+        "run_ts": "2026-06-04T14:37:21.430819+00:00",
+        "close_requested": true,
+        "close_wait_deadline": 1780583881.341046,
+        "post_close_deadline": 1780583881.3410463,
+        "post_close_summary_grace_tick_count": 1,
+        "post_close_summary_grace_ticks": 1,
+        "post_close_summary_grace_timeout_sec": 90.0,
+        "post_close_summary_grace_deadline": 1780583931.4306834,
+        "deferred_reason": "post_close_summary_pending",
+        "pending_positions": 0,
+        "close_request_backlog": 0,
+        "close_count": 8,
+        "open_count": 0,
+        "drain_tick_after_enqueue": true,
+        "termination_reason": null
+      },
+      {
+        "event": "post_close_extra_tick_triggered",
+        "run_ts": "2026-06-04T14:37:21.430837+00:00",
+        "close_requested": true,
+        "close_wait_deadline": 1780583881.341046,
+        "post_close_deadline": 1780583881.3410463,
+        "pending_positions": 0,
+        "close_request_backlog": 0,
+        "close_count": 8,
+        "open_count": 0,
+        "drain_tick_after_enqueue": true,
+        "termination_reason": null
+      },
+      {
+        "event": "post_close_extra_tick_consumed",
+        "run_ts": "2026-06-04T14:37:21.434622+00:00",
+        "close_requested": true,
+        "close_wait_deadline": 1780583881.341046,
+        "post_close_deadline": 1780583881.3410463,
+        "pending_positions": 0,
+        "close_request_backlog": 0,
+        "close_count": 8,
+        "open_count": 0,
+        "drain_tick_after_enqueue": true,
+        "termination_reason": null
+      },
+      {
+        "event": "runner_termination",
+        "run_ts": "2026-06-04T14:37:23.446872+00:00",
+        "close_requested": true,
+        "close_wait_deadline": 1780583881.341046,
+        "post_close_deadline": 1780583881.3410463,
+        "final_drain_deadline": null,
+        "pending_positions": 0,
+        "close_drain_snapshot": {
+          "position_open_count": 0,
+          "position_close_request_count": 0,
+          "position_close_request_count_raw": 0,
+          "position_close_count": 8,
+          "pending_positions": 0,
+          "close_request_backlog": 0,
+          "close_request_backlog_raw": 0,
+          "duplicate_close_request_count": 0,
+          "pending_position_symbols": [],
+          "effective_close_request_symbols": [],
+          "duplicate_close_request_symbols": [],
+          "progress_complete": true
+        },
+        "drain_tick_after_enqueue": true,
+        "termination_reason": "proc_exited"
+      }
+    ],
+    "process_stop_mode": null,
+    "final_close_drain_snapshot": {
+      "position_open_count": 0,
+      "position_close_request_count": 0,
+      "position_close_request_count_raw": 0,
+      "position_close_count": 8,
+      "pending_positions": 0,
+      "close_request_backlog": 0,
+      "close_request_backlog_raw": 0,
+      "duplicate_close_request_count": 0,
+      "pending_position_symbols": [],
+      "effective_close_request_symbols": [],
+      "duplicate_close_request_symbols": [],
+      "progress_complete": true
+    },
+    "process_returncode_raw": 0,
+    "process_returncode": 0,
+    "summary_json": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\results\\controlled_kpi_20260604_130000_after_summary.json",
+    "entry_gate_report_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\results\\controlled_kpi_20260604_130000_after_summary.json",
+    "summary": {
+      "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260604_130000.db",
+      "hours": null,
+      "event": "entry_gate_decision_summary",
+      "rows": 344,
+      "risk_decision_rows": 344,
+      "count_alignment": {
+        "entry_gate_decision_summary": 344,
+        "risk_decision": 344,
+        "delta": 0,
+        "count_matches": true
+      },
+      "ordering": {
+        "summary_before_risk_pairs": 344,
+        "risk_without_summary": 0,
+        "summary_without_risk": 0,
+        "trailing_summary_rows": 0,
+        "symbol_mismatch_pairs": 0,
+        "all_pairs_in_order": true
+      },
+      "payload_completeness": {
+        "required_keys": [
+          "ts",
+          "symbol",
+          "side",
+          "final_allow",
+          "entry_gate_bucket",
+          "global_block_reason",
+          "local_gate_reason",
+          "effective_gate_reason",
+          "effective_gate_reason_origin",
+          "paper_gate_active",
+          "paper_gate_reason",
+          "paper_gate_mode",
+          "risk_allow_before_paper_gate",
+          "paper_gate_override",
+          "entry_decision_raw",
+          "entry_decision_final",
+          "entry_reason",
+          "entry_reason_classification",
+          "entry_live_edge",
+          "entry_edge_over_fee",
+          "entry_edge_after_execution",
+          "spread",
+          "liquidity_ok",
+          "confidence",
+          "fee_estimate",
+          "current_edge",
+          "realtime_edge",
+          "max_positions_blocked"
+        ],
+        "required_spread_keys": [
+          "abs",
+          "pct",
+          "bps"
+        ],
+        "complete_rows": 344,
+        "incomplete_rows": 0,
+        "all_complete": true,
+        "sample_incomplete_rows": []
+      },
+      "admitted_vs_blocked": {
+        "admitted": 0,
+        "blocked": 344
+      },
+      "top_global_block_reason": [],
+      "top_local_gate_reason": [
+        [
+          "symbol_strategy_side_allowlist",
+          313
+        ],
+        [
+          "no_runtime_profile",
+          13
+        ],
+        [
+          "missing_expected_move_calibration_profile",
+          8
+        ],
+        [
+          "net_target_guard",
+          4
+        ],
+        [
+          "current_side",
+          3
+        ],
+        [
+          "side_expectancy",
+          3
+        ]
+      ],
+      "paper_gate_overrides": 0,
+      "last_entry_gate_decision_summary": {
+        "symbol": "XRPUSDTM",
+        "side": null,
+        "final_allow": false,
+        "paper_gate_active": false,
+        "missing_keys": [],
+        "missing_spread_keys": []
+      },
+      "last_risk_decision": {
+        "symbol": "XRPUSDTM",
+        "entry_decision": "hold",
+        "allow": false
+      },
+      "position_open_rows": 0,
+      "position_open_truth_classification_counts": [],
+      "natural_entry_candidate_contract": {
+        "classification": "NATURAL_ENTRY_CANDIDATE_PRESENT",
+        "usable_strategy_economics": false,
+        "strategy_evidence_classification": "NO_NATURAL_ADMISSION",
+        "assisted_seed_evidence_only": false,
+        "router_candidate_rows": 11,
+        "rejected_candidate_count": 344,
+        "empty_assignment_rows": 0,
+        "final_surviving_candidate_count": 11,
+        "natural_admitted_count": 0,
+        "assisted_seed_admitted_count": 0,
+        "assisted_seed_open_count": 0,
+        "fallback_open_count": 0,
+        "router_candidate_sides": [
+          {
+            "symbol": "BNBUSDTM",
+            "strategy": null,
+            "side": null,
+            "count": 83
+          },
+          {
+            "symbol": "BNBUSDTM",
+            "strategy": "MeanReversionV2",
+            "side": "sell",
+            "count": 3
+          },
+          {
+            "symbol": "BTCUSDTM",
+            "strategy": null,
+            "side": null,
+            "count": 84
+          },
+          {
+            "symbol": "BTCUSDTM",
+            "strategy": "MeanReversionV2",
+            "side": "sell",
+            "count": 2
+          },
+          {
+            "symbol": "SOLUSDTM",
+            "strategy": null,
+            "side": null,
+            "count": 83
+          },
+          {
+            "symbol": "SOLUSDTM",
+            "strategy": "MeanReversionV2",
+            "side": "sell",
+            "count": 3
+          },
+          {
+            "symbol": "XRPUSDTM",
+            "strategy": null,
+            "side": null,
+            "count": 83
+          },
+          {
+            "symbol": "XRPUSDTM",
+            "strategy": "MeanReversionV2",
+            "side": "sell",
+            "count": 3
+          }
+        ],
+        "allowed_sides": [
+          {
+            "symbol": "BNBUSDTM",
+            "strategy": "MeanReversionV2",
+            "side": "sell",
+            "count": 3
+          },
+          {
+            "symbol": "BTCUSDTM",
+            "strategy": "MeanReversionV2",
+            "side": "sell",
+            "count": 2
+          },
+          {
+            "symbol": "SOLUSDTM",
+            "strategy": "MeanReversionV2",
+            "side": "sell",
+            "count": 3
+          },
+          {
+            "symbol": "XRPUSDTM",
+            "strategy": "MeanReversionV2",
+            "side": "sell",
+            "count": 3
+          }
+        ],
+        "assisted_seed_allowed_sides": [],
+        "blocked_sides": [
+          {
+            "symbol": "BNBUSDTM",
+            "strategy": null,
+            "side": null,
+            "reason": "symbol_strategy_side_allowlist",
+            "count": 70
+          },
+          {
+            "symbol": "BTCUSDTM",
+            "strategy": null,
+            "side": null,
+            "reason": "symbol_strategy_side_allowlist",
+            "count": 82
+          },
+          {
+            "symbol": "SOLUSDTM",
+            "strategy": null,
+            "side": null,
+            "reason": "symbol_strategy_side_allowlist",
+            "count": 80
+          },
+          {
+            "symbol": "XRPUSDTM",
+            "strategy": null,
+            "side": null,
+            "reason": "symbol_strategy_side_allowlist",
+            "count": 81
+          }
+        ],
+        "guard_rejected_sides": [
+          {
+            "symbol": "BNBUSDTM",
+            "strategy": null,
+            "side": null,
+            "reason": "net_target_guard",
+            "count": 1
+          },
+          {
+            "symbol": "BNBUSDTM",
+            "strategy": "MeanReversionV2",
+            "side": "sell",
+            "reason": "side_expectancy",
+            "count": 1
+          },
+          {
+            "symbol": "BTCUSDTM",
+            "strategy": null,
+            "side": null,
+            "reason": "net_target_guard",
+            "count": 1
+          },
+          {
+            "symbol": "SOLUSDTM",
+            "strategy": null,
+            "side": null,
+            "reason": "net_target_guard",
+            "count": 1
+          },
+          {
+            "symbol": "SOLUSDTM",
+            "strategy": "MeanReversionV2",
+            "side": "sell",
+            "reason": "side_expectancy",
+            "count": 1
+          },
+          {
+            "symbol": "XRPUSDTM",
+            "strategy": null,
+            "side": null,
+            "reason": "net_target_guard",
+            "count": 1
+          },
+          {
+            "symbol": "XRPUSDTM",
+            "strategy": "MeanReversionV2",
+            "side": "sell",
+            "reason": "side_expectancy",
+            "count": 1
+          }
+        ],
+        "invalid_side_candidates": [],
+        "raw_side_value_counts_top20": [
+          {
+            "raw_side": "sell",
+            "count": 22
+          }
+        ],
+        "rejection_reason_counts": [
+          [
+            "symbol_strategy_side_allowlist",
+            313
+          ],
+          [
+            "no_runtime_profile",
+            13
+          ],
+          [
+            "missing_expected_move_calibration_profile",
+            8
+          ],
+          [
+            "net_target_guard",
+            4
+          ],
+          [
+            "current_side",
+            3
+          ],
+          [
+            "side_expectancy",
+            3
+          ]
+        ],
+        "reason_codes": [
+          "ROUTER_CANDIDATES_EXIST",
+          "NO_NATURAL_ADMISSION",
+          "ALLOWLIST_BLOCKLIST_REJECTIONS_PRESENT",
+          "GUARD_REJECTIONS_PRESENT"
+        ]
+      },
+      "last_position_open": {
+        "symbol": null,
+        "strategy": null,
+        "entry_main_strategy": null,
+        "side": null,
+        "selection_source": null,
+        "decision_router_path": null,
+        "override_reason": null,
+        "canonical_bucket": null,
+        "canonical_bucket_key": null,
+        "entry_reason": null,
+        "entry_open_truth_classification": "UNKNOWN_REQUIRES_REVIEW"
+      },
+      "metrics": {
+        "admitted": {
+          "current_edge": {
+            "count": 0,
+            "mean": null,
+            "median": null
+          },
+          "realtime_edge": {
+            "count": 0,
+            "mean": null,
+            "median": null
+          },
+          "spread_bps": {
+            "count": 0,
+            "mean": null,
+            "median": null
+          },
+          "confidence": {
+            "count": 0,
+            "mean": null,
+            "median": null
+          }
+        },
+        "blocked": {
+          "current_edge": {
+            "count": 11,
+            "mean": 0.002040052410027802,
+            "median": 0.0020400318582307953
+          },
+          "realtime_edge": {
+            "count": 11,
+            "mean": 0.001987441196281366,
+            "median": 0.0019834065994316294
+          },
+          "spread_bps": {
+            "count": 344,
+            "mean": 0.008349811398487521,
+            "median": 0.0
+          },
+          "confidence": {
+            "count": 344,
+            "mean": 0.03115551332254562,
+            "median": 0.0
+          }
+        }
+      }
+    }
+  },
+  "delta": {}
+}

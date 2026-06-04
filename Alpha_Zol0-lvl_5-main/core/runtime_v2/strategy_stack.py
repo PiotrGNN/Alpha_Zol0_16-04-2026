@@ -22,6 +22,10 @@ def _env_float(name: str, default: float) -> float:
         return float(default)
 
 
+def _env_flag(name: str, default: str = "0") -> bool:
+    return str(os.environ.get(name, default)).strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _confidence_with_scaling(
     feature: FeatureFrame,
     magnitude: float,
@@ -141,7 +145,14 @@ class MeanReversionV2:
         if abs(trend) < min_extreme:
             return _hold_signal(self.name, "meanrev_no_extreme")
         direction = "sell" if trend > 0 else "buy"
-        expected_move = abs(trend) * 0.65
+        h10_calibration = _env_flag("V2_MEANREV_H10_CALIBRATION_ENABLE", "0")
+        expected_move_multiplier = (
+            max(0.0, _env_float("V2_MEANREV_H10_EXPECTED_MOVE_MULT", 1.25))
+            if h10_calibration
+            else 0.65
+        )
+        signal_horizon_ticks = 10 if h10_calibration else 3
+        expected_move = abs(trend) * expected_move_multiplier
         confidence, scaling = _confidence_with_scaling(feature, trend)
         return StrategySignal(
             strategy=self.name,
@@ -152,10 +163,11 @@ class MeanReversionV2:
             reason_code="meanrev_signal",
             metadata={
                 "trend_extreme": trend,
-                "signal_horizon_ticks": 3,
-                "expected_move_formula": "abs(ret_3) * 0.65",
+                "signal_horizon_ticks": signal_horizon_ticks,
+                "expected_move_formula": f"abs(ret_3) * {expected_move_multiplier:g}",
                 "expected_move_raw": abs(trend),
                 "expected_move_scaled": expected_move,
+                "h10_calibration_enabled": h10_calibration,
                 "confidence_scaling": scaling,
             },
         )
