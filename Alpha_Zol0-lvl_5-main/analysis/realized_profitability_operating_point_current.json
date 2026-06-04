@@ -1,0 +1,140 @@
+{
+  "best_realized_bucket": {
+    "avg_expected_net_after_full_cost": 0.22695458650684974,
+    "avg_loss_abs": 0.1085702089999901,
+    "avg_win": 0.151289025,
+    "candidate_key": "BTCUSDTM:MEANREVERSION:sell",
+    "canonical_strategy": "MEANREVERSION",
+    "exit_reason_counts": {
+      "protective_exit": 4,
+      "take_profit_net": 2,
+      "time_decay_exit": 1
+    },
+    "loss_count": 5,
+    "net_pnl": -0.24027299499995053,
+    "passes_realized_target": false,
+    "profit_factor": 0.5573868794892484,
+    "side": "sell",
+    "symbol": "BTCUSDTM",
+    "trade_count": 7,
+    "win_count": 2,
+    "win_rate": 0.2857142857142857
+  },
+  "classification": "REALIZED_PROFITABILITY_LOSS_DOMINANT",
+  "decision": {
+    "next_step": "do_not_promote_current_meanreversion_h10_sizing_exit_profile",
+    "patch_exit": false,
+    "patch_strategy": false,
+    "reason": "natural clean paper trades exist but realized pnl/profit factor fail the operating point objective"
+  },
+  "inputs": {
+    "db_paths": [
+      "tmp\\controlled_kpi_after_20260604_125000.db",
+      "tmp\\controlled_kpi_after_20260604_130000.db",
+      "tmp\\controlled_kpi_after_20260604_131000.db"
+    ]
+  },
+  "objective": {
+    "min_trades": 5,
+    "net_pnl_min": 0.0,
+    "profit_factor_min": 1.2,
+    "profitability_claim": false,
+    "win_rate_min": 0.55
+  },
+  "profitability_claim": false,
+  "ranked_buckets": [
+    {
+      "avg_expected_net_after_full_cost": 0.22695458650684974,
+      "avg_loss_abs": 0.1085702089999901,
+      "avg_win": 0.151289025,
+      "candidate_key": "BTCUSDTM:MEANREVERSION:sell",
+      "canonical_strategy": "MEANREVERSION",
+      "exit_reason_counts": {
+        "protective_exit": 4,
+        "take_profit_net": 2,
+        "time_decay_exit": 1
+      },
+      "loss_count": 5,
+      "net_pnl": -0.24027299499995053,
+      "passes_realized_target": false,
+      "profit_factor": 0.5573868794892484,
+      "side": "sell",
+      "symbol": "BTCUSDTM",
+      "trade_count": 7,
+      "win_count": 2,
+      "win_rate": 0.2857142857142857
+    },
+    {
+      "avg_expected_net_after_full_cost": 0.2851504930813449,
+      "avg_loss_abs": 0.08768280249999463,
+      "avg_win": 0.034086208333341486,
+      "candidate_key": "BNBUSDTM:MEANREVERSION:sell",
+      "canonical_strategy": "MEANREVERSION",
+      "exit_reason_counts": {
+        "protective_exit": 3,
+        "run_end": 1,
+        "take_profit_net": 2,
+        "time_decay_exit": 1
+      },
+      "loss_count": 4,
+      "net_pnl": -0.2484725849999541,
+      "passes_realized_target": false,
+      "profit_factor": 0.2915583845533185,
+      "side": "sell",
+      "symbol": "BNBUSDTM",
+      "trade_count": 7,
+      "win_count": 3,
+      "win_rate": 0.42857142857142855
+    },
+    {
+      "avg_expected_net_after_full_cost": 0.3115841276572677,
+      "avg_loss_abs": 0.11287565000000015,
+      "avg_win": 0.13804962499999085,
+      "candidate_key": "SOLUSDTM:MEANREVERSION:sell",
+      "canonical_strategy": "MEANREVERSION",
+      "exit_reason_counts": {
+        "protective_exit": 5,
+        "take_profit_net": 2
+      },
+      "loss_count": 5,
+      "net_pnl": -0.28827900000001905,
+      "passes_realized_target": false,
+      "profit_factor": 0.4892095859469803,
+      "side": "sell",
+      "symbol": "SOLUSDTM",
+      "trade_count": 7,
+      "win_count": 2,
+      "win_rate": 0.2857142857142857
+    },
+    {
+      "avg_expected_net_after_full_cost": 0.2501590997880653,
+      "avg_loss_abs": 0.08514948333332915,
+      "avg_win": 0.06723487333334328,
+      "candidate_key": "XRPUSDTM:MEANREVERSION:sell",
+      "canonical_strategy": "MEANREVERSION",
+      "exit_reason_counts": {
+        "protective_exit": 5,
+        "take_profit_net": 3,
+        "time_decay_exit": 1
+      },
+      "loss_count": 6,
+      "net_pnl": -0.30919227999994503,
+      "passes_realized_target": false,
+      "profit_factor": 0.3948049400966022,
+      "side": "sell",
+      "symbol": "XRPUSDTM",
+      "trade_count": 9,
+      "win_count": 3,
+      "win_rate": 0.3333333333333333
+    }
+  ],
+  "summary": {
+    "bucket_count": 4,
+    "clean_trade_count": 30,
+    "contaminated_trade_count": 0,
+    "net_pnl": -1.0862168599998687,
+    "passing_bucket_count": 0,
+    "trade_count": 30,
+    "win_rate": 0.3333333333333333
+  }
+}
