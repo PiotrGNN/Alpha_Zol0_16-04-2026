@@ -22,62 +22,63 @@
         "process_returncode": 0,
         "seed": 0
       },
-      "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260603_180101.db",
+      "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260604_010148.db",
       "effective_entry_min_net_usdt_values": [
         0.12
       ],
-      "entry_eval_count_global": 149,
+      "entry_eval_count_global": 124,
       "event_counts": {
-        "entry_eval_v2": 149,
-        "entry_gate_decision_summary": 505,
-        "entry_reject_v2": 505,
-        "pre_entry_candidate_rejection_trace": 505,
-        "risk_decision": 505,
+        "entry_eval_v2": 124,
+        "entry_gate_decision_summary": 523,
+        "entry_reject_v2": 523,
+        "pre_entry_candidate_rejection_trace": 523,
+        "risk_decision": 523,
         "runtime_v2_started": 1,
         "runtime_v2_stopped": 1
       },
       "expected_net_after_cost_ratio_stats": {
-        "count": 288,
-        "max": 0.002157073563108565,
-        "mean": 0.00024821890849164295,
-        "min": -0.0001154235552723695
+        "count": 243,
+        "max": 0.0007526021063614853,
+        "mean": 0.00012096397738879964,
+        "min": -0.00010749616531764445
       },
       "expected_net_after_full_cost_stats": {
-        "count": 10,
-        "max": 0.05386902950622281,
-        "mean": 0.030537919551154792,
-        "min": 0.01671284650768015
+        "count": 5,
+        "max": 0.023586173712315767,
+        "mean": 0.01982571080621421,
+        "min": 0.008319553793948758
       },
       "global_reason_distribution": {
-        "allow": 20,
-        "entry_edge_filtered": 516,
-        "entry_min_net_guard": 30,
+        "allow": 10,
+        "entry_edge_filtered": 456,
+        "entry_min_net_guard": 15,
+        "net_target_guard": 3,
         "no_runtime_profile": 240,
-        "symbol_strategy_side_allowlist": 858
+        "symbol_strategy_side_allowlist": 969
       },
-      "min_net_guard_count": 20,
+      "min_net_guard_count": 10,
       "position_open_count": 0,
       "process_returncode": 0,
       "research_expected_net_after_full_cost": 0.08144557636074735,
-      "result_path": "results\\controlled_kpi_20260603_180101.json",
-      "run_id": "20260603_180101",
-      "runtime_profile_event_count": 427,
+      "result_path": "results\\controlled_kpi_20260604_010148.json",
+      "run_id": "20260604_010148",
+      "runtime_profile_event_count": 362,
       "runtime_profile_exists": true,
       "runtime_profile_keys_top": {
-        "BNBUSDTM|rolling_quote_window|n=180|span=474": 12,
-        "BNBUSDTM|rolling_quote_window|n=180|span=483": 9,
-        "BNBUSDTM|rolling_quote_window|n=180|span=506": 9,
-        "BNBUSDTM|rolling_quote_window|n=180|span=511": 9,
-        "BNBUSDTM|rolling_quote_window|n=180|span=527": 9
+        "BNBUSDTM|rolling_quote_window|n=180|span=478": 12,
+        "BNBUSDTM|rolling_quote_window|n=180|span=480": 15,
+        "BNBUSDTM|rolling_quote_window|n=180|span=482": 24,
+        "BNBUSDTM|rolling_quote_window|n=180|span=484": 9,
+        "BNBUSDTM|rolling_quote_window|n=180|span=518": 15
       },
       "shutdown_classification": "close_flush_done_pending_positions_zero",
-      "target_entry_eval_count": 427,
+      "target_entry_eval_count": 124,
       "target_reason_distribution": {
-        "allow": 20,
-        "entry_edge_filtered": 387,
-        "entry_min_net_guard": 20
+        "allow": 10,
+        "entry_edge_filtered": 342,
+        "entry_min_net_guard": 10
       },
-      "target_runtime_event_count": 427
+      "target_runtime_event_count": 362
     },
     {
       "allowlist_canonical_keys": [
@@ -101,67 +102,67 @@
         "process_returncode": 0,
         "seed": 0
       },
-      "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260603_182201.db",
+      "db_path": "D:\\Alpha_Zol0-lvl_5-main\\Alpha_Zol0-lvl_5-main\\tmp\\controlled_kpi_after_20260604_012213.db",
       "effective_entry_min_net_usdt_values": [
         0.12
       ],
-      "entry_eval_count_global": 98,
+      "entry_eval_count_global": 89,
       "event_counts": {
-        "entry_eval_v2": 98,
-        "entry_gate_decision_summary": 492,
-        "entry_reject_v2": 492,
-        "pre_entry_candidate_rejection_trace": 492,
-        "risk_decision": 492,
+        "entry_eval_v2": 89,
+        "entry_gate_decision_summary": 500,
+        "entry_reject_v2": 500,
+        "pre_entry_candidate_rejection_trace": 500,
+        "risk_decision": 500,
         "runtime_v2_started": 1,
         "runtime_v2_stopped": 1
       },
       "expected_net_after_cost_ratio_stats": {
-        "count": 182,
-        "max": 0.001500023392234293,
-        "mean": 0.0003508714864861923,
-        "min": -9.877933974568765e-05
+        "count": 166,
+        "max": 0.0010319549843178634,
+        "mean": 0.0003653531913244706,
+        "min": -9.816079245822095e-05
       },
       "expected_net_after_full_cost_stats": {
-        "count": 14,
-        "max": 0.044791973511999386,
-        "mean": 0.02584837712591605,
-        "min": 0.018596702436875164
+        "count": 12,
+        "max": 0.03410747308055826,
+        "mean": 0.024866997023869183,
+        "min": 0.01589584119450839
       },
       "global_reason_distribution": {
-        "allow": 28,
-        "entry_edge_filtered": 280,
-        "entry_min_net_guard": 42,
-        "no_runtime_profile": 765,
-        "symbol_strategy_side_allowlist": 459
+        "allow": 24,
+        "entry_edge_filtered": 260,
+        "entry_min_net_guard": 36,
+        "no_runtime_profile": 903,
+        "symbol_strategy_side_allowlist": 366
       },
-      "min_net_guard_count": 28,
+      "min_net_guard_count": 24,
       "position_open_count": 0,
       "process_returncode": 0,
       "research_expected_net_after_full_cost": 0.08137487663914103,
-      "result_path": "results\\controlled_kpi_20260603_182201.json",
-      "run_id": "20260603_182201",
-      "runtime_profile_event_count": 266,
+      "result_path": "results\\controlled_kpi_20260604_012213.json",
+      "run_id": "20260604_012213",
+      "runtime_profile_event_count": 243,
       "runtime_profile_exists": true,
       "runtime_profile_keys_top": {
-        "AVAXUSDTM|rolling_quote_window|n=180|span=827": 7,
-        "AVAXUSDTM|rolling_quote_window|n=180|span=835": 6,
-        "AVAXUSDTM|rolling_quote_window|n=180|span=849": 10,
-        "AVAXUSDTM|rolling_quote_window|n=180|span=864": 6,
-        "AVAXUSDTM|rolling_quote_window|n=180|span=875": 7
+        "AVAXUSDTM|rolling_quote_window|n=10|span=59": 4,
+        "AVAXUSDTM|rolling_quote_window|n=11|span=59": 4,
+        "AVAXUSDTM|rolling_quote_window|n=180|span=1072": 6,
+        "AVAXUSDTM|rolling_quote_window|n=180|span=1084": 6,
+        "AVAXUSDTM|rolling_quote_window|n=49|span=288": 4
       },
       "shutdown_classification": "close_flush_done_pending_positions_zero",
-      "target_entry_eval_count": 266,
+      "target_entry_eval_count": 89,
       "target_reason_distribution": {
-        "allow": 28,
-        "entry_edge_filtered": 210,
-        "entry_min_net_guard": 28
+        "allow": 24,
+        "entry_edge_filtered": 195,
+        "entry_min_net_guard": 24
       },
-      "target_runtime_event_count": 266
+      "target_runtime_event_count": 243
     }
   ],
   "classification": "NO_RESEARCH_CANDIDATE_PASSES_CURRENT_RUNTIME_GATES",
-  "generated_at_utc": "2026-06-03T17:12:13.452338+00:00",
-  "next_action": "No threshold/strategy patch; current candidates did not pass runtime gates with clean evidence.",
+  "generated_at_utc": "2026-06-03T23:43:49.536851+00:00",
+  "next_action": "Build fresh discovery/history for non-rejected candidates with current-runtime expected_net_after_full_cost >= 0.08; do not lower thresholds or patch strategy from these results.",
   "profitability_claim": false,
   "scope": {
     "diagnostic_force_open": false,
