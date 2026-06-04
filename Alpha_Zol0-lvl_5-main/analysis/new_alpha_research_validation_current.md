@@ -1,66 +1,68 @@
 # New Alpha Search Space Research
 
-- generated_at_utc: `2026-06-03T23:46:28.100301+00:00`
+- generated_at_utc: `2026-06-04T00:42:13.010059+00:00`
 - classification: `NEW_ALPHA_CANDIDATE_FOUND_FOR_PAPER_VALIDATION`
 - min_expected_net_usdt: `0.08`
 - evaluated_symbol_count: `11`
 - malformed_candle_count: `0`
-- selected_hypothesis: `AVAXUSDTM:TrendFollowingV2:buy`
+- selected_hypothesis: `AVAXUSDTM:TrendFollowingV2:sell`
+- runtime_admissible_candidate_count: `0`
+- source_parity_classification: `RESEARCH_RUNTIME_SOURCE_MISMATCH_NOT_RUNTIME_ADMISSIBLE`
 
 ## Candidate Rank
-| rank | candidate | expected_net | notional | probability | confidence | decision | risk |
-|---:|---|---:|---:|---:|---:|---|---|
-| 1 | AVAXUSDTM:TrendFollowingV2:buy | 0.1236719064890212 | 13.606800000000002 | 0.9999998458849837 | 1.0 | allow | allow |
-| 2 | DOTUSDTM:TrendFollowingV2:sell | 0.12291030539568437 | 16.544999999999998 | 0.9999999811292674 | 1.0 | allow | allow |
-| 3 | LINKUSDTM:TrendFollowingV2:buy | 0.12201997617837275 | 16.816 | 0.9999999555928738 | 1.0 | allow | allow |
-| 4 | ADAUSDTM:TrendFollowingV2:sell | 0.12090922455150288 | 18.1017 | 0.9999999818980682 | 1.0 | allow | allow |
-| 5 | DOTUSDTM:MomentumV2:sell | 0.12089733453237533 | 16.575 | 0.9999999390704571 | 1.0 | allow | allow |
-| 6 | BNBUSDTM:TrendFollowingV2:buy | 0.11623046090973048 | 18.6912 | 0.9999999966987572 | 1.0 | allow | allow |
-| 7 | DOTUSDTM:TrendFollowingV2:buy | 0.11164656443623062 | 13.104000000000001 | 0.9999987876567992 | 1.0 | allow | allow |
-| 8 | DOTUSDTM:TrendFollowingV2:sell | 0.10887425611510712 | 16.560000000000002 | 0.9999998178209238 | 1.0 | allow | allow |
-| 9 | ADAUSDTM:TrendFollowingV2:sell | 0.10742263648664539 | 18.0792 | 0.9999998680043266 | 1.0 | allow | allow |
-| 10 | ADAUSDTM:TrendFollowingV2:sell | 0.10741492882363377 | 18.1143 | 0.9999998662746244 | 1.0 | allow | allow |
-| 11 | LINKUSDTM:TrendFollowingV2:buy | 0.1064707467108204 | 14.7366 | 0.9999994317745071 | 1.0 | allow | allow |
-| 12 | ETHUSDTM:TrendFollowingV2:sell | 0.10317884864801827 | 17.7618 | 0.9999998766613293 | 1.0 | allow | allow |
-| 13 | LINKUSDTM:TrendFollowingV2:buy | 0.10125643672034457 | 14.7528 | 0.9999991471145127 | 1.0 | allow | allow |
-| 14 | LINKUSDTM:TrendFollowingV2:buy | 0.10051618590531967 | 14.042000000000002 | 0.9999976343333306 | 1.0 | allow | allow |
-| 15 | LINKUSDTM:TrendFollowingV2:buy | 0.09888574244333047 | 14.011400000000004 | 0.9999956884323385 | 0.9927194235203756 | allow | allow |
-| 16 | DOTUSDTM:TrendFollowingV2:buy | 0.09576544137931062 | 14.430000000000001 | 0.9999964592900699 | 1.0 | allow | allow |
-| 17 | BNBUSDTM:TrendFollowingV2:buy | 0.09574221911259044 | 18.6906 | 0.9999999322707168 | 1.0 | allow | allow |
-| 18 | AVAXUSDTM:TrendFollowingV2:buy | 0.09409624181360207 | 13.600000000000001 | 0.9999953719056107 | 0.9884836557814084 | allow | allow |
-| 19 | DOGEUSDTM:MomentumV2:sell | 0.09319360195418326 | 18.34 | 0.9999999044969516 | 1.0 | allow | allow |
-| 20 | LINKUSDTM:TrendFollowingV2:buy | 0.09312627892151007 | 16.792 | 0.999999014073638 | 1.0 | allow | allow |
-| 21 | SOLUSDTM:TrendFollowingV2:buy | 0.09214056812667189 | 14.310200000000002 | 0.9999972736025368 | 1.0 | allow | allow |
-| 22 | ETHUSDTM:TrendFollowingV2:buy | 0.09196951041347426 | 18.1174 | 0.9999998948312867 | 1.0 | allow | allow |
-| 23 | DOTUSDTM:TrendFollowingV2:buy | 0.09167984784601277 | 12.100000000000001 | 0.9999922762489181 | 0.950995545415856 | allow | allow |
-| 24 | AVAXUSDTM:TrendFollowingV2:buy | 0.08988166388940909 | 17.0373 | 0.9999978083134533 | 1.0 | allow | allow |
-| 25 | SOLUSDTM:TrendFollowingV2:buy | 0.08937319210634019 | 14.5414 | 0.9999997378751612 | 1.0 | allow | allow |
+| rank | candidate | expected_net | notional | probability | confidence | runtime_admissible | source_parity | decision | risk |
+|---:|---|---:|---:|---:|---:|---:|---|---|---|
+| 1 | AVAXUSDTM:TrendFollowingV2:sell | 0.136340652602894 | 17.628600000000002 | 0.999999998269214 | 1.0 | False | RESEARCH_RUNTIME_SOURCE_MISMATCH_NOT_RUNTIME_ADMISSIBLE | allow | allow |
+| 2 | ETHUSDTM:TrendFollowingV2:sell | 0.13524507169811262 | 17.9775 | 0.9999999994206075 | 1.0 | False | RESEARCH_RUNTIME_SOURCE_MISMATCH_NOT_RUNTIME_ADMISSIBLE | allow | allow |
+| 3 | AVAXUSDTM:TrendFollowingV2:sell | 0.13223314594721558 | 17.611000000000004 | 0.9999999973263607 | 1.0 | False | RESEARCH_RUNTIME_SOURCE_MISMATCH_NOT_RUNTIME_ADMISSIBLE | allow | allow |
+| 4 | DOTUSDTM:TrendFollowingV2:sell | 0.13190600347826145 | 13.104000000000001 | 0.9999999643251002 | 1.0 | False | RESEARCH_RUNTIME_SOURCE_MISMATCH_NOT_RUNTIME_ADMISSIBLE | allow | allow |
+| 5 | LINKUSDTM:MomentumV2:sell | 0.1279229635737701 | 13.992700000000001 | 0.9999999100884803 | 1.0 | False | RESEARCH_RUNTIME_SOURCE_MISMATCH_NOT_RUNTIME_ADMISSIBLE | allow | allow |
+| 6 | LINKUSDTM:TrendFollowingV2:sell | 0.1275744031232816 | 16.586 | 0.9999999861797071 | 1.0 | False | RESEARCH_RUNTIME_SOURCE_MISMATCH_NOT_RUNTIME_ADMISSIBLE | allow | allow |
+| 7 | DOTUSDTM:TrendFollowingV2:sell | 0.12291030539568437 | 16.544999999999998 | 0.9999999811292674 | 1.0 | False | RESEARCH_RUNTIME_SOURCE_MISMATCH_NOT_RUNTIME_ADMISSIBLE | allow | allow |
+| 8 | ADAUSDTM:TrendFollowingV2:sell | 0.12153692520438783 | 13.908999999999999 | 0.9999999861984485 | 1.0 | False | RESEARCH_RUNTIME_SOURCE_MISMATCH_NOT_RUNTIME_ADMISSIBLE | allow | allow |
+| 9 | ADAUSDTM:TrendFollowingV2:sell | 0.12090922455150288 | 18.1017 | 0.9999999818980682 | 1.0 | False | RESEARCH_RUNTIME_SOURCE_MISMATCH_NOT_RUNTIME_ADMISSIBLE | allow | allow |
+| 10 | DOTUSDTM:MomentumV2:sell | 0.12089733453237533 | 16.575 | 0.9999999390704571 | 1.0 | False | RESEARCH_RUNTIME_SOURCE_MISMATCH_NOT_RUNTIME_ADMISSIBLE | allow | allow |
+| 11 | AVAXUSDTM:MomentumV2:sell | 0.1206538004773207 | 14.301 | 0.9999999197129592 | 1.0 | False | RESEARCH_RUNTIME_SOURCE_MISMATCH_NOT_RUNTIME_ADMISSIBLE | allow | allow |
+| 12 | ADAUSDTM:TrendFollowingV2:sell | 0.11500930332960847 | 13.9076 | 0.9999999642530926 | 1.0 | False | RESEARCH_RUNTIME_SOURCE_MISMATCH_NOT_RUNTIME_ADMISSIBLE | allow | allow |
+| 13 | SOLUSDTM:TrendFollowingV2:sell | 0.11457766861221115 | 14.2224 | 0.9999999976179477 | 1.0 | False | RESEARCH_RUNTIME_SOURCE_MISMATCH_NOT_RUNTIME_ADMISSIBLE | allow | allow |
+| 14 | ADAUSDTM:TrendFollowingV2:sell | 0.10980486032611976 | 13.788599999999999 | 0.9999991286077766 | 1.0 | False | RESEARCH_RUNTIME_SOURCE_MISMATCH_NOT_RUNTIME_ADMISSIBLE | allow | allow |
+| 15 | AVAXUSDTM:TrendFollowingV2:buy | 0.10941458271237132 | 20.25 | 0.9999999951950405 | 1.0 | False | RESEARCH_RUNTIME_SOURCE_MISMATCH_NOT_RUNTIME_ADMISSIBLE | allow | allow |
+| 16 | DOTUSDTM:TrendFollowingV2:sell | 0.10888057837837871 | 16.53 | 0.9999997831908073 | 1.0 | False | RESEARCH_RUNTIME_SOURCE_MISMATCH_NOT_RUNTIME_ADMISSIBLE | allow | allow |
+| 17 | DOTUSDTM:TrendFollowingV2:sell | 0.10887425611510712 | 16.560000000000002 | 0.9999998178209238 | 1.0 | False | RESEARCH_RUNTIME_SOURCE_MISMATCH_NOT_RUNTIME_ADMISSIBLE | allow | allow |
+| 18 | DOTUSDTM:TrendFollowingV2:buy | 0.10885618253622935 | 18.887 | 0.9999999370335355 | 1.0 | False | RESEARCH_RUNTIME_SOURCE_MISMATCH_NOT_RUNTIME_ADMISSIBLE | allow | allow |
+| 19 | ADAUSDTM:TrendFollowingV2:sell | 0.10742263648664539 | 18.0792 | 0.9999998680043266 | 1.0 | False | RESEARCH_RUNTIME_SOURCE_MISMATCH_NOT_RUNTIME_ADMISSIBLE | allow | allow |
+| 20 | ADAUSDTM:TrendFollowingV2:sell | 0.10741492882363377 | 18.1143 | 0.9999998662746244 | 1.0 | False | RESEARCH_RUNTIME_SOURCE_MISMATCH_NOT_RUNTIME_ADMISSIBLE | allow | allow |
+| 21 | ETHUSDTM:TrendFollowingV2:sell | 0.1015250811585347 | 18.0273 | 0.999999960254764 | 1.0 | False | RESEARCH_RUNTIME_SOURCE_MISMATCH_NOT_RUNTIME_ADMISSIBLE | allow | allow |
+| 22 | DOTUSDTM:TrendFollowingV2:sell | 0.1011227379372173 | 17.728 | 0.9999997272056558 | 1.0 | False | RESEARCH_RUNTIME_SOURCE_MISMATCH_NOT_RUNTIME_ADMISSIBLE | allow | allow |
+| 23 | DOTUSDTM:TrendFollowingV2:sell | 0.10062689653916355 | 10.87 | 0.9999950556768469 | 0.976342026369819 | False | RESEARCH_RUNTIME_SOURCE_MISMATCH_NOT_RUNTIME_ADMISSIBLE | allow | allow |
+| 24 | DOTUSDTM:TrendFollowingV2:sell | 0.10062029655172507 | 10.91 | 0.9999957780066255 | 0.9871098562840399 | False | RESEARCH_RUNTIME_SOURCE_MISMATCH_NOT_RUNTIME_ADMISSIBLE | allow | allow |
+| 25 | LINKUSDTM:TrendFollowingV2:sell | 0.09949696385969098 | 16.596 | 0.9999995324565852 | 1.0 | False | RESEARCH_RUNTIME_SOURCE_MISMATCH_NOT_RUNTIME_ADMISSIBLE | allow | allow |
 
 ## Rejected Top
 | rank | candidate | expected_ratio | probability | decision | risk |
 |---:|---|---:|---:|---|---|
-| 1 | ETHUSDTM:TrendFollowingV2:buy | 0.013465279271824563 | 0.9999999999452809 | allow | min_size |
-| 2 | ETHUSDTM:TrendFollowingV2:buy | 0.009154128584020928 | 0.9999976630471135 | allow | min_size |
-| 3 | ETHUSDTM:TrendFollowingV2:buy | 0.007459885277246586 | 0.9999998739416108 | allow | min_size |
-| 4 | SOLUSDTM:MomentumV2:buy | 0.007200721987285531 | 0.9999931430238864 | allow | entry_min_net_guard |
-| 5 | DOGEUSDTM:TrendFollowingV2:buy | 0.006531684997800307 | 0.9999997176591182 | allow | entry_min_net_guard |
-| 6 | SOLUSDTM:MomentumV2:sell | 0.006428628497560508 | 0.9999272442314 | allow | entry_min_net_guard |
-| 7 | SOLUSDTM:TrendFollowingV2:buy | 0.006311540594281294 | 0.9999738621340859 | allow | entry_min_net_guard |
-| 8 | ETHUSDTM:TrendFollowingV2:buy | 0.006293266504979446 | 0.9998713050716007 | allow | min_size |
-| 9 | ETHUSDTM:TrendFollowingV2:buy | 0.0062858828191215 | 0.9999242409925516 | allow | min_size |
-| 10 | ETHUSDTM:TrendFollowingV2:sell | 0.006161362306546202 | 0.9998927850577515 | allow | min_size |
-| 11 | LINKUSDTM:TrendFollowingV2:buy | 0.0060060315133748255 | 0.9999792887044718 | allow | entry_min_net_guard |
-| 12 | BTCUSDTM:TrendFollowingV2:buy | 0.005893258875247821 | 0.9999999669225015 | allow | min_size |
-| 13 | SOLUSDTM:MomentumV2:buy | 0.005881645927363174 | 0.9999888656966552 | allow | entry_min_net_guard |
-| 14 | DOTUSDTM:TrendFollowingV2:buy | 0.005730990990990915 | 0.9999469511654118 | allow | entry_min_net_guard |
-| 15 | DOGEUSDTM:TrendFollowingV2:buy | 0.005653508791088708 | 0.9999956697334055 | allow | entry_min_net_guard |
-| 16 | ADAUSDTM:MomentumV2:buy | 0.005550563763031946 | 0.9999588838892157 | allow | entry_min_net_guard |
-| 17 | ETHUSDTM:TrendFollowingV2:buy | 0.00552422210159307 | 0.9999784515364263 | allow | min_size |
-| 18 | XRPUSDTM:TrendFollowingV2:buy | 0.005494967109679134 | 0.9999991699168258 | allow | entry_min_net_guard |
-| 19 | ETHUSDTM:TrendFollowingV2:buy | 0.005455698268782781 | 0.9999791804743423 | allow | min_size |
-| 20 | LINKUSDTM:TrendFollowingV2:buy | 0.005402851692894641 | 0.9999873484400437 | allow | entry_min_net_guard |
-| 21 | AVAXUSDTM:TrendFollowingV2:buy | 0.005321250000000052 | 0.9998992428833886 | allow | entry_min_net_guard |
-| 22 | SOLUSDTM:TrendFollowingV2:buy | 0.005243506389112217 | 0.9999979598395887 | allow | entry_min_net_guard |
-| 23 | DOTUSDTM:MomentumV2:sell | 0.0051945454545455376 | 0.9996459021243091 | allow | entry_min_net_guard |
-| 24 | SOLUSDTM:TrendFollowingV2:sell | 0.00518184421935026 | 0.9999986100350093 | allow | entry_min_net_guard |
-| 25 | DOTUSDTM:MomentumV2:sell | 0.005169864253393507 | 0.9999734692684906 | allow | entry_min_net_guard |
+| 1 | SOLUSDTM:MomentumV2:sell | 0.009833110917325355 | 0.9999999419455634 | allow | entry_min_net_guard |
+| 2 | ETHUSDTM:MomentumV2:sell | 0.00804768717061153 | 0.9999999510025956 | allow | min_size |
+| 3 | DOGEUSDTM:TrendFollowingV2:buy | 0.007976994219653135 | 0.9999866559277413 | allow | entry_min_net_guard |
+| 4 | ADAUSDTM:TrendFollowingV2:sell | 0.007717135919874498 | 0.9999619124727016 | allow | entry_min_net_guard |
+| 5 | SOLUSDTM:TrendFollowingV2:sell | 0.007554524761958269 | 0.9999688351854099 | allow | entry_min_net_guard |
+| 6 | SOLUSDTM:TrendFollowingV2:sell | 0.007531814971651988 | 0.9999673850179873 | allow | entry_min_net_guard |
+| 7 | DOGEUSDTM:TrendFollowingV2:sell | 0.00732586742507107 | 0.9999999941610644 | allow | entry_min_net_guard |
+| 8 | BTCUSDTM:TrendFollowingV2:sell | 0.007017197189530806 | 0.9999980556407622 | allow | min_size |
+| 9 | BTCUSDTM:TrendFollowingV2:sell | 0.0068234931893537566 | 0.9999999995398521 | allow | min_size |
+| 10 | BTCUSDTM:TrendFollowingV2:sell | 0.006755557453125508 | 0.9999966784664333 | allow | min_size |
+| 11 | DOGEUSDTM:TrendFollowingV2:sell | 0.006748368200836879 | 0.9999247437401313 | allow | entry_min_net_guard |
+| 12 | ADAUSDTM:MomentumV2:buy | 0.0067146285252197195 | 0.9998900091081031 | allow | entry_min_net_guard |
+| 13 | ETHUSDTM:TrendFollowingV2:sell | 0.006629417836406858 | 0.9999590377297692 | allow | min_size |
+| 14 | XRPUSDTM:TrendFollowingV2:sell | 0.006519299440321871 | 0.9999997922487441 | allow | entry_min_net_guard |
+| 15 | XRPUSDTM:TrendFollowingV2:sell | 0.006518274303940536 | 0.9999999987843424 | allow | entry_min_net_guard |
+| 16 | LINKUSDTM:TrendFollowingV2:sell | 0.006503605647399597 | 0.9998579820202643 | allow | entry_min_net_guard |
+| 17 | BTCUSDTM:MomentumV2:sell | 0.006486833594747176 | 0.9999997854240964 | allow | min_size |
+| 18 | ETHUSDTM:TrendFollowingV2:buy | 0.00645327299728202 | 0.9999655299022783 | allow | min_size |
+| 19 | SOLUSDTM:TrendFollowingV2:buy | 0.006396737588652559 | 0.9998761274444098 | allow | entry_min_net_guard |
+| 20 | SOLUSDTM:MomentumV2:sell | 0.00633192067158711 | 0.9998145884456798 | allow | entry_min_net_guard |
+| 21 | DOTUSDTM:MomentumV2:buy | 0.006315342465753387 | 0.9998670189047515 | allow | entry_min_net_guard |
+| 22 | LINKUSDTM:TrendFollowingV2:buy | 0.006203370185882706 | 0.9998588210902997 | allow | entry_min_net_guard |
+| 23 | ETHUSDTM:TrendFollowingV2:sell | 0.006131033831453766 | 0.9999136379605942 | allow | min_size |
+| 24 | DOGEUSDTM:TrendFollowingV2:sell | 0.006129899658176341 | 0.9998210514030352 | allow | entry_min_net_guard |
+| 25 | ADAUSDTM:TrendFollowingV2:sell | 0.006074613053141995 | 0.9996945592829989 | allow | entry_min_net_guard |

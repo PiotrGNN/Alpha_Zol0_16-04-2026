@@ -40,6 +40,47 @@ ALLOWED_CLASSIFICATIONS = {
     "BLOCKED_BY_SCOPE_RISK",
 }
 
+RESEARCH_SOURCE = "kucoin_public_futures_klines"
+CANDIDATE_SOURCE = "fresh_kucoin_public_klines_research"
+DEFAULT_RUNTIME_ADMISSION_SOURCE = "rolling_quote_window"
+
+
+def source_parity_contract(
+    *,
+    research_source: str,
+    candidate_source: str,
+    runtime_source: str,
+    source_overlap_proven: bool,
+) -> dict[str, Any]:
+    research_source = str(research_source or "").strip()
+    candidate_source = str(candidate_source or "").strip()
+    runtime_source = str(runtime_source or "").strip()
+    comparable_sources = {research_source, candidate_source, runtime_source}
+    source_match = (
+        bool(runtime_source)
+        and runtime_source in {research_source, candidate_source}
+    )
+    runtime_admissible = bool(source_match or source_overlap_proven)
+    classification = (
+        "RESEARCH_RUNTIME_SOURCE_PARITY_PROVEN"
+        if runtime_admissible
+        else "RESEARCH_RUNTIME_SOURCE_MISMATCH_NOT_RUNTIME_ADMISSIBLE"
+    )
+    return {
+        "classification": classification,
+        "runtime_admissible": runtime_admissible,
+        "fail_closed": not runtime_admissible,
+        "research_source": research_source,
+        "candidate_source": candidate_source,
+        "runtime_source": runtime_source,
+        "source_overlap_proven": bool(source_overlap_proven),
+        "source_match": source_match,
+        "comparable_source_count": len({item for item in comparable_sources if item}),
+        "threshold_mutation": False,
+        "strategy_patch": False,
+        "execution_semantics_patch": False,
+    }
+
 
 class _StaticSpecResolver:
     def get(self, symbol: str) -> ContractSpec:
@@ -114,6 +155,8 @@ def classify_research_universe(
     free_equity_usdt: float = 1000.0,
     spread_bps: float = 1.0,
     use_static_contract_specs: bool = True,
+    runtime_admission_source: str = DEFAULT_RUNTIME_ADMISSION_SOURCE,
+    source_overlap_proven: bool = False,
 ) -> dict[str, Any]:
     invalid_symbols = [
         symbol for symbol in histories if not is_futures_symbol(str(symbol).upper())
@@ -141,6 +184,13 @@ def classify_research_universe(
     rejected_rows: list[dict[str, Any]] = []
     candidate_rows: list[dict[str, Any]] = []
 
+    source_contract = source_parity_contract(
+        research_source=RESEARCH_SOURCE,
+        candidate_source=CANDIDATE_SOURCE,
+        runtime_source=runtime_admission_source,
+        source_overlap_proven=source_overlap_proven,
+    )
+
     for symbol, candles in sorted(histories.items()):
         symbol_key = str(symbol or "").strip().upper()
         ordered_candles = sorted(
@@ -153,6 +203,11 @@ def classify_research_universe(
         feature_engine = FeatureEngine(history_size=max(4, len(ordered_candles) + 1))
         last_candidates = []
         last_reason = ""
+        candle_start = (
+            _safe_float(ordered_candles[0].get("timestamp"))
+            if ordered_candles
+            else None
+        )
         for candle in ordered_candles:
             tick = _tick_from_candle(
                 symbol=symbol_key,
@@ -182,7 +237,21 @@ def classify_research_universe(
                 "symbol": selected.symbol,
                 "strategy": selected.strategy,
                 "side": selected.side,
-                "source": "fresh_kucoin_public_klines_research",
+                "source": CANDIDATE_SOURCE,
+                "research_source": RESEARCH_SOURCE,
+                "candidate_source": CANDIDATE_SOURCE,
+                "candidate_timestamp": int(tick.ts_ms),
+                "candle_start": candle_start,
+                "candle_end": int(tick.ts_ms),
+                "fee_model": "DecisionEngineV2 fee_round_trip_ratio",
+                "spread_model": f"research_static_spread_bps={float(spread_bps)}",
+                "slippage_model": "DecisionEngineV2 slippage model",
+                "source_freshness_sec": 0.0,
+                "expected_runtime_admission_source": str(runtime_admission_source),
+                "source_overlap_proven": bool(source_overlap_proven),
+                "runtime_admissibility_classification": source_contract["classification"],
+                "runtime_admissible": source_contract["runtime_admissible"],
+                "source_parity_contract": source_contract,
                 "decision_reason": reason,
                 "risk_reason": plan.reason_code,
                 "accepted": bool(plan.accepted),
@@ -212,7 +281,14 @@ def classify_research_universe(
                         "symbol": candidate.symbol,
                         "strategy": candidate.strategy,
                         "side": candidate.side,
-                        "source": "fresh_kucoin_public_klines_research",
+                        "source": CANDIDATE_SOURCE,
+                        "research_source": RESEARCH_SOURCE,
+                        "candidate_source": CANDIDATE_SOURCE,
+                        "expected_runtime_admission_source": str(runtime_admission_source),
+                        "source_overlap_proven": bool(source_overlap_proven),
+                        "runtime_admissibility_classification": source_contract["classification"],
+                        "runtime_admissible": source_contract["runtime_admissible"],
+                        "source_parity_contract": source_contract,
                         "decision_reason": last_reason,
                         "risk_reason": None,
                         "accepted": False,
@@ -255,16 +331,22 @@ def classify_research_universe(
             "paper_only": True,
             "live": 0,
             "use_mock": 0,
-            "source": "kucoin_public_futures_klines",
+            "source": RESEARCH_SOURCE,
             "min_expected_net_usdt": float(min_expected_net_usdt),
             "free_equity_usdt": float(free_equity_usdt),
             "spread_bps": float(spread_bps),
             "use_static_contract_specs": bool(use_static_contract_specs),
+            "expected_runtime_admission_source": str(runtime_admission_source),
+            "source_overlap_proven": bool(source_overlap_proven),
         },
         "evaluated_symbol_count": len(evaluated_symbols),
         "insufficient_observation_symbols": sorted(insufficient_symbols),
         "malformed_candle_count": int(malformed_candle_count),
         "selected_hypothesis": selected_hypothesis,
+        "source_parity_contract": source_contract,
+        "runtime_admissible_candidate_count": sum(
+            1 for row in candidate_rows if bool(row.get("runtime_admissible"))
+        ),
         "candidate_rank": [
             {**row, "candidate_key": _candidate_key(row)}
             for row in candidate_rows[:25]
@@ -316,20 +398,24 @@ def render_markdown(report: dict[str, Any]) -> str:
         f"- evaluated_symbol_count: `{report.get('evaluated_symbol_count')}`",
         f"- malformed_candle_count: `{report.get('malformed_candle_count')}`",
         f"- selected_hypothesis: `{_candidate_key(report.get('selected_hypothesis') or {}) if report.get('selected_hypothesis') else None}`",
+        f"- runtime_admissible_candidate_count: `{report.get('runtime_admissible_candidate_count')}`",
+        f"- source_parity_classification: `{(report.get('source_parity_contract') or {}).get('classification')}`",
         "",
         "## Candidate Rank",
-        "| rank | candidate | expected_net | notional | probability | confidence | decision | risk |",
-        "|---:|---|---:|---:|---:|---:|---|---|",
+        "| rank | candidate | expected_net | notional | probability | confidence | runtime_admissible | source_parity | decision | risk |",
+        "|---:|---|---:|---:|---:|---:|---:|---|---|---|",
     ]
     for index, row in enumerate(report.get("candidate_rank") or [], start=1):
         lines.append(
-            "| {rank} | {candidate} | {expected} | {notional} | {prob} | {conf} | {decision} | {risk} |".format(
+            "| {rank} | {candidate} | {expected} | {notional} | {prob} | {conf} | {runtime_admissible} | {source_parity} | {decision} | {risk} |".format(
                 rank=index,
                 candidate=row.get("candidate_key"),
                 expected=row.get("expected_net_after_full_cost"),
                 notional=row.get("final_notional_usdt"),
                 prob=row.get("probability_of_profit"),
                 conf=row.get("confidence"),
+                runtime_admissible=row.get("runtime_admissible"),
+                source_parity=row.get("runtime_admissibility_classification"),
                 decision=row.get("decision_reason"),
                 risk=row.get("risk_reason"),
             )

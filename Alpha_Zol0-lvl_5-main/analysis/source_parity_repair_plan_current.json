@@ -1,0 +1,72 @@
+{
+  "answers": {
+    "can_enforce_without_strategy_execution_change": true,
+    "minimal_patch_surface": [
+      "scripts/discover_new_alpha_search_space.py",
+      "tests/test_research_runtime_source_parity_contract.py"
+    ],
+    "missing_metadata_to_prove_source_parity": [
+      "source_overlap_proven remains false unless source match or overlap proof is supplied"
+    ],
+    "where_candidate_promoted_from_research_to_runtime_smoke": {
+      "detail": "selected_hypothesis/candidate_rank reporting is the promotion/reporting seam; runtime smoke itself remains manual/controlled and unchanged.",
+      "file": "scripts/discover_new_alpha_search_space.py",
+      "line": 316
+    },
+    "where_research_source_selected": {
+      "detail": "Research universe labels public KuCoin futures klines as RESEARCH_SOURCE; candidate rows use CANDIDATE_SOURCE.",
+      "file": "scripts/discover_new_alpha_search_space.py",
+      "line": 43
+    },
+    "where_runtime_source_selected": {
+      "detail": "Runtime feature profile source is rolling_quote_window and is emitted through runtime_v2 telemetry.",
+      "file": "core/runtime_v2/feature_engine.py",
+      "line": 68
+    }
+  },
+  "classification": "SOURCE_PARITY_ENFORCEMENT_PATCH_REQUIRED",
+  "final_patch_class": "source-label enforcement with metadata preservation",
+  "generated_at_utc": "2026-06-04T00:42:45.945938+00:00",
+  "locked_evidence": {
+    "candidate_source": "fresh_kucoin_public_klines_research",
+    "edge_parity_classification": "RESEARCH_RUNTIME_SOURCE_MISMATCH",
+    "final_verdict": "SOURCE_PARITY_REPAIR_REQUIRED",
+    "research_source": "kucoin_public_futures_klines",
+    "runtime_admissible_candidate_count": 0,
+    "runtime_profile_keys_top": {
+      "AVAXUSDTM|rolling_quote_window|n=115|span=788": 4,
+      "AVAXUSDTM|rolling_quote_window|n=116|span=790": 4,
+      "AVAXUSDTM|rolling_quote_window|n=21|span=120": 4,
+      "AVAXUSDTM|rolling_quote_window|n=22|span=133": 4,
+      "AVAXUSDTM|rolling_quote_window|n=23|span=133": 4
+    },
+    "runtime_source": "rolling_quote_window",
+    "source_parity_classification": "RESEARCH_RUNTIME_SOURCE_MISMATCH_NOT_RUNTIME_ADMISSIBLE"
+  },
+  "patch_decision": {
+    "live_change": false,
+    "metadata_only_also_added": true,
+    "patch_class": "B",
+    "reason": "Public-kline research candidates cannot be reported as runtime-admissible against rolling_quote_window runtime unless source match or overlap proof exists.",
+    "runtime_decision_change": false,
+    "threshold_change": false
+  },
+  "required_tests": [
+    "public-kline candidate fails closed without overlap proof",
+    "source labels preserved",
+    "runtime source label derivable from smoke profile",
+    "mismatch classification explicit",
+    "source parity proof allows proceeding without threshold mutation"
+  ],
+  "scope": {
+    "execution_semantics_mutation": false,
+    "kucoin_only": true,
+    "live": false,
+    "paper_only": true,
+    "profitability_claim": false,
+    "readiness_mutation": false,
+    "strategy_patch": false,
+    "threshold_mutation": false,
+    "use_mock": false
+  }
+}
