@@ -1,0 +1,538 @@
+{
+  "classification": "FLOW_AUTOPSY_EXIT_LOSS_DOMINANT",
+  "data_source_flow": {
+    "post_signal_event_count": 991,
+    "runtime_profile_sources_seen": [
+      "rolling_quote_window"
+    ],
+    "runtime_source_required": "rolling_quote_window"
+  },
+  "decision": {
+    "next_step": "exit_or_quality_redesign_from_realized_losers",
+    "patch_runtime_now": false,
+    "reason": "natural paper trades exist but protective_exit losses dominate realized PnL"
+  },
+  "entry_flow": {
+    "downstream_unopened_allow_count": 136,
+    "entry_eval_count": 336,
+    "entry_eval_reason_counts": {
+      "allow": 136,
+      "entry_edge_filtered": 107,
+      "side_expectancy": 93
+    },
+    "entry_reject_count": 1373,
+    "entry_reject_reason_counts": {
+      "current_side": 17,
+      "entry_edge_filtered": 107,
+      "entry_min_net_guard": 32,
+      "min_size": 6,
+      "missing_expected_move_calibration_profile": 30,
+      "net_target_guard": 21,
+      "no_runtime_profile": 90,
+      "side_expectancy": 93,
+      "symbol_strategy_side_allowlist": 977
+    },
+    "gate_summary_reason_counts": {
+      "current_side": 17,
+      "entry_edge_filtered": 107,
+      "entry_min_net_guard": 32,
+      "min_size": 6,
+      "missing_expected_move_calibration_profile": 30,
+      "net_target_guard": 22,
+      "no_runtime_profile": 90,
+      "side_expectancy": 93,
+      "symbol_strategy_side_allowlist": 977
+    }
+  },
+  "event_counts": {
+    "entry_eval_v2": 336,
+    "entry_gate_decision_summary": 1374,
+    "entry_reject_v2": 1373,
+    "exit_eval_v2": 47,
+    "position_close": 30,
+    "position_close_v2": 30,
+    "post_signal_trajectory_v2": 991,
+    "pre_entry_candidate_rejection_trace": 1373,
+    "risk_decision": 1374,
+    "runtime_v2_started": 5,
+    "runtime_v2_stopped": 4
+  },
+  "execution_flow": {
+    "explicit_position_open_event_count": 0,
+    "inferred_position_open_count": 30,
+    "open_close_delta": 0,
+    "position_close_count": 30,
+    "position_open_count": 30
+  },
+  "exit_flow": {
+    "dominant_loss_exit_reason": "protective_exit",
+    "exit_reason_counts": {
+      "protective_exit": 17,
+      "run_end": 1,
+      "take_profit_net": 9,
+      "time_decay_exit": 3
+    },
+    "exit_reason_pnl": {
+      "protective_exit": -1.887783879999939,
+      "run_end": -0.021234299999979542,
+      "take_profit_net": 0.8798451450000374,
+      "time_decay_exit": -0.057043824999987655
+    },
+    "protective_exit_loss_pnl": -1.887783879999939,
+    "run_end_pnl": -0.021234299999979542,
+    "time_decay_exit_pnl": -0.057043824999987655
+  },
+  "flow_map": [
+    "QuoteTick",
+    "FeatureEngine",
+    "StrategyStack",
+    "DecisionEngineV2",
+    "RiskEngineV2",
+    "position_open",
+    "ExitEngineV2",
+    "position_close",
+    "realized_history"
+  ],
+  "history_flow": {
+    "bucket_keys_seen": [
+      "BNBUSDTM:MEANREVERSION:sell",
+      "BTCUSDTM:MEANREVERSION:sell",
+      "SOLUSDTM:MEANREVERSION:sell",
+      "XRPUSDTM:MEANREVERSION:sell"
+    ],
+    "position_close_count": 30,
+    "write_event": "position_close"
+  },
+  "inputs": {
+    "db_paths": [
+      "tmp\\controlled_kpi_after_20260604_123000.db",
+      "tmp\\controlled_kpi_after_20260604_124000.db",
+      "tmp\\controlled_kpi_after_20260604_125000.db",
+      "tmp\\controlled_kpi_after_20260604_130000.db",
+      "tmp\\controlled_kpi_after_20260604_131000.db"
+    ],
+    "result_paths": [
+      "results\\controlled_kpi_20260604_123000.json",
+      "results\\controlled_kpi_20260604_124000.json",
+      "results\\controlled_kpi_20260604_125000.json",
+      "results\\controlled_kpi_20260604_130000.json",
+      "results\\controlled_kpi_20260604_131000.json",
+      "results\\controlled_kpi_20260604_132000.json"
+    ]
+  },
+  "profitability_claim": false,
+  "provenance": {
+    "contaminated_event_count": 0,
+    "result_env": {
+      "invalid_evidence": [
+        {
+          "path": "results\\controlled_kpi_20260604_132000.json",
+          "reason": "missing_result_json"
+        }
+      ],
+      "runs": [
+        {
+          "env": {
+            "DIAGNOSTIC_FORCE_OPEN": "0",
+            "ENTRY_MIN_NET_USDT": "0.12",
+            "LIVE": "0",
+            "PAPER_AUTO_OPEN_FALLBACK_ENABLE": "0",
+            "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST": "1",
+            "RUNTIME_V2_POST_SIGNAL_TRAJECTORY": "1",
+            "SEED_TRADES_ENABLE": "0",
+            "USE_MOCK": "0"
+          },
+          "fail_closed": false,
+          "path": "results\\controlled_kpi_20260604_123000.json",
+          "reasons": []
+        },
+        {
+          "env": {
+            "DIAGNOSTIC_FORCE_OPEN": "0",
+            "ENTRY_MIN_NET_USDT": "0.12",
+            "LIVE": "0",
+            "PAPER_AUTO_OPEN_FALLBACK_ENABLE": "0",
+            "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST": "1",
+            "RUNTIME_V2_POST_SIGNAL_TRAJECTORY": "1",
+            "SEED_TRADES_ENABLE": "0",
+            "USE_MOCK": "0"
+          },
+          "fail_closed": false,
+          "path": "results\\controlled_kpi_20260604_124000.json",
+          "reasons": []
+        },
+        {
+          "env": {
+            "DIAGNOSTIC_FORCE_OPEN": "0",
+            "ENTRY_MIN_NET_USDT": "0.12",
+            "LIVE": "0",
+            "PAPER_AUTO_OPEN_FALLBACK_ENABLE": "0",
+            "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST": "1",
+            "RUNTIME_V2_POST_SIGNAL_TRAJECTORY": "1",
+            "SEED_TRADES_ENABLE": "0",
+            "USE_MOCK": "0"
+          },
+          "fail_closed": false,
+          "path": "results\\controlled_kpi_20260604_125000.json",
+          "reasons": []
+        },
+        {
+          "env": {
+            "DIAGNOSTIC_FORCE_OPEN": "0",
+            "ENTRY_MIN_NET_USDT": "0.12",
+            "LIVE": "0",
+            "PAPER_AUTO_OPEN_FALLBACK_ENABLE": "0",
+            "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST": "1",
+            "RUNTIME_V2_POST_SIGNAL_TRAJECTORY": "1",
+            "SEED_TRADES_ENABLE": "0",
+            "USE_MOCK": "0"
+          },
+          "fail_closed": false,
+          "path": "results\\controlled_kpi_20260604_130000.json",
+          "reasons": []
+        },
+        {
+          "env": {
+            "DIAGNOSTIC_FORCE_OPEN": "0",
+            "ENTRY_MIN_NET_USDT": "0.12",
+            "LIVE": "0",
+            "PAPER_AUTO_OPEN_FALLBACK_ENABLE": "0",
+            "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST": "1",
+            "RUNTIME_V2_POST_SIGNAL_TRAJECTORY": "1",
+            "SEED_TRADES_ENABLE": "0",
+            "USE_MOCK": "0"
+          },
+          "fail_closed": false,
+          "path": "results\\controlled_kpi_20260604_131000.json",
+          "reasons": []
+        }
+      ]
+    }
+  },
+  "realized_flow": {
+    "bucket_count": 4,
+    "bucket_summaries": [
+      {
+        "avg_expected_net_after_full_cost": 0.22695458650684974,
+        "avg_loss_abs": 0.1085702089999901,
+        "avg_win": 0.151289025,
+        "candidate_key": "BTCUSDTM:MEANREVERSION:sell",
+        "exit_reason_counts": {
+          "protective_exit": 4,
+          "take_profit_net": 2,
+          "time_decay_exit": 1
+        },
+        "loss_count": 5,
+        "net_pnl": -0.24027299499995053,
+        "passes_realized_target": false,
+        "profit_factor": 0.5573868794892484,
+        "trade_count": 7,
+        "win_count": 2,
+        "win_rate": 0.2857142857142857
+      },
+      {
+        "avg_expected_net_after_full_cost": 0.2851504930813449,
+        "avg_loss_abs": 0.08768280249999463,
+        "avg_win": 0.034086208333341486,
+        "candidate_key": "BNBUSDTM:MEANREVERSION:sell",
+        "exit_reason_counts": {
+          "protective_exit": 3,
+          "run_end": 1,
+          "take_profit_net": 2,
+          "time_decay_exit": 1
+        },
+        "loss_count": 4,
+        "net_pnl": -0.2484725849999541,
+        "passes_realized_target": false,
+        "profit_factor": 0.2915583845533185,
+        "trade_count": 7,
+        "win_count": 3,
+        "win_rate": 0.42857142857142855
+      },
+      {
+        "avg_expected_net_after_full_cost": 0.3115841276572677,
+        "avg_loss_abs": 0.11287565000000015,
+        "avg_win": 0.13804962499999085,
+        "candidate_key": "SOLUSDTM:MEANREVERSION:sell",
+        "exit_reason_counts": {
+          "protective_exit": 5,
+          "take_profit_net": 2
+        },
+        "loss_count": 5,
+        "net_pnl": -0.28827900000001905,
+        "passes_realized_target": false,
+        "profit_factor": 0.4892095859469803,
+        "trade_count": 7,
+        "win_count": 2,
+        "win_rate": 0.2857142857142857
+      },
+      {
+        "avg_expected_net_after_full_cost": 0.2501590997880653,
+        "avg_loss_abs": 0.08514948333332915,
+        "avg_win": 0.06723487333334328,
+        "candidate_key": "XRPUSDTM:MEANREVERSION:sell",
+        "exit_reason_counts": {
+          "protective_exit": 5,
+          "take_profit_net": 3,
+          "time_decay_exit": 1
+        },
+        "loss_count": 6,
+        "net_pnl": -0.30919227999994503,
+        "passes_realized_target": false,
+        "profit_factor": 0.3948049400966022,
+        "trade_count": 9,
+        "win_count": 3,
+        "win_rate": 0.3333333333333333
+      }
+    ],
+    "clean_trade_count": 30,
+    "net_pnl": -1.0862168599998687,
+    "passing_bucket_count": 0,
+    "trade_count": 30,
+    "win_rate": 0.3333333333333333
+  },
+  "risk_flow": {
+    "risk_block_reason_counts": {
+      "entry_min_net_guard": 96,
+      "min_size": 18,
+      "net_target_guard": 65
+    },
+    "risk_block_samples": [
+      {
+        "entry_min_net_usdt": 0.12,
+        "expected_net_after_cost": 0.0007099884473189019,
+        "expected_net_after_full_cost": 0.01999824459563151,
+        "final_notional_usdt": 28.167,
+        "reason_code": "entry_min_net_guard",
+        "runtime_profile_source": "rolling_quote_window",
+        "side": "sell",
+        "strategy": "MeanReversionV2",
+        "symbol": "SOLUSDTM"
+      },
+      {
+        "entry_min_net_usdt": 0.12,
+        "expected_net_after_cost": 0.0006594972083367904,
+        "expected_net_after_full_cost": 0.015561166379310739,
+        "final_notional_usdt": 23.5955,
+        "reason_code": "entry_min_net_guard",
+        "runtime_profile_source": "rolling_quote_window",
+        "side": "sell",
+        "strategy": "MeanReversionV2",
+        "symbol": "XRPUSDTM"
+      },
+      {
+        "entry_min_net_usdt": 0.12,
+        "expected_net_after_cost": 0.0006403583748051205,
+        "expected_net_after_full_cost": 0.018041072636734583,
+        "final_notional_usdt": 28.173400000000004,
+        "reason_code": "entry_min_net_guard",
+        "runtime_profile_source": "rolling_quote_window",
+        "side": "sell",
+        "strategy": "MeanReversionV2",
+        "symbol": "SOLUSDTM"
+      },
+      {
+        "entry_min_net_usdt": 0.12,
+        "expected_net_after_cost": 0.0010059678693503558,
+        "expected_net_after_full_cost": 0.021258263910292122,
+        "final_notional_usdt": 21.132150000000003,
+        "reason_code": "entry_min_net_guard",
+        "runtime_profile_source": "rolling_quote_window",
+        "side": "sell",
+        "strategy": "MeanReversionV2",
+        "symbol": "SOLUSDTM"
+      },
+      {
+        "entry_min_net_usdt": 0.12,
+        "expected_net_after_cost": 0.0010061417892031457,
+        "expected_net_after_full_cost": 0.021271598171885606,
+        "final_notional_usdt": 21.141750000000002,
+        "reason_code": "entry_min_net_guard",
+        "runtime_profile_source": "rolling_quote_window",
+        "side": "sell",
+        "strategy": "MeanReversionV2",
+        "symbol": "SOLUSDTM"
+      },
+      {
+        "entry_min_net_usdt": 0.12,
+        "expected_net_after_cost": 0.0007280767729001311,
+        "expected_net_after_full_cost": 0.017187926800885267,
+        "final_notional_usdt": 23.607300000000002,
+        "reason_code": "entry_min_net_guard",
+        "runtime_profile_source": "rolling_quote_window",
+        "side": "sell",
+        "strategy": "MeanReversionV2",
+        "symbol": "XRPUSDTM"
+      },
+      {
+        "entry_min_net_usdt": null,
+        "expected_net_after_cost": 0.0007330031100412343,
+        "expected_net_after_full_cost": null,
+        "final_notional_usdt": 0.0,
+        "reason_code": "min_size",
+        "runtime_profile_source": "rolling_quote_window",
+        "side": "sell",
+        "strategy": "MeanReversionV2",
+        "symbol": "BTCUSDTM"
+      },
+      {
+        "entry_min_net_usdt": 0.12,
+        "expected_net_after_cost": 0.0008847270406447585,
+        "expected_net_after_full_cost": 0.018709986273795196,
+        "final_notional_usdt": 21.147750000000006,
+        "reason_code": "entry_min_net_guard",
+        "runtime_profile_source": "rolling_quote_window",
+        "side": "sell",
+        "strategy": "MeanReversionV2",
+        "symbol": "SOLUSDTM"
+      },
+      {
+        "entry_min_net_usdt": 0.12,
+        "expected_net_after_cost": 0.0007305223289263616,
+        "expected_net_after_full_cost": 0.017251211745363135,
+        "final_notional_usdt": 23.6149,
+        "reason_code": "entry_min_net_guard",
+        "runtime_profile_source": "rolling_quote_window",
+        "side": "sell",
+        "strategy": "MeanReversionV2",
+        "symbol": "XRPUSDTM"
+      },
+      {
+        "entry_min_net_usdt": 0.12,
+        "expected_net_after_cost": 0.0006159809806591723,
+        "expected_net_after_full_cost": 0.013034373144091319,
+        "final_notional_usdt": 21.160350000000005,
+        "reason_code": "entry_min_net_guard",
+        "runtime_profile_source": "rolling_quote_window",
+        "side": "sell",
+        "strategy": "MeanReversionV2",
+        "symbol": "SOLUSDTM"
+      },
+      {
+        "entry_min_net_usdt": null,
+        "expected_net_after_cost": null,
+        "expected_net_after_full_cost": null,
+        "final_notional_usdt": null,
+        "reason_code": "net_target_guard",
+        "runtime_profile_source": null,
+        "side": null,
+        "strategy": null,
+        "symbol": "BTCUSDTM"
+      },
+      {
+        "entry_min_net_usdt": null,
+        "expected_net_after_cost": null,
+        "expected_net_after_full_cost": null,
+        "final_notional_usdt": null,
+        "reason_code": "net_target_guard",
+        "runtime_profile_source": null,
+        "side": null,
+        "strategy": null,
+        "symbol": "BNBUSDTM"
+      },
+      {
+        "entry_min_net_usdt": null,
+        "expected_net_after_cost": null,
+        "expected_net_after_full_cost": null,
+        "final_notional_usdt": null,
+        "reason_code": "net_target_guard",
+        "runtime_profile_source": null,
+        "side": null,
+        "strategy": null,
+        "symbol": "SOLUSDTM"
+      },
+      {
+        "entry_min_net_usdt": null,
+        "expected_net_after_cost": null,
+        "expected_net_after_full_cost": null,
+        "final_notional_usdt": null,
+        "reason_code": "net_target_guard",
+        "runtime_profile_source": null,
+        "side": null,
+        "strategy": null,
+        "symbol": "XRPUSDTM"
+      },
+      {
+        "entry_min_net_usdt": 0.12,
+        "expected_net_after_cost": 0.0007763764579542865,
+        "expected_net_after_full_cost": 0.016443071097128326,
+        "final_notional_usdt": 21.179250000000003,
+        "reason_code": "entry_min_net_guard",
+        "runtime_profile_source": "rolling_quote_window",
+        "side": "sell",
+        "strategy": "MeanReversionV2",
+        "symbol": "SOLUSDTM"
+      },
+      {
+        "entry_min_net_usdt": 0.12,
+        "expected_net_after_cost": 0.0010943614181750804,
+        "expected_net_after_full_cost": 0.02585724328021535,
+        "final_notional_usdt": 23.627700000000004,
+        "reason_code": "entry_min_net_guard",
+        "runtime_profile_source": "rolling_quote_window",
+        "side": "sell",
+        "strategy": "MeanReversionV2",
+        "symbol": "XRPUSDTM"
+      },
+      {
+        "entry_min_net_usdt": 0.12,
+        "expected_net_after_cost": 0.0008660077661308257,
+        "expected_net_after_full_cost": 0.012217204560690623,
+        "final_notional_usdt": 14.1075,
+        "reason_code": "entry_min_net_guard",
+        "runtime_profile_source": "rolling_quote_window",
+        "side": "sell",
+        "strategy": "MeanReversionV2",
+        "symbol": "SOLUSDTM"
+      },
+      {
+        "entry_min_net_usdt": 0.12,
+        "expected_net_after_cost": 0.0011162983577479833,
+        "expected_net_after_full_cost": 0.0263614973480544,
+        "final_notional_usdt": 23.615099999999998,
+        "reason_code": "entry_min_net_guard",
+        "runtime_profile_source": "rolling_quote_window",
+        "side": "sell",
+        "strategy": "MeanReversionV2",
+        "symbol": "XRPUSDTM"
+      },
+      {
+        "entry_min_net_usdt": 0.12,
+        "expected_net_after_cost": 0.0009551541422011076,
+        "expected_net_after_full_cost": 0.020205951574314665,
+        "final_notional_usdt": 21.154650000000004,
+        "reason_code": "entry_min_net_guard",
+        "runtime_profile_source": "rolling_quote_window",
+        "side": "sell",
+        "strategy": "MeanReversionV2",
+        "symbol": "SOLUSDTM"
+      },
+      {
+        "entry_min_net_usdt": 0.12,
+        "expected_net_after_cost": 0.0008521605230198044,
+        "expected_net_after_full_cost": 0.02010476757144934,
+        "final_notional_usdt": 23.5927,
+        "reason_code": "entry_min_net_guard",
+        "runtime_profile_source": "rolling_quote_window",
+        "side": "sell",
+        "strategy": "MeanReversionV2",
+        "symbol": "XRPUSDTM"
+      }
+    ],
+    "risk_decision_count": 1374,
+    "risk_decision_reason_counts": {
+      "current_side": 17,
+      "entry_edge_filtered": 107,
+      "entry_min_net_guard": 32,
+      "min_size": 6,
+      "missing_expected_move_calibration_profile": 30,
+      "net_target_guard": 22,
+      "no_runtime_profile": 90,
+      "side_expectancy": 93,
+      "symbol_strategy_side_allowlist": 977
+    }
+  },
+  "telemetry_gaps": [
+    "position_open_event_absent_inferred_from_position_close"
+  ]
+}
