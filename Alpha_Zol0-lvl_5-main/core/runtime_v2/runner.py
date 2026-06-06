@@ -1018,6 +1018,7 @@ def run_bot_v2(simulate: bool = False) -> None:
                     _safe_float(plan.cost_breakdown.get("total_cost_ratio")) or 0.0
                 )
                 * float(plan.final_notional_usdt),
+                expected_notional_usdt=float(plan.final_notional_usdt),
                 signal_horizon_sec_estimate=signal_horizon_sec_estimate,
                 time_horizon_mismatch_ratio=time_horizon_mismatch_ratio,
                 min_sample=calibration_gate_min_sample,
