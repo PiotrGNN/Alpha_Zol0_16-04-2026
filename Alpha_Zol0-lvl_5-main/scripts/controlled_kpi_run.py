@@ -45,6 +45,15 @@ EFFECTIVE_ENV_VALUE_KEYS = (
     "POST_PROMOTION_OBSERVATION_ENABLED",
     "POST_PROMOTION_OBSERVATION_MAX_SEC",
     "POST_PROMOTION_OBSERVATION_MAX_CYCLES",
+    "V2_PAPER_ADMISSION_REACHABILITY_PROFILE_ENABLE",
+    "V2_PAPER_SHADOW_VERIFIED_ADVERSE_GUARD_ENABLE",
+    "V2_PAPER_SHADOW_VERIFIED_ADVERSE_GUARD_POLICY",
+    "V2_PAPER_SHADOW_VERIFIED_ADVERSE_GUARD_POLICY_SOURCE",
+)
+
+REJECTED_SHADOW_VERIFIED_GUARD_POLICY = "rejected_overfilter_force_off"
+REJECTED_SHADOW_VERIFIED_GUARD_POLICY_SOURCE = (
+    "analysis/shadow_guard_off_baseline_trade_attribution_current.json"
 )
 
 
@@ -114,6 +123,22 @@ def _coerce_bool(value, default: bool = False) -> bool:
     if txt in {"0", "false", "no", "n", "off", ""}:
         return False
     return default
+
+
+def _apply_rejected_shadow_verified_guard_policy(env: dict) -> None:
+    if not isinstance(env, dict):
+        return
+    if not _coerce_bool(env.get("V2_PAPER_ADMISSION_REACHABILITY_PROFILE_ENABLE")):
+        return
+    if _coerce_bool(env.get("LIVE")):
+        return
+    env["V2_PAPER_SHADOW_VERIFIED_ADVERSE_GUARD_ENABLE"] = "0"
+    env["V2_PAPER_SHADOW_VERIFIED_ADVERSE_GUARD_POLICY"] = (
+        REJECTED_SHADOW_VERIFIED_GUARD_POLICY
+    )
+    env["V2_PAPER_SHADOW_VERIFIED_ADVERSE_GUARD_POLICY_SOURCE"] = (
+        REJECTED_SHADOW_VERIFIED_GUARD_POLICY_SOURCE
+    )
 
 
 def _path_is_within(path: Path, parent: Path) -> bool:
@@ -3153,6 +3178,7 @@ def _variant_env(
             if not k:
                 continue
             env[k] = str(value)
+    _apply_rejected_shadow_verified_guard_policy(env)
     return env
 
 
