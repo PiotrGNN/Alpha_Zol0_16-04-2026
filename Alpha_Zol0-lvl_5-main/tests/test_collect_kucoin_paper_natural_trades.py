@@ -111,7 +111,7 @@ def test_seed_fallback_force_diagnostic_rows_are_rejected(tmp_path: Path) -> Non
 def test_missing_table_returns_nonzero_exit(tmp_path: Path) -> None:
     db = tmp_path / "broken.db"
     con = sqlite3.connect(db)
-    con.execute("create table logs(id integer primary key, details text)")
+    con.execute("create table equity(id integer primary key, value real)")
     con.commit()
     con.close()
 
@@ -119,6 +119,126 @@ def test_missing_table_returns_nonzero_exit(tmp_path: Path) -> None:
     rc = main(["--db", str(db), "--output-json", str(out)])
     assert rc == 2
     assert not out.exists()
+
+
+# ---------------------------------------------------------------------------
+# logs-schema tests (runtime KPI DBs without closed_trades)
+# ---------------------------------------------------------------------------
+
+
+def _create_logs_db(path: Path) -> None:
+    con = sqlite3.connect(path)
+    cur = con.cursor()
+    cur.execute(
+        "create table logs "
+        "(id integer primary key, timestamp text, event text, details text)"
+    )
+    con.commit()
+    con.close()
+
+
+def _insert_log_events(path: Path, events: list[tuple[str, dict]]) -> None:
+    con = sqlite3.connect(path)
+    cur = con.cursor()
+    for ev, payload in events:
+        cur.execute(
+            "insert into logs(event, details) values (?, ?)",
+            (ev, json.dumps(payload)),
+        )
+    con.commit()
+    con.close()
+
+
+_CLOSE_EVENT = "post_close_summary_payload_built"
+
+
+def test_logs_schema_groups_btc_tf_buy(tmp_path: Path) -> None:
+    db = tmp_path / "run.db"
+    _create_logs_db(db)
+    btc_row = {"symbol": "BTCUSDTM", "strategy": "TrendFollowing", "side": "buy"}
+    sol_row = {"symbol": "SOLUSDTM", "strategy": "TrendFollowing", "side": "buy"}
+    _insert_log_events(
+        db,
+        [
+            (_CLOSE_EVENT, btc_row),
+            (_CLOSE_EVENT, btc_row),
+            (_CLOSE_EVENT, sol_row),
+        ],
+    )
+
+    report = collect_natural_trades([db])
+
+    assert report["status"] == "ok"
+    assert report["schema_by_db"][str(db)]["source_schema"] == "logs"
+    assert report["totals"]["natural_closed_rows"] == 3
+    assert report["totals"]["rejected_rows"] == 0
+
+    btc = next(
+        g
+        for g in report["groups"]
+        if g["symbol"] == "BTCUSDTM"
+        and g["strategy"] == "TrendFollowing"
+        and g["side"] == "buy"
+    )
+    assert btc["trade_count"] == 2
+    assert btc["economics_available"] is False
+    assert btc["net_pnl"] is None
+
+
+def test_logs_schema_rejects_contaminated_rows(tmp_path: Path) -> None:
+    db = tmp_path / "run.db"
+    _create_logs_db(db)
+    seed_row = {"symbol": "BTCUSDTM", "strategy": "TF", "side": "buy", "is_seed": 1}
+    fallback_row = {
+        "symbol": "BTCUSDTM", "strategy": "TF", "side": "buy", "is_fallback": True
+    }
+    clean_row = {"symbol": "BTCUSDTM", "strategy": "TF", "side": "buy"}
+    _insert_log_events(
+        db,
+        [
+            (_CLOSE_EVENT, seed_row),
+            (_CLOSE_EVENT, fallback_row),
+            (_CLOSE_EVENT, clean_row),
+        ],
+    )
+
+    report = collect_natural_trades([db])
+
+    assert report["totals"]["natural_closed_rows"] == 1
+    assert report["totals"]["rejected_rows"] == 2
+    rc = report["totals"]["rejected_reason_counts"]
+    assert rc.get("seed_trade", 0) == 1
+    assert rc.get("fallback_open", 0) == 1
+
+
+def test_logs_schema_no_supported_events_fails_loud(tmp_path: Path) -> None:
+    db = tmp_path / "run.db"
+    _create_logs_db(db)
+    _insert_log_events(
+        db,
+        [("unrelated_event", {"symbol": "BTCUSDTM", "strategy": "TF", "side": "buy"})],
+    )
+
+    out = tmp_path / "report.json"
+    rc = main(["--db", str(db), "--output-json", str(out)])
+    assert rc == 2
+    assert not out.exists()
+
+
+def test_logs_schema_economics_available_false_in_output(tmp_path: Path) -> None:
+    db = tmp_path / "run.db"
+    _create_logs_db(db)
+    xrp_row = {"symbol": "XRPUSDTM", "strategy": "TrendFollowing", "side": "buy"}
+    _insert_log_events(db, [(_CLOSE_EVENT, xrp_row)])
+
+    out = tmp_path / "report.json"
+    rc = main(["--db", str(db), "--output-json", str(out)])
+    assert rc == 0
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    assert payload["totals"]["natural_closed_rows"] == 1
+    g = payload["groups"][0]
+    assert g["economics_available"] is False
+    assert g["net_pnl"] is None
 
 
 def test_zero_natural_rows_still_writes_valid_json(tmp_path: Path) -> None:

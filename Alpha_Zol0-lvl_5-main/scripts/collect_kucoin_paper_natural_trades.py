@@ -155,12 +155,131 @@ def _evaluate_row(row: sqlite3.Row, cm: ColumnMap) -> RowEval:
     )
 
 
+_LOGS_CLOSE_EVENTS = frozenset(
+    {
+        "post_close_summary_payload_built",
+        "post_close_summary_emit_done",
+    }
+)
+
+_PROVENANCE_REJECT_KEYS = {
+    "seed_trade": ["is_seed", "seed_trade", "seed_open", "seed_enabled"],
+    "fallback_open": [
+        "is_fallback",
+        "fallback_open",
+        "fallback_used",
+        "alpha_whitelist_fallback_used",
+        "paper_auto_open_fallback",
+    ],
+    "force_open": [
+        "is_force_open",
+        "force_open",
+        "diagnostic_force_open",
+        "paper_auto_open_forced",
+    ],
+    "diagnostic_open": ["is_diagnostic", "diagnostic_open", "diagnostic_run"],
+    "live_mode": ["live", "is_live"],
+    "mock_data": ["use_mock", "is_mock"],
+}
+
+
+def _provenance_reasons_from_payload(payload: dict) -> list[str]:
+    reasons: list[str] = []
+    for reason, keys in _PROVENANCE_REJECT_KEYS.items():
+        for k in keys:
+            if k in payload and _coerce_bool(payload[k]):
+                reasons.append(reason)
+                break
+    return reasons
+
+
+def _collect_from_closed_trades(
+    cur: sqlite3.Cursor,
+    db: Path,
+    schema_by_db: dict,
+    groups: dict,
+    rejected_reason_counts: Counter,
+) -> tuple[int, int]:
+    cols = _columns(cur, "closed_trades")
+    cm = _build_column_map(cols)
+    schema_by_db[str(db)] = {
+        "source_schema": "closed_trades",
+        "table": "closed_trades",
+        "columns": sorted(cols),
+        "column_map": cm.__dict__,
+        "economics_available": True,
+    }
+    rows = cur.execute("select * from closed_trades").fetchall()
+    scanned = 0
+    rejected = 0
+    for row in rows:
+        scanned += 1
+        ev = _evaluate_row(row, cm)
+        if ev.rejected_reasons:
+            rejected += 1
+            for r in ev.rejected_reasons:
+                rejected_reason_counts[r] += 1
+            continue
+        groups[(ev.symbol, ev.strategy, ev.side)].append(ev.pnl)
+    return scanned, rejected
+
+
+def _collect_from_logs(
+    cur: sqlite3.Cursor,
+    db: Path,
+    schema_by_db: dict,
+    groups_no_pnl: dict,
+    rejected_reason_counts: Counter,
+) -> tuple[int, int]:
+    supported = sorted(_LOGS_CLOSE_EVENTS)
+    placeholders = ",".join("?" for _ in supported)
+    rows = cur.execute(
+        f"select id, event, details from logs where event in ({placeholders})",
+        supported,
+    ).fetchall()
+    schema_by_db[str(db)] = {
+        "source_schema": "logs",
+        "table": "logs",
+        "supported_events": supported,
+        "economics_available": False,
+    }
+    if not rows:
+        raise SchemaError(
+            f"{db}: NO_SUPPORTED_CLOSE_EVENTS — "
+            f"logs table exists but contains no supported close events "
+            f"({', '.join(supported)})"
+        )
+    scanned = 0
+    rejected = 0
+    for _rid, _ev, details_raw in rows:
+        scanned += 1
+        try:
+            payload = json.loads(details_raw) if isinstance(details_raw, str) else {}
+        except (ValueError, TypeError):
+            payload = {}
+        symbol = str(payload.get("symbol") or "").strip().upper()
+        strategy = str(payload.get("strategy") or "").strip()
+        side = str(payload.get("side") or "").strip().lower()
+        if not (symbol and strategy and side):
+            rejected += 1
+            rejected_reason_counts["missing_identity_fields"] += 1
+            continue
+        reasons = _provenance_reasons_from_payload(payload)
+        if reasons:
+            rejected += 1
+            for r in reasons:
+                rejected_reason_counts[r] += 1
+            continue
+        groups_no_pnl[(symbol, strategy, side)] += 1
+    return scanned, rejected
+
+
 def collect_natural_trades(db_files: list[Path]) -> dict:
-    groups: dict[tuple[str, str, str], list[float]] = defaultdict(list)
+    groups_pnl: dict[tuple[str, str, str], list[float]] = defaultdict(list)
+    groups_count: Counter[tuple[str, str, str]] = Counter()
     rejected_reason_counts: Counter[str] = Counter()
     rejected_rows = 0
     scanned_rows = 0
-
     schema_by_db: dict[str, dict] = {}
 
     for db in db_files:
@@ -173,33 +292,28 @@ def collect_natural_trades(db_files: list[Path]) -> dict:
                 "select name from sqlite_master where type='table'"
             )
         }
-        if "closed_trades" not in tables:
+        if "closed_trades" in tables:
+            s, r = _collect_from_closed_trades(
+                cur, db, schema_by_db, groups_pnl, rejected_reason_counts
+            )
+        elif "logs" in tables:
+            cur.row_factory = None
+            s, r = _collect_from_logs(
+                cur, db, schema_by_db, groups_count, rejected_reason_counts
+            )
+        else:
             con.close()
-            raise SchemaError(f"{db}: missing required table 'closed_trades'")
-
-        cols = _columns(cur, "closed_trades")
-        cm = _build_column_map(cols)
-        schema_by_db[str(db)] = {
-            "table": "closed_trades",
-            "columns": sorted(cols),
-            "column_map": cm.__dict__,
-        }
-
-        rows = cur.execute("select * from closed_trades").fetchall()
+            raise SchemaError(
+                f"{db}: unsupported schema — needs 'closed_trades' or 'logs' table"
+            )
         con.close()
+        scanned_rows += s
+        rejected_rows += r
 
-        for row in rows:
-            scanned_rows += 1
-            ev = _evaluate_row(row, cm)
-            if ev.rejected_reasons:
-                rejected_rows += 1
-                for reason in ev.rejected_reasons:
-                    rejected_reason_counts[reason] += 1
-                continue
-            groups[(ev.symbol, ev.strategy, ev.side)].append(ev.pnl)
+    economics_available = bool(groups_pnl) or not bool(groups_count)
 
     grouped = []
-    for (symbol, strategy, side), pnls in sorted(groups.items()):
+    for (symbol, strategy, side), pnls in sorted(groups_pnl.items()):
         trade_count = len(pnls)
         wins = sum(1 for p in pnls if p > 0)
         gross_profit = sum(p for p in pnls if p > 0)
@@ -210,6 +324,7 @@ def collect_natural_trades(db_files: list[Path]) -> dict:
                 "strategy": strategy,
                 "side": side,
                 "trade_count": trade_count,
+                "economics_available": True,
                 "winrate": (wins / trade_count) if trade_count else 0.0,
                 "net_pnl": sum(pnls),
                 "expectancy": (sum(pnls) / trade_count) if trade_count else 0.0,
@@ -224,14 +339,33 @@ def collect_natural_trades(db_files: list[Path]) -> dict:
                 ),
             }
         )
+    for (symbol, strategy, side), trade_count in sorted(groups_count.items()):
+        grouped.append(
+            {
+                "symbol": symbol,
+                "strategy": strategy,
+                "side": side,
+                "trade_count": trade_count,
+                "economics_available": False,
+                "winrate": None,
+                "net_pnl": None,
+                "expectancy": None,
+                "profit_factor": None,
+            }
+        )
+
+    natural_rows = (
+        sum(len(v) for v in groups_pnl.values()) + groups_count.total()
+    )
 
     return {
         "status": "ok",
         "db_files": [str(p) for p in db_files],
         "schema_by_db": schema_by_db,
+        "economics_available": economics_available or bool(groups_pnl),
         "totals": {
             "scanned_closed_rows": scanned_rows,
-            "natural_closed_rows": sum(len(v) for v in groups.values()),
+            "natural_closed_rows": natural_rows,
             "rejected_rows": rejected_rows,
             "rejected_reason_counts": dict(sorted(rejected_reason_counts.items())),
             "group_count": len(grouped),
