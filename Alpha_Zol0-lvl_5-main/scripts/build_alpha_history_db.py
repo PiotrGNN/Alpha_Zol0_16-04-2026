@@ -506,6 +506,63 @@ def _choose_positive_side_fallback_pairs(
     return allowed_pairs, selected_side_tokens
 
 
+def _profit_factor_from_pnls(pnls) -> float | None:
+    gross_profit = 0.0
+    gross_loss = 0.0
+    for raw_pnl in pnls or []:
+        try:
+            pnl = float(raw_pnl)
+        except Exception:
+            continue
+        if pnl > 0.0:
+            gross_profit += pnl
+        elif pnl < 0.0:
+            gross_loss += abs(pnl)
+    if gross_loss <= 0.0:
+        return None
+    return gross_profit / gross_loss
+
+
+def _strict_rejection_root_cause(
+    *,
+    rows_scanned: int,
+    normalized_count: int,
+    malformed_rows: int,
+    inserted: int,
+    quality_filter: bool,
+    rejection_breakdown: dict,
+    pair_stats: dict,
+) -> str | None:
+    if inserted > 0:
+        return None
+    if int(rows_scanned or 0) <= 0:
+        return "STRICT_SOURCE_EMPTY"
+    if int(normalized_count or 0) <= 0:
+        if int(malformed_rows or 0) > 0:
+            return "STRICT_SOURCE_ROWS_MALFORMED"
+        return "STRICT_NO_NATURAL_EDGE_EVIDENCE_FOUND"
+    if not quality_filter:
+        return "STRICT_NO_NATURAL_EDGE_EVIDENCE_FOUND"
+    active_reasons = {
+        str(key): int(value or 0)
+        for key, value in (rejection_breakdown or {}).items()
+        if int(value or 0) > 0
+    }
+    if set(active_reasons) == {"min_pair_trades"}:
+        return "STRICT_MIN_TRADES_BLOCKED"
+    if set(active_reasons) == {"min_pair_winrate"}:
+        return "STRICT_WINRATE_BLOCKED"
+    if set(active_reasons) == {"min_pair_expectancy"}:
+        return "STRICT_EXPECTANCY_BLOCKED"
+    if set(active_reasons) == {"net_pnl_nonpositive"}:
+        return "STRICT_NET_PNL_BLOCKED"
+    if active_reasons:
+        return "MIXED_STRICT_BOOTSTRAP_REJECTION"
+    if pair_stats:
+        return "STRICT_QUALITY_FILTER_TOO_STRICT_FOR_AVAILABLE_EVIDENCE"
+    return "STRICT_NO_NATURAL_EDGE_EVIDENCE_FOUND"
+
+
 def build_history_db(
     output_path: Path,
     glob_patterns,
@@ -535,6 +592,8 @@ def build_history_db(
     scanned_sources = 0
     used_sources = 0
     source_stats = []
+    source_paths = []
+    malformed_rows = 0
 
     for src in sources:
         if len(normalized_rows) >= max_total:
@@ -546,6 +605,7 @@ def build_history_db(
         if src.resolve() == output_path.resolve():
             continue
         scanned_sources += 1
+        source_paths.append(str(src.resolve()))
         src_inserted = 0
         src_valid = 0
         src_rows = 0
@@ -575,6 +635,7 @@ def build_history_db(
                     exclude_strategies=exclude_strategies,
                 )
                 if normalized is None:
+                    malformed_rows += 1
                     continue
                 ts, out_details, key = normalized
                 src_valid += 1
@@ -595,6 +656,7 @@ def build_history_db(
                             out_details.get("funding_total") or 0.0
                         ),
                         "source": src.name,
+                        "source_path": str(src.resolve()),
                     }
                 )
                 src_inserted += 1
@@ -719,14 +781,116 @@ def build_history_db(
         reverse=True,
     )
 
+    source_paths_by_pair = {}
+    source_paths_by_pair_side = {}
+    pnls_by_pair = {}
+    pnls_by_pair_side = {}
+    for row in normalized_rows:
+        details = row.get("details")
+        if not isinstance(details, dict):
+            continue
+        pair = _pair_from_details(details)
+        pair_side = _pair_side_from_details(details)
+        source_path = str(row.get("source_path") or row.get("source") or "")
+        pnl = _to_float(row.get("pnl"))
+        if pair is not None:
+            if source_path:
+                source_paths_by_pair.setdefault(pair, set()).add(source_path)
+            if pnl is not None:
+                pnls_by_pair.setdefault(pair, []).append(float(pnl))
+        if pair_side is not None:
+            if source_path:
+                source_paths_by_pair_side.setdefault(pair_side, set()).add(source_path)
+            if pnl is not None:
+                pnls_by_pair_side.setdefault(pair_side, []).append(float(pnl))
+
+    strict_rejected_rows = []
+    strict_rejection_breakdown = {}
+    quality_filter_values_used = {
+        "min_pair_trades": int(min_pair_trades),
+        "min_pair_winrate": float(min_pair_winrate),
+        "min_pair_expectancy": float(min_pair_expectancy),
+        "fallback_top_pairs": int(fallback_top_pairs),
+        "fallback_positive_side_pairs": int(fallback_positive_side_pairs),
+        "min_side_trades": int(min_side_trades),
+        "min_side_winrate": float(min_side_winrate),
+        "min_side_expectancy": float(min_side_expectancy),
+    }
+    if quality_filter:
+        for pair_side, side_st in pair_side_stats.items():
+            if not isinstance(pair_side, tuple) or len(pair_side) != 3:
+                continue
+            symbol, strategy, side = pair_side
+            pair = (symbol, strategy)
+            if pair in allowed_pairs:
+                continue
+            pair_st = pair_stats.get(pair) or {}
+            reasons = []
+            if int(pair_st.get("trade_count") or 0) < int(min_pair_trades):
+                reasons.append("min_pair_trades")
+            if float(pair_st.get("winrate") or 0.0) < float(min_pair_winrate):
+                reasons.append("min_pair_winrate")
+            if float(pair_st.get("expectancy") or 0.0) < float(min_pair_expectancy):
+                reasons.append("min_pair_expectancy")
+            if float(pair_st.get("net_pnl") or 0.0) <= 0.0:
+                reasons.append("net_pnl_nonpositive")
+            if not reasons:
+                reasons.append("not_selected_by_quality_filter")
+            for reason in reasons:
+                strict_rejection_breakdown[reason] = (
+                    int(strict_rejection_breakdown.get(reason) or 0) + 1
+                )
+            strict_rejected_rows.append(
+                {
+                    "source_paths": sorted(
+                        source_paths_by_pair_side.get(pair_side)
+                        or source_paths_by_pair.get(pair)
+                        or []
+                    ),
+                    "symbol": symbol,
+                    "side": side,
+                    "strategy": strategy,
+                    "trade_count": int(pair_st.get("trade_count") or 0),
+                    "side_trade_count": int(side_st.get("trade_count") or 0),
+                    "winrate": float(pair_st.get("winrate") or 0.0),
+                    "side_winrate": float(side_st.get("winrate") or 0.0),
+                    "expectancy": float(pair_st.get("expectancy") or 0.0),
+                    "side_expectancy": float(side_st.get("expectancy") or 0.0),
+                    "net_pnl": float(pair_st.get("net_pnl") or 0.0),
+                    "side_net_pnl": float(side_st.get("net_pnl") or 0.0),
+                    "profit_factor": _profit_factor_from_pnls(
+                        pnls_by_pair.get(pair) or []
+                    ),
+                    "side_profit_factor": _profit_factor_from_pnls(
+                        pnls_by_pair_side.get(pair_side) or []
+                    ),
+                    "missing_fields": [],
+                    "rejection_reasons": reasons,
+                    "quality_filter_values_used": quality_filter_values_used,
+                }
+            )
+    strict_zero_rows_root_cause = _strict_rejection_root_cause(
+        rows_scanned=scanned_rows,
+        normalized_count=len(normalized_rows),
+        malformed_rows=malformed_rows,
+        inserted=inserted,
+        quality_filter=bool(quality_filter),
+        rejection_breakdown=strict_rejection_breakdown,
+        pair_stats=pair_stats,
+    )
+
     return {
         "output": str(output_path),
         "sources_scanned": scanned_sources,
         "sources_used": used_sources,
+        "source_paths": sorted(source_paths),
         "max_sources": int(max_sources),
         "max_scan_sources": int(max_scan_sources),
         "rows_scanned": scanned_rows,
         "rows_inserted": inserted,
+        "rejected_count": len(strict_rejected_rows),
+        "reject_reasons": sorted(strict_rejection_breakdown),
+        "malformed_rows": int(malformed_rows),
         "dedup_size": len(seen_keys),
         "quality_filter": bool(quality_filter),
         "min_pair_trades": int(min_pair_trades),
@@ -748,6 +912,9 @@ def build_history_db(
         "pairs_total": len(pair_stats),
         "pairs_selected": len(allowed_pairs),
         "pairs_rejected_per_rule": rejection_telemetry,
+        "strict_rejection_breakdown": strict_rejection_breakdown,
+        "strict_rejected_rows": strict_rejected_rows,
+        "strict_zero_rows_root_cause": strict_zero_rows_root_cause,
         "source_stats_top": source_stats[:30],
         "pair_stats_top": pair_ranking[:30],
         "pair_side_stats_top": pair_side_ranking[:60],
