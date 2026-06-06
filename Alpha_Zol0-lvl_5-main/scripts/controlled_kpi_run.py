@@ -24,6 +24,38 @@ RESULTS_DIR.mkdir(exist_ok=True)
 if str(WORKDIR) not in sys.path:
     sys.path.insert(0, str(WORKDIR))
 
+EFFECTIVE_ENV_VALUE_KEYS = (
+    "ALPHA_WHITELIST_ENABLE",
+    "ALPHA_WHITELIST_COLDSTART_ALLOW",
+    "ALPHA_WHITELIST_FALLBACK_ENABLE",
+    "SEED_TRADES_ENABLE",
+    "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST",
+    "ALPHA_BOOTSTRAP_REQUIRE_EXTERNAL_SOURCE",
+    "LOSS_COOLDOWN_SEC",
+    "ENTRY_MIN_NET_USDT",
+    "ENTRY_MIN_NET_TO_STOP_RATIO",
+    "ENTRY_SYMBOL_STRATEGY_BLOCKLIST",
+    "ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST",
+    "ENTRY_SYMBOL_STRATEGY_SIDE_BLOCKLIST",
+    "DIAG_DISABLE_SIDE_EXPECTANCY",
+    "DIAG_DISABLE_NET_TARGET_GUARD",
+    "DIAG_ALLOW_REENTRY_WHILE_IN_POSITION",
+    "RESEARCH_POST_CLOSE_SUMMARY_GRACE_TICKS",
+    "RESEARCH_POST_CLOSE_SUMMARY_GRACE_TIMEOUT_SEC",
+    "POST_PROMOTION_OBSERVATION_ENABLED",
+    "POST_PROMOTION_OBSERVATION_MAX_SEC",
+    "POST_PROMOTION_OBSERVATION_MAX_CYCLES",
+    "V2_PAPER_ADMISSION_REACHABILITY_PROFILE_ENABLE",
+    "V2_PAPER_SHADOW_VERIFIED_ADVERSE_GUARD_ENABLE",
+    "V2_PAPER_SHADOW_VERIFIED_ADVERSE_GUARD_POLICY",
+    "V2_PAPER_SHADOW_VERIFIED_ADVERSE_GUARD_POLICY_SOURCE",
+)
+
+REJECTED_SHADOW_VERIFIED_GUARD_POLICY = "rejected_overfilter_force_off"
+REJECTED_SHADOW_VERIFIED_GUARD_POLICY_SOURCE = (
+    "analysis/shadow_guard_off_baseline_trade_attribution_current.json"
+)
+
 
 def _parse_symbols(value: str):
     if not value:
@@ -93,6 +125,22 @@ def _coerce_bool(value, default: bool = False) -> bool:
     return default
 
 
+def _apply_rejected_shadow_verified_guard_policy(env: dict) -> None:
+    if not isinstance(env, dict):
+        return
+    if not _coerce_bool(env.get("V2_PAPER_ADMISSION_REACHABILITY_PROFILE_ENABLE")):
+        return
+    if _coerce_bool(env.get("LIVE")):
+        return
+    env["V2_PAPER_SHADOW_VERIFIED_ADVERSE_GUARD_ENABLE"] = "0"
+    env["V2_PAPER_SHADOW_VERIFIED_ADVERSE_GUARD_POLICY"] = (
+        REJECTED_SHADOW_VERIFIED_GUARD_POLICY
+    )
+    env["V2_PAPER_SHADOW_VERIFIED_ADVERSE_GUARD_POLICY_SOURCE"] = (
+        REJECTED_SHADOW_VERIFIED_GUARD_POLICY_SOURCE
+    )
+
+
 def _path_is_within(path: Path, parent: Path) -> bool:
     try:
         path.resolve().relative_to(parent.resolve())
@@ -146,7 +194,7 @@ def _build_entry_gate_summary_artifact(
     }
 
 
-STRICT_ALPHA_SIDE_MIN_TRADES = 2
+STRICT_ALPHA_SIDE_MIN_TRADES = 5
 STRICT_ALPHA_SIDE_MIN_WINRATE = 0.45
 STRICT_ALPHA_SIDE_MIN_EXPECTANCY = 0.0
 TOXIC_COST_PAIR_MIN_TRADES = 8
@@ -164,6 +212,64 @@ EXACT_ALPHA_BOOTSTRAP_EMPTY_SENTINEL = (
 STRICT_BOOTSTRAP_PREBUILT_MANIFEST = (
     "analysis/zol0_profitability_audit_strict_bootstrap_manifest.json"
 )
+
+
+def _narrow_negative_symbols_from_side_evidence(
+    negative_symbols: set[str] | None,
+    alpha_refresh_report: dict | None,
+    active_run_symbols: set[str] | None = None,
+) -> set[str]:
+    narrowed = {
+        str(symbol_name or "").strip().upper()
+        for symbol_name in (negative_symbols or set())
+        if str(symbol_name or "").strip()
+    }
+    if not narrowed or not isinstance(alpha_refresh_report, dict):
+        return narrowed
+
+    scoped_active_run_symbols = {
+        str(symbol_name or "").strip().upper()
+        for symbol_name in (active_run_symbols or set())
+        if str(symbol_name or "").strip()
+    }
+    positive_marker_keys = (
+        "positive",
+        "allow",
+        "allowed",
+        "pass",
+        "is_positive",
+        "selected_positive",
+        "positive_side",
+        "positive_side_evidence",
+    )
+    released_symbols = set()
+    for row in alpha_refresh_report.get("pair_side_stats_top") or []:
+        if not isinstance(row, dict):
+            continue
+        try:
+            symbol_name = str(row.get("symbol") or "").strip().upper()
+        except Exception:
+            symbol_name = ""
+        if not symbol_name or symbol_name not in narrowed:
+            continue
+        if scoped_active_run_symbols and symbol_name not in scoped_active_run_symbols:
+            continue
+        explicit_positive_marker = any(
+            _coerce_bool(row.get(marker_key)) for marker_key in positive_marker_keys
+        )
+        try:
+            expectancy = float(row.get("expectancy") or 0.0)
+        except Exception:
+            expectancy = 0.0
+        if expectancy > 0.0 or explicit_positive_marker:
+            released_symbols.add(symbol_name)
+    if not released_symbols:
+        return narrowed
+    return {
+        symbol_name
+        for symbol_name in narrowed
+        if symbol_name not in released_symbols
+    }
 
 
 def _derive_profitability_bucket_gate(
@@ -185,6 +291,15 @@ def _derive_profitability_bucket_gate(
     toxic_side_blocklist = set()
     cost_burden_side_blocklist = set()
     selected_pairs = set()
+    explicit_positive_side_fallback_tokens = {
+        str(token or "").strip().upper()
+        for token in (alpha_refresh_report.get("positive_side_fallback_side_tokens") or [])
+        if str(token or "").strip()
+    }
+    try:
+        rows_inserted = int(alpha_refresh_report.get("rows_inserted") or 0)
+    except Exception:
+        rows_inserted = 0
     scoped_active_run_symbols = {
         str(symbol).strip().upper()
         for symbol in (active_run_symbols or set())
@@ -244,6 +359,7 @@ def _derive_profitability_bucket_gate(
             continue
         valid_side_rows_seen += 1
         pair_key = f"{symbol_name}:{strategy_name}"
+        side_token = f"{symbol_name}:{strategy_name}:{side_name}"
         if (
             not positive_side_fallback_used
             and
@@ -253,9 +369,16 @@ def _derive_profitability_bucket_gate(
             and expectancy > STRICT_ALPHA_SIDE_MIN_EXPECTANCY
             and winrate >= STRICT_ALPHA_SIDE_MIN_WINRATE
         ):
-            positive_side_allowlist.add(
-                f"{symbol_name}:{strategy_name}:{side_name}"
-            )
+            positive_side_allowlist.add(side_token)
+        if (
+            positive_side_fallback_used
+            and rows_inserted > 0
+            and side_token.upper() in explicit_positive_side_fallback_tokens
+            and expectancy > STRICT_ALPHA_SIDE_MIN_EXPECTANCY
+            and net_pnl > 0.0
+            and winrate >= STRICT_ALPHA_SIDE_MIN_WINRATE
+        ):
+            positive_side_allowlist.add(side_token)
         if (
             trade_count >= TOXIC_COST_SIDE_MIN_TRADES
             and expectancy <= TOXIC_COST_SIDE_MAX_EXPECTANCY
@@ -911,6 +1034,92 @@ def _apply_positive_side_allowlist_contract(
     return result
 
 
+def _resolve_regime_deadlock_expansion(
+    after_overrides: dict,
+    after_overrides_cli: dict,
+    strategy_side_stats: dict,
+    positive_side_fallback_used: bool,
+    active_run_symbols: set,
+) -> None:
+    """Detect TF-only strategy allowlist + positive_side_fallback regime deadlock.
+
+    When ENTRY_STRATEGY_ALLOWLIST is TF-only and positive_side_fallback is
+    active, TrendFollowing cannot generate buy signals in a bearish regime
+    (requires EMA crossover in uptrend). Expands the allowlist with
+    regime-compatible strategies found in strategy_side_stats if they pass
+    minimum quality thresholds.
+
+    Mutates ``after_overrides`` and ``after_overrides_cli`` in place.
+    """
+    _REGIME_COMPAT_PRIORITY = ["MeanReversion", "Universal", "Momentum"]
+    _MIN_TC = 2
+    _MIN_EXP = -0.01
+    _MIN_WR = 0.30
+
+    allowlist_raw = str(after_overrides.get("ENTRY_STRATEGY_ALLOWLIST", ""))
+    current_allowlist = [s.strip() for s in allowlist_raw.split(",") if s.strip()]
+    only_tf = bool(
+        current_allowlist
+        and all(str(s).upper() == "TRENDFOLLOWING" for s in current_allowlist)
+    )
+    if not (only_tf and positive_side_fallback_used):
+        return
+
+    candidates = []
+    for rname in _REGIME_COMPAT_PRIORITY:
+        bucket = (strategy_side_stats or {}).get(f"{rname}:buy") or {}
+        rtc = int(bucket.get("trade_count") or 0)
+        if rtc < _MIN_TC:
+            continue
+        rnet = float(bucket.get("net_pnl") or 0.0)
+        rwins = float(bucket.get("wins_weighted") or 0.0)
+        rexp = (rnet / rtc) if rtc > 0 else 0.0
+        rwr = (rwins / rtc) if rtc > 0 else 0.0
+        if rexp >= _MIN_EXP and rwr >= _MIN_WR:
+            candidates.append(rname)
+
+    if candidates:
+        new_allowlist = sorted(set(current_allowlist) | set(candidates))
+        after_overrides["ENTRY_STRATEGY_ALLOWLIST"] = ",".join(new_allowlist)
+        after_overrides_cli.pop("ENTRY_STRATEGY_ALLOWLIST", None)
+        print(
+            "ALLOWLIST_REGIME_DEADLOCK_BREAK: expanded ENTRY_STRATEGY_ALLOWLIST "
+            f"from={current_allowlist} to={new_allowlist} "
+            f"regime_compat_added={candidates}"
+        )
+        # Also expand ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST if TF-only tokens
+        side_tokens = [
+            t.strip()
+            for t in str(
+                after_overrides.get("ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST", "")
+            ).split(",")
+            if t.strip()
+        ]
+        if side_tokens and all(
+            ":TRENDFOLLOWING:" in t.upper() for t in side_tokens
+        ):
+            side_new = list(side_tokens)
+            for sname in candidates:
+                for sym in sorted(active_run_symbols or set()):
+                    side_new.append(f"{sym}:{sname}:buy")
+            after_overrides["ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST"] = ",".join(
+                sorted(set(side_new))
+            )
+            after_overrides_cli.pop("ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST", None)
+            print(
+                "ALLOWLIST_REGIME_DEADLOCK_BREAK: expanded "
+                "ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST "
+                f"regime_compat_added={candidates}"
+            )
+    else:
+        print(
+            "ALLOWLIST_REGIME_DEADLOCK_DETECTED: TF-only allowlist with "
+            "positive_side_fallback_used=True but no regime-compatible buy "
+            "strategy found in strategy_side_stats. "
+            "allowlist_regime_deadlock_detected=True"
+        )
+
+
 def _derive_entry_admission_contract(
     *,
     variant_only: str,
@@ -918,6 +1127,7 @@ def _derive_entry_admission_contract(
     after_overrides: dict,
     alpha_bootstrap_runtime_contract: dict,
     strict_bucket_gate: dict,
+    symbols: list[str] | None = None,
 ) -> dict:
     variant_txt = str(variant_only or "").strip().lower()
     after_requested = variant_txt in {"after", "both"}
@@ -943,6 +1153,44 @@ def _derive_entry_admission_contract(
         if canonical:
             allow_side_tokens.add(canonical)
 
+    allowlist_contract_type = "none"
+    allowlist_scope_tokens = []
+    if explicit_side_allowlist:
+        allowlist_contract_type = "explicit_side_allowlist"
+        allowlist_scope_tokens = list(explicit_side_allowlist)
+    elif positive_side_allowlist:
+        allowlist_contract_type = "strict_positive_side_allowlist"
+        allowlist_scope_tokens = list(positive_side_allowlist)
+
+    allowlist_side_coverage = set()
+    for token in allowlist_scope_tokens:
+        canonical = _canonical_symbol_strategy_side_token(token)
+        if not canonical:
+            continue
+        try:
+            _, _, side_key = canonical.split(":", 2)
+        except Exception:
+            continue
+        if side_key in {"buy", "sell"}:
+            allowlist_side_coverage.add(side_key)
+    one_sided_allowlist_detected = bool(
+        allowlist_scope_tokens and len(allowlist_side_coverage) == 1
+    )
+
+    active_symbols = {
+        str(symbol or "").strip().upper()
+        for symbol in (symbols or [])
+        if str(symbol or "").strip()
+    }
+    symbol_scope_count = len(active_symbols)
+    symbol_scope_type = (
+        "single_symbol"
+        if symbol_scope_count == 1
+        else "narrow_symbol_corridor"
+        if symbol_scope_count == 2
+        else "multi_symbol"
+    )
+
     block_side_tokens = set()
     for token in explicit_side_blocklist:
         canonical = _canonical_symbol_strategy_side_token(token)
@@ -964,6 +1212,11 @@ def _derive_entry_admission_contract(
     reason_codes = []
     status = "PASS"
     validation_classification = "PAPER_VALIDATION_CANDIDATE"
+    invalid_reason = None
+    allow_one_sided_validation = _coerce_bool(
+        (after_overrides or {}).get("ALLOW_ONE_SIDED_VALIDATION"),
+        default=False,
+    )
     if not after_requested:
         reason_codes.append("AFTER_VARIANT_NOT_REQUESTED")
         validation_classification = "NOT_AFTER_VALIDATION"
@@ -1001,6 +1254,47 @@ def _derive_entry_admission_contract(
             status = "FAIL_CLOSED"
             validation_classification = "NO_ELIGIBLE_POSITIVE_ENTRY_BUCKETS"
 
+    throughput_collapse_risk = bool(
+        after_requested
+        and bool(paper_auto_open)
+        and symbol_scope_count in {1, 2}
+        and one_sided_allowlist_detected
+    )
+    if throughput_collapse_risk:
+        if allow_one_sided_validation:
+            invalid_reason = "ONE_SIDED_ALLOWLIST_DIAGNOSTIC_OPT_IN"
+            if "ONE_SIDED_ALLOWLIST_DIAGNOSTIC_OPT_IN" not in reason_codes:
+                reason_codes.append("ONE_SIDED_ALLOWLIST_DIAGNOSTIC_OPT_IN")
+            if (
+                "PROFIT_VALIDATION_CORPUS_INVALID_ONE_SIDED_ALLOWLIST"
+                not in reason_codes
+            ):
+                reason_codes.append(
+                    "PROFIT_VALIDATION_CORPUS_INVALID_ONE_SIDED_ALLOWLIST"
+                )
+        else:
+            status = "FAIL_CLOSED"
+            validation_classification = (
+                "INVALID_PROFIT_VALIDATION_CORPUS_ONE_SIDED_ALLOWLIST"
+            )
+            invalid_reason = "ONE_SIDED_ALLOWLIST_THROUGHPUT_COLLAPSE_RISK"
+            if "ONE_SIDED_ALLOWLIST_THROUGHPUT_COLLAPSE_RISK" not in reason_codes:
+                reason_codes.append("ONE_SIDED_ALLOWLIST_THROUGHPUT_COLLAPSE_RISK")
+            if (
+                "PROFIT_VALIDATION_CORPUS_INVALID_ONE_SIDED_ALLOWLIST"
+                not in reason_codes
+            ):
+                reason_codes.append(
+                    "PROFIT_VALIDATION_CORPUS_INVALID_ONE_SIDED_ALLOWLIST"
+                )
+
+    profit_valid = bool(
+        status == "PASS"
+        and after_requested
+        and bool(paper_auto_open)
+        and not bool(invalid_reason)
+    )
+
     return {
         "status": status,
         "validation_classification": validation_classification,
@@ -1014,6 +1308,14 @@ def _derive_entry_admission_contract(
         "positive_side_allowlist": positive_side_allowlist,
         "conflicting_side_tokens": conflicting_side_tokens,
         "alpha_bootstrap_runtime_status": bootstrap_status,
+        "profit_valid": bool(profit_valid),
+        "invalid_reason": str(invalid_reason or ""),
+        "allowlist_contract_type": allowlist_contract_type,
+        "one_sided_allowlist_detected": bool(one_sided_allowlist_detected),
+        "allowlist_side_coverage": sorted(allowlist_side_coverage),
+        "allow_one_sided_validation": bool(allow_one_sided_validation),
+        "symbol_scope_count": int(symbol_scope_count),
+        "symbol_scope_type": symbol_scope_type,
     }
 
 
@@ -2235,6 +2537,14 @@ def _resolve_final_shutdown_state(
             final_shutdown_classification = "close_flush_done_pending_positions_zero"
             final_termination_reason = final_shutdown_classification
             final_drain_recheck_result = "late_close_drain_completion_observed"
+    # PAPER_FORCE_CLOSE_ON_EXIT: the bot force-closed all positions before exiting
+    # via PAPER_RUN_ONCE.  The process exited cleanly (proc_exited) and the final
+    # drain snapshot confirms no positions remain — upgrade to the canonical clean
+    # shutdown classification so live_guard accepts the run.
+    if candidate_shutdown_classification == "proc_exited" and final_progress_complete:
+        final_shutdown_classification = "close_flush_done_pending_positions_zero"
+        final_termination_reason = final_shutdown_classification
+        final_drain_recheck_result = "late_close_drain_completion_observed"
     return {
         "candidate_shutdown_classification": candidate_shutdown_classification,
         "candidate_termination_reason": candidate_termination_reason,
@@ -2868,6 +3178,7 @@ def _variant_env(
             if not k:
                 continue
             env[k] = str(value)
+    _apply_rejected_shadow_verified_guard_policy(env)
     return env
 
 
@@ -5020,29 +5331,7 @@ def _run_variant(
             "LIVE",
         )
     }
-    env_effective_flags = {
-        key: env.get(key)
-        for key in (
-            "ALPHA_WHITELIST_ENABLE",
-            "ALPHA_WHITELIST_COLDSTART_ALLOW",
-            "ALPHA_WHITELIST_FALLBACK_ENABLE",
-            "SEED_TRADES_ENABLE",
-            "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST",
-            "ALPHA_BOOTSTRAP_REQUIRE_EXTERNAL_SOURCE",
-            "LOSS_COOLDOWN_SEC",
-            "ENTRY_SYMBOL_STRATEGY_BLOCKLIST",
-            "ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST",
-            "ENTRY_SYMBOL_STRATEGY_SIDE_BLOCKLIST",
-            "DIAG_DISABLE_SIDE_EXPECTANCY",
-            "DIAG_DISABLE_NET_TARGET_GUARD",
-            "DIAG_ALLOW_REENTRY_WHILE_IN_POSITION",
-            "RESEARCH_POST_CLOSE_SUMMARY_GRACE_TICKS",
-            "RESEARCH_POST_CLOSE_SUMMARY_GRACE_TIMEOUT_SEC",
-            "POST_PROMOTION_OBSERVATION_ENABLED",
-            "POST_PROMOTION_OBSERVATION_MAX_SEC",
-            "POST_PROMOTION_OBSERVATION_MAX_CYCLES",
-        )
-    }
+    env_effective_flags = {key: env.get(key) for key in EFFECTIVE_ENV_VALUE_KEYS}
     print(
         f"[{variant}] end={end_dt.isoformat()} actual_sec={int((end_dt - start_dt).total_seconds())} "  # noqa: E501
         f"trades={metrics.get('trade_count')} net_pnl={metrics.get('net_pnl')}"
@@ -5635,6 +5924,36 @@ def main():
         positive_side_fallback_used = _coerce_bool(
             alpha_refresh_report.get("positive_side_fallback_used")
         )
+        # ---- Faza 4C: BOOTSTRAP STALENESS WARNING ----
+        if positive_side_fallback_used:
+            try:
+                import re as _re_stale
+                import datetime as _dt_stale
+                _stale_dates = []
+                for _ss in (alpha_refresh_report.get("source_stats_top") or []):
+                    if isinstance(_ss, (list, tuple)) and _ss:
+                        _sm = _re_stale.search(r"(\d{8})", str(_ss[0]))
+                        if _sm:
+                            _stale_dates.append(
+                                _dt_stale.datetime.strptime(
+                                    _sm.group(1), "%Y%m%d"
+                                ).date()
+                            )
+                if _stale_dates:
+                    _corpus_age_days = (
+                        _dt_stale.date.today() - max(_stale_dates)
+                    ).days
+                    if _corpus_age_days > 7:
+                        print(
+                            "BOOTSTRAP_STALENESS_CRITICAL: "
+                            f"positive_side_fallback_used=True AND "
+                            f"corpus_age_days={_corpus_age_days} (>7). "
+                            "Bootstrap is operating on stale data. "
+                            "Run scripts/refresh_bootstrap_corpus_from_recent_paper.py"
+                            " to refresh. bootstrap_staleness_critical=True"
+                        )
+            except Exception:
+                pass
         if active_run_symbols:
             scoped_alpha_refresh_report["pair_stats_top"] = [
                 row
@@ -6528,11 +6847,20 @@ def main():
                 "SIDE_GUARD_COOLDOWN_SEC": "1800",
                 "LOSS_COOLDOWN_SEC": "240",
                 "allocation_pct": ("0.008" if bootstrap_confident else "0.006"),
-                "ENTRY_CUTOFF_BEFORE_END_SEC": "180",
+                "ENTRY_CUTOFF_BEFORE_END_SEC": str(
+                    min(180, max(60, (args.after_min * 60 * 25) // 100))
+                ),
                 "PAPER_AUTO_CLOSE_HARD_SEC": str(
-                    max(int(args.paper_auto_close_sec) * 2, 120)
+                    max(
+                        (args.after_min * 60 * 40) // 100,
+                        int(args.paper_auto_close_sec) * 2,
+                        300,
+                    )
                 ),
                 "PAPER_AUTO_CLOSE_MIN_PROFIT": "0.04",
+                "PAPER_POST_GREEN_GIVEBACK_TRIGGER": "0.12",
+                "ENTRY_REGIME_QUALITY_GATE_ENABLE": "1",
+                "ENTRY_REGIME_QUALITY_GATE_BLOCKLIST": "TrendFollowing:buy:bearish",
                 "MOMENTUM_SIGNAL_SCORE_THRESHOLD": "0.35",
                 "MOMENTUM_EXHAUSTION_FILTER_ENABLE": "1",
                 "MOMENTUM_EXHAUSTION_Z_EXTREME": "2.8",
@@ -6604,7 +6932,10 @@ def main():
                             )
                         if "DIAGNOSTIC_MODE" not in after_overrides_cli:
                             auto_after_overrides["DIAGNOSTIC_MODE"] = "1"
-                        if "DIAG_ALLOW_REENTRY_WHILE_IN_POSITION" not in after_overrides_cli:
+                        if (
+                            "DIAG_ALLOW_REENTRY_WHILE_IN_POSITION"
+                            not in after_overrides_cli
+                        ):
                             auto_after_overrides[
                                 "DIAG_ALLOW_REENTRY_WHILE_IN_POSITION"
                             ] = "1"
@@ -6627,6 +6958,11 @@ def main():
                     for symbol_name in negative_symbols
                     if str(symbol_name).strip().upper() not in strict_positive_symbols
                 }
+            negative_symbols = _narrow_negative_symbols_from_side_evidence(
+                negative_symbols,
+                alpha_refresh_report,
+                active_run_symbols=active_run_symbols,
+            )
             if strict_positive_pairs and negative_symbol_strategy_pairs:
                 filtered_symbol_strategy_pairs = set()
                 for pair_key in negative_symbol_strategy_pairs:
@@ -6761,9 +7097,19 @@ def main():
                     auto_after_overrides["DISABLE_STRATEGIES"] = ",".join(
                         sorted(disabled_target)
                     )
+            exact_symbol_side_allowlist_active = bool(
+                _split_csv_tokens(
+                    after_overrides.get("ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST")
+                )
+            )
             for key, value in auto_after_overrides.items():
                 k = str(key)
                 v = str(value)
+                if (
+                    exact_symbol_side_allowlist_active
+                    and k == "ENTRY_STRATEGY_SIDE_ALLOWLIST"
+                ):
+                    continue
                 # Respect explicit CLI overrides from the operator.
                 if k in after_overrides_cli:
                     continue
@@ -6798,6 +7144,18 @@ def main():
                 f"disable_strategies={','.join(sorted(negative_strategies)) or '-'} "
                 f"auto_after_overrides={len(auto_after_overrides)}"
             )
+            # ---- Faza 1A/1B/1C: REGIME DEADLOCK DETECTION ----
+            try:
+                _rdd_sss = strategy_side_stats
+            except NameError:
+                _rdd_sss = {}
+            _resolve_regime_deadlock_expansion(
+                after_overrides=after_overrides,
+                after_overrides_cli=after_overrides_cli,
+                strategy_side_stats=_rdd_sss,
+                positive_side_fallback_used=positive_side_fallback_used,
+                active_run_symbols=active_run_symbols,
+            )
 
     run_id = _resolve_run_id(args.run_id)
     positive_side_allowlist_contract = _derive_positive_side_allowlist_contract(
@@ -6805,6 +7163,7 @@ def main():
     )
     entry_admission_contract = _derive_entry_admission_contract(
         variant_only=args.variant_only,
+        symbols=symbols,
         paper_auto_open=bool(args.paper_auto_open),
         after_overrides=after_overrides,
         alpha_bootstrap_runtime_contract=alpha_bootstrap_runtime_contract,
@@ -6814,6 +7173,12 @@ def main():
         "ENTRY_ADMISSION_CONTRACT: "
         f"status={entry_admission_contract.get('status')} "
         f"classification={entry_admission_contract.get('validation_classification')} "
+        f"profit_valid={int(bool(entry_admission_contract.get('profit_valid')))} "
+        f"invalid_reason={entry_admission_contract.get('invalid_reason') or '-'} "
+        "allowlist_contract_type="
+        f"{entry_admission_contract.get('allowlist_contract_type') or '-'} "
+        "one_sided_allowlist_detected="
+        f"{int(bool(entry_admission_contract.get('one_sided_allowlist_detected')))} "
         f"reasons={','.join(entry_admission_contract.get('reason_codes') or []) or '-'}"
     )
     if str(entry_admission_contract.get("status") or "").upper() == "FAIL_CLOSED":
@@ -6955,6 +7320,14 @@ def main():
         "alpha_bootstrap_strict_bucket_gate": strict_bucket_gate,
         "positive_side_allowlist_contract": positive_side_allowlist_contract,
         "entry_admission_contract": entry_admission_contract,
+        "profit_valid": bool(entry_admission_contract.get("profit_valid")),
+        "invalid_reason": str(entry_admission_contract.get("invalid_reason") or ""),
+        "allowlist_contract_type": str(
+            entry_admission_contract.get("allowlist_contract_type") or "none"
+        ),
+        "one_sided_allowlist_detected": bool(
+            entry_admission_contract.get("one_sided_allowlist_detected")
+        ),
         "data_check": data_check,
         "variants_run": list(
             results_by_variant.keys()),
