@@ -150,19 +150,32 @@ def _insert_log_events(path: Path, events: list[tuple[str, dict]]) -> None:
 
 
 _CLOSE_EVENT = "post_close_summary_payload_built"
+_POSITION_CLOSE_EVENT = "position_close"
 
 
 def test_logs_schema_groups_btc_tf_buy(tmp_path: Path) -> None:
     db = tmp_path / "run.db"
     _create_logs_db(db)
-    btc_row = {"symbol": "BTCUSDTM", "strategy": "TrendFollowing", "side": "buy"}
-    sol_row = {"symbol": "SOLUSDTM", "strategy": "TrendFollowing", "side": "buy"}
+    btc_row = {
+        "trade_id": "t1",
+        "symbol": "BTCUSDTM",
+        "strategy": "TrendFollowing",
+        "side": "buy",
+        "realized_net": 1.25,
+    }
+    sol_row = {
+        "trade_id": "t2",
+        "symbol": "SOLUSDTM",
+        "strategy": "TrendFollowing",
+        "side": "buy",
+        "realized_pnl": -0.25,
+    }
     _insert_log_events(
         db,
         [
-            (_CLOSE_EVENT, btc_row),
-            (_CLOSE_EVENT, btc_row),
-            (_CLOSE_EVENT, sol_row),
+            (_POSITION_CLOSE_EVENT, btc_row),
+            (_POSITION_CLOSE_EVENT, {**btc_row, "trade_id": "t3", "realized_net": 0.5}),
+            (_POSITION_CLOSE_EVENT, sol_row),
         ],
     )
 
@@ -172,6 +185,7 @@ def test_logs_schema_groups_btc_tf_buy(tmp_path: Path) -> None:
     assert report["schema_by_db"][str(db)]["source_schema"] == "logs"
     assert report["totals"]["natural_closed_rows"] == 3
     assert report["totals"]["rejected_rows"] == 0
+    assert report["canonical_close_source"] is True
 
     btc = next(
         g
@@ -181,24 +195,100 @@ def test_logs_schema_groups_btc_tf_buy(tmp_path: Path) -> None:
         and g["side"] == "buy"
     )
     assert btc["trade_count"] == 2
-    assert btc["economics_available"] is False
-    assert btc["net_pnl"] is None
+    assert btc["economics_available"] is True
+    assert btc["net_pnl"] == 1.75
+
+
+def test_logs_schema_deduplicates_duplicate_trade_id(tmp_path: Path) -> None:
+    db = tmp_path / "run.db"
+    _create_logs_db(db)
+    row = {
+        "trade_id": "dup-1",
+        "symbol": "BTCUSDTM",
+        "strategy": "TrendFollowing",
+        "side": "buy",
+        "realized_net": 0.75,
+    }
+    _insert_log_events(
+        db,
+        [
+            (_POSITION_CLOSE_EVENT, row),
+            (_POSITION_CLOSE_EVENT, row),
+        ],
+    )
+
+    report = collect_natural_trades([db])
+
+    assert report["totals"]["natural_closed_rows"] == 1
+    assert report["totals"]["duplicate_rows"] == 1
+    assert report["totals"]["rejected_reason_counts"]["duplicate_trade_id"] == 1
+
+
+def test_logs_schema_ignores_summary_rows_when_position_close_exists(
+    tmp_path: Path,
+) -> None:
+    db = tmp_path / "run.db"
+    _create_logs_db(db)
+    _insert_log_events(
+        db,
+        [
+            (
+                _POSITION_CLOSE_EVENT,
+                {
+                    "trade_id": "pc-1",
+                    "symbol": "BTCUSDTM",
+                    "strategy": "TrendFollowing",
+                    "side": "buy",
+                    "realized_net": 0.5,
+                },
+            ),
+            (
+                _CLOSE_EVENT,
+                {
+                    "symbol": "BTCUSDTM",
+                    "strategy": "TrendFollowing",
+                    "side": "buy",
+                },
+            ),
+        ],
+    )
+
+    report = collect_natural_trades([db])
+
+    assert report["totals"]["scanned_closed_rows"] == 1
+    assert report["totals"]["natural_closed_rows"] == 1
+    assert report["schema_by_db"][str(db)]["canonical_close_source"] is True
 
 
 def test_logs_schema_rejects_contaminated_rows(tmp_path: Path) -> None:
     db = tmp_path / "run.db"
     _create_logs_db(db)
-    seed_row = {"symbol": "BTCUSDTM", "strategy": "TF", "side": "buy", "is_seed": 1}
-    fallback_row = {
-        "symbol": "BTCUSDTM", "strategy": "TF", "side": "buy", "is_fallback": True
+    seed_row = {
+        "trade_id": "s1",
+        "symbol": "BTCUSDTM",
+        "strategy": "TF",
+        "side": "buy",
+        "is_seed": 1,
     }
-    clean_row = {"symbol": "BTCUSDTM", "strategy": "TF", "side": "buy"}
+    fallback_row = {
+        "trade_id": "s2",
+        "symbol": "BTCUSDTM",
+        "strategy": "TF",
+        "side": "buy",
+        "is_fallback": True,
+    }
+    clean_row = {
+        "trade_id": "s3",
+        "symbol": "BTCUSDTM",
+        "strategy": "TF",
+        "side": "buy",
+    }
     _insert_log_events(
         db,
         [
-            (_CLOSE_EVENT, seed_row),
-            (_CLOSE_EVENT, fallback_row),
-            (_CLOSE_EVENT, clean_row),
+            (_POSITION_CLOSE_EVENT, seed_row),
+            (_POSITION_CLOSE_EVENT, fallback_row),
+            (_POSITION_CLOSE_EVENT, clean_row),
         ],
     )
 
@@ -228,8 +318,13 @@ def test_logs_schema_no_supported_events_fails_loud(tmp_path: Path) -> None:
 def test_logs_schema_economics_available_false_in_output(tmp_path: Path) -> None:
     db = tmp_path / "run.db"
     _create_logs_db(db)
-    xrp_row = {"symbol": "XRPUSDTM", "strategy": "TrendFollowing", "side": "buy"}
-    _insert_log_events(db, [(_CLOSE_EVENT, xrp_row)])
+    xrp_row = {
+        "trade_id": "x1",
+        "symbol": "XRPUSDTM",
+        "strategy": "TrendFollowing",
+        "side": "buy",
+    }
+    _insert_log_events(db, [(_POSITION_CLOSE_EVENT, xrp_row)])
 
     out = tmp_path / "report.json"
     rc = main(["--db", str(db), "--output-json", str(out)])
@@ -239,6 +334,34 @@ def test_logs_schema_economics_available_false_in_output(tmp_path: Path) -> None
     g = payload["groups"][0]
     assert g["economics_available"] is False
     assert g["net_pnl"] is None
+
+
+def test_logs_summary_fallback_is_marked_noncanonical(tmp_path: Path) -> None:
+    db = tmp_path / "run.db"
+    _create_logs_db(db)
+    _insert_log_events(
+        db,
+        [
+            (
+                _CLOSE_EVENT,
+                {
+                    "symbol": "BTCUSDTM",
+                    "strategy": "TrendFollowing",
+                    "side": "buy",
+                },
+            )
+        ],
+    )
+
+    report = collect_natural_trades([db])
+
+    assert (
+        report["schema_by_db"][str(db)]["source_schema"]
+        == "logs_summary_noncanonical"
+    )
+    assert report["schema_by_db"][str(db)]["canonical_close_source"] is False
+    assert report["canonical_close_source"] is False
+    assert report["totals"]["natural_closed_rows"] == 1
 
 
 def test_zero_natural_rows_still_writes_valid_json(tmp_path: Path) -> None:
