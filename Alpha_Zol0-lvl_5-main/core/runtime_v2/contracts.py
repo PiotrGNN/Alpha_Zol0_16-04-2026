@@ -115,6 +115,13 @@ class PositionState:
     stop_loss_net_usdt: float
     max_hold_sec: float
     meta: Dict[str, Any] = field(default_factory=dict)
+    mfe_unrealized_net: Optional[float] = None
+    mae_unrealized_net: Optional[float] = None
+    mfe_unrealized_gross: Optional[float] = None
+    mae_unrealized_gross: Optional[float] = None
+    mfe_age_sec: Optional[float] = None
+    mae_age_sec: Optional[float] = None
+    mfe_mae_sample_count: int = 0
 
 
 @dataclass(frozen=True)

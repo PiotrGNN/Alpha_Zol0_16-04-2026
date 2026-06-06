@@ -107,6 +107,29 @@ class PaperExecutionEngineV2:
             "net_pnl": net,
         }
 
+    def observe_unrealized_path(
+        self,
+        position: PositionState,
+        *,
+        gross_pnl: float,
+        net_pnl: float,
+        age_sec: float,
+    ) -> None:
+        gross = float(gross_pnl)
+        net = float(net_pnl)
+        age = max(0.0, float(age_sec))
+        position.mfe_mae_sample_count += 1
+        if position.mfe_unrealized_net is None or net > float(position.mfe_unrealized_net):
+            position.mfe_unrealized_net = net
+            position.mfe_age_sec = age
+        if position.mae_unrealized_net is None or net < float(position.mae_unrealized_net):
+            position.mae_unrealized_net = net
+            position.mae_age_sec = age
+        if position.mfe_unrealized_gross is None or gross > float(position.mfe_unrealized_gross):
+            position.mfe_unrealized_gross = gross
+        if position.mae_unrealized_gross is None or gross < float(position.mae_unrealized_gross):
+            position.mae_unrealized_gross = gross
+
     def close_position(
         self,
         *,
@@ -129,6 +152,13 @@ class PaperExecutionEngineV2:
         exit_notional = abs(position.quantity_base * close_price)
         exit_fee = exit_notional * position.fee_rate
         net = gross - position.entry_fee_usdt - exit_fee
+        age_sec = max(0.0, float(now_ts) - float(position.opened_ts))
+        self.observe_unrealized_path(
+            position,
+            gross_pnl=gross,
+            net_pnl=net,
+            age_sec=age_sec,
+        )
         self.realized_pnl_usdt += net
         payload = {
             "position_id": position.position_id,
@@ -147,6 +177,14 @@ class PaperExecutionEngineV2:
             "exit_fee_usdt": exit_fee,
             "realized_gross": gross,
             "realized_pnl": net,
+            "mfe_unrealized_net": position.mfe_unrealized_net,
+            "mae_unrealized_net": position.mae_unrealized_net,
+            "mfe_unrealized_gross": position.mfe_unrealized_gross,
+            "mae_unrealized_gross": position.mae_unrealized_gross,
+            "mfe_age_sec": position.mfe_age_sec,
+            "mae_age_sec": position.mae_age_sec,
+            "mfe_mae_sample_count": position.mfe_mae_sample_count,
+            "mfe_mae_source": "position_runtime_observed_path",
             "exit_reason": reason_code,
             "close_reason": reason_code,
             "pnl_decompose": {
