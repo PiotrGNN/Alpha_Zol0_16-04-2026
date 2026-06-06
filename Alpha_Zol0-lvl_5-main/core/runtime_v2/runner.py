@@ -4,6 +4,7 @@ import json
 import os
 import sqlite3
 import time
+from collections import Counter
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -21,6 +22,7 @@ from core.runtime_v2.decision_engine import DecisionEngineV2
 from core.runtime_v2.execution_engine import PaperExecutionEngineV2
 from core.runtime_v2.exit_engine import ExitEngineV2
 from core.runtime_v2.feature_engine import FeatureEngine
+from core.runtime_v2.immediate_adverse_shadow import ImmediateAdverseShadowTracker
 from core.runtime_v2.post_signal_trajectory import PostSignalTrajectoryTracker
 from core.runtime_v2.risk_engine import RiskEngineV2
 from core.runtime_v2.strategy_stack import StrategyStack
@@ -60,6 +62,47 @@ def _safe_float(value: Any) -> Optional[float]:
         return float(value)
     except Exception:
         return None
+
+
+def _shadow_reachability_payload(
+    *,
+    risk_candidate_seen_count: int,
+    shadow_candidate_registered_count: int,
+    shadow_terminal_outcome_count: int,
+    shadow_registration_skipped_count: int,
+    shadow_registration_skip_reasons: Dict[str, int],
+    shadow_terminal_classifications: Dict[str, int],
+) -> Dict[str, Any]:
+    classifications = dict(shadow_terminal_classifications or {})
+    return {
+        "risk_candidate_seen_count": int(risk_candidate_seen_count),
+        "shadow_candidate_registered_count": int(shadow_candidate_registered_count),
+        "shadow_terminal_outcome_count": int(shadow_terminal_outcome_count),
+        "shadow_open_at_shutdown_count": int(
+            classifications.get("SHADOW_OPEN_AT_SHUTDOWN", 0)
+        ),
+        "shadow_expired_no_terminal_move_count": int(
+            classifications.get("SHADOW_EXPIRED_NO_TERMINAL_MOVE", 0)
+        ),
+        "shadow_insufficient_quotes_count": int(
+            classifications.get("SHADOW_INSUFFICIENT_QUOTES", 0)
+        ),
+        "shadow_registration_skipped_count": int(shadow_registration_skipped_count),
+        "shadow_registration_skip_reason_distribution": dict(
+            sorted(dict(shadow_registration_skip_reasons or {}).items())
+        ),
+    }
+
+
+def _shadow_verified_guard_fields_from_trace(sizing_trace: Dict[str, Any]) -> Dict[str, Any]:
+    fields = {
+        key: value
+        for key, value in dict(sizing_trace or {}).items()
+        if key.startswith("shadow_verified_guard_")
+    }
+    if not bool(fields.get("shadow_verified_guard_evaluated")):
+        return {}
+    return fields
 
 
 def _derive_exit_controls(
@@ -390,9 +433,16 @@ def run_bot_v2(simulate: bool = False) -> None:
     execution_engine = PaperExecutionEngineV2(base_balance_usdt=base_balance)
     exit_engine = ExitEngineV2()
     close_poller = _CloseRequestPoller(_sqlite_path_from_database_url())
+    immediate_adverse_shadow_tracker = ImmediateAdverseShadowTracker()
     post_signal_tracker = (
         PostSignalTrajectoryTracker() if post_signal_trajectory_enabled else None
     )
+    shadow_risk_candidate_seen_count = 0
+    shadow_candidate_registered_count = 0
+    shadow_terminal_outcome_count = 0
+    shadow_registration_skipped_count = 0
+    shadow_registration_skip_reasons: Counter[str] = Counter()
+    shadow_terminal_classifications: Counter[str] = Counter()
 
     telemetry._emit(
         "runtime_v2_started",
@@ -423,6 +473,21 @@ def run_bot_v2(simulate: bool = False) -> None:
                 "source_path"
             ),
             "post_signal_trajectory_enabled": bool(post_signal_trajectory_enabled),
+            "immediate_adverse_guard_env_enabled": _env_flag(
+                "V2_PAPER_IMMEDIATE_ADVERSE_GUARD_ENABLE", "0"
+            ),
+            "immediate_adverse_guard_profile_blocklist": os.environ.get(
+                "V2_PAPER_IMMEDIATE_ADVERSE_GUARD_PROFILE_BLOCKLIST"
+            ),
+            "shadow_verified_guard_env_enabled": _env_flag(
+                "V2_PAPER_SHADOW_VERIFIED_ADVERSE_GUARD_ENABLE", "0"
+            ),
+            "shadow_verified_guard_rule_id": (
+                "SOLUSDTM_buy_TrendFollowingV2_shadow_verified_20260606_000500"
+            ),
+            "shadow_verified_guard_source_artifact": (
+                "analysis/immediate_adverse_shadow_verified_guard_candidates_long_shadow_current.json"
+            ),
             **admission_reachability_profile_payload(
                 default_v2_min_expected_net_ratio=(
                     decision_engine.default_min_expected_net_ratio
@@ -444,6 +509,19 @@ def run_bot_v2(simulate: bool = False) -> None:
         cycle_count += 1
 
         quote_by_symbol = feed.fetch_ticks()
+        for shadow_payload in immediate_adverse_shadow_tracker.observe_quotes(
+            quote_by_symbol,
+            now_ts=now_ts,
+        ):
+            shadow_terminal_outcome_count += 1
+            shadow_terminal_classifications[
+                str(
+                    shadow_payload.get("terminal_classification")
+                    or shadow_payload.get("shadow_outcome_classification")
+                    or "UNKNOWN"
+                )
+            ] += 1
+            telemetry.emit_immediate_adverse_shadow_outcome(shadow_payload)
 
         for request in close_poller.poll():
             symbol = str(request.get("symbol") or "").strip().upper()
@@ -753,6 +831,7 @@ def run_bot_v2(simulate: bool = False) -> None:
                 final_allow=True,
                 reason_code="allow",
             )
+            shadow_risk_candidate_seen_count += 1
             plan = risk_engine.build_order_plan(
                 candidate=best_candidate,
                 free_equity_usdt=execution_engine.mark_to_market(
@@ -760,6 +839,90 @@ def run_bot_v2(simulate: bool = False) -> None:
                 ),
                 open_positions_count=len(execution_engine.positions),
             )
+            immediate_adverse_guard_fields = {
+                key: value
+                for key, value in dict(plan.sizing_trace).items()
+                if key.startswith("immediate_adverse_guard_")
+                or key
+                in {
+                    "symbol",
+                    "side",
+                    "strategy",
+                    "expected_net",
+                    "probability",
+                    "risk_score",
+                    "guard_threshold",
+                    "historical_immediate_adverse_rate",
+                    "historical_tail_loss_net",
+                }
+            }
+            if immediate_adverse_guard_fields:
+                telemetry.emit_immediate_adverse_guard(
+                    status=(
+                        "blocked"
+                        if plan.reason_code == "entry_immediate_adverse_guard"
+                        else "allowed"
+                    ),
+                    fields=immediate_adverse_guard_fields,
+                )
+            shadow_verified_guard_fields = _shadow_verified_guard_fields_from_trace(
+                dict(plan.sizing_trace)
+            )
+            if shadow_verified_guard_fields:
+                telemetry.emit_shadow_verified_guard(
+                    status=(
+                        "blocked"
+                        if plan.reason_code
+                        == "entry_shadow_verified_immediate_adverse_guard"
+                        else "allowed"
+                    ),
+                    fields=shadow_verified_guard_fields,
+                )
+            shadow_registration_fields = {}
+            shadow_registration_fields.update(immediate_adverse_guard_fields)
+            shadow_registration_fields.update(shadow_verified_guard_fields)
+            should_register_shadow_candidate = (
+                plan.reason_code
+                in {
+                    "entry_immediate_adverse_guard",
+                    "entry_shadow_verified_immediate_adverse_guard",
+                }
+                or bool(
+                    immediate_adverse_guard_fields.get(
+                        "immediate_adverse_guard_shadow_candidate"
+                    )
+                )
+                or bool(
+                    shadow_verified_guard_fields.get("shadow_verified_guard_blocked")
+                )
+            )
+            if should_register_shadow_candidate:
+                immediate_adverse_shadow_tracker.add_blocked_candidate(
+                    symbol=best_candidate.symbol,
+                    side=best_candidate.side,
+                    strategy=best_candidate.strategy,
+                    opened_ts=now_ts,
+                    entry_price=float(quote.mid),
+                    quantity_base=max(0.0, float(plan.quantity_base)),
+                    fee_rate=float(plan.fee_rate),
+                    take_profit_net_usdt=float(
+                        plan.sizing_trace.get("estimated_take_profit_net_usdt")
+                        or take_profit_net_usdt
+                    ),
+                    stop_loss_net_usdt=float(
+                        plan.sizing_trace.get("estimated_stop_loss_net_usdt")
+                        or stop_loss_net_usdt
+                    ),
+                    max_hold_sec=float(paper_auto_close_sec),
+                    guard_fields=dict(shadow_registration_fields),
+                )
+                shadow_candidate_registered_count += 1
+            elif immediate_adverse_guard_fields or shadow_verified_guard_fields:
+                shadow_registration_skipped_count += 1
+                shadow_registration_skip_reasons["guard_not_shadow_candidate"] += 1
+            else:
+                shadow_registration_skipped_count += 1
+                shadow_registration_skip_reasons["guard_not_evaluated"] += 1
             if not plan.accepted:
                 telemetry.emit_gate_summary(
                     symbol=symbol,
@@ -1040,6 +1203,20 @@ def run_bot_v2(simulate: bool = False) -> None:
         time.sleep(loop_sleep_sec)
 
     # Final forced close pass to fail-closed lifecycle.
+    for shadow_payload in immediate_adverse_shadow_tracker.flush_expired(
+        {k: v for k, v in feed.fetch_ticks().items() if v is not None},
+        now_ts=time.time(),
+        shutdown=True,
+    ):
+        shadow_terminal_outcome_count += 1
+        shadow_terminal_classifications[
+            str(
+                shadow_payload.get("terminal_classification")
+                or shadow_payload.get("shadow_outcome_classification")
+                or "UNKNOWN"
+            )
+        ] += 1
+        telemetry.emit_immediate_adverse_shadow_outcome(shadow_payload)
     if execution_engine.positions:
         final_quotes = feed.fetch_ticks()
         now_ts = time.time()
@@ -1074,5 +1251,13 @@ def run_bot_v2(simulate: bool = False) -> None:
             "realized_pnl_usdt": execution_engine.realized_pnl_usdt,
             "final_equity_usdt": final_equity,
             "cycle_count": cycle_count,
+            **_shadow_reachability_payload(
+                risk_candidate_seen_count=shadow_risk_candidate_seen_count,
+                shadow_candidate_registered_count=shadow_candidate_registered_count,
+                shadow_terminal_outcome_count=shadow_terminal_outcome_count,
+                shadow_registration_skipped_count=shadow_registration_skipped_count,
+                shadow_registration_skip_reasons=dict(shadow_registration_skip_reasons),
+                shadow_terminal_classifications=dict(shadow_terminal_classifications),
+            ),
         },
     )
