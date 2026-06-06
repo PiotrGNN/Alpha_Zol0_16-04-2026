@@ -54,3 +54,9 @@ class ExitEngineV2:
             unrealized_net_pnl=net_pnl,
             age_sec=age_sec,
         )
+        execution_engine.observe_unrealized_path(
+            position,
+            gross_pnl=gross_pnl,
+            net_pnl=net_pnl,
+            age_sec=age_sec,
+        )
