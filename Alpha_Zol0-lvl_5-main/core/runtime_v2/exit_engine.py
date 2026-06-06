@@ -18,6 +18,12 @@ class ExitEngineV2:
         net_pnl = float(snapshot["net_pnl"])
         gross_pnl = float(snapshot["gross_pnl"])
         close_price = float(snapshot["close_price"])
+        execution_engine.observe_unrealized_path(
+            position,
+            gross_pnl=gross_pnl,
+            net_pnl=net_pnl,
+            age_sec=age_sec,
+        )
 
         if net_pnl >= float(position.take_profit_net_usdt):
             return CloseDecision(
@@ -52,11 +58,5 @@ class ExitEngineV2:
             close_price=close_price,
             unrealized_gross_pnl=gross_pnl,
             unrealized_net_pnl=net_pnl,
-            age_sec=age_sec,
-        )
-        execution_engine.observe_unrealized_path(
-            position,
-            gross_pnl=gross_pnl,
-            net_pnl=net_pnl,
             age_sec=age_sec,
         )
