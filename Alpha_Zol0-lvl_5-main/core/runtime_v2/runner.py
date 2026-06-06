@@ -12,6 +12,9 @@ from core.runtime_v2.calibration_gate import (
     evaluate_expected_move_calibration_gate,
     load_expected_move_calibration_profile,
 )
+from core.runtime_v2.admission_reachability import (
+    admission_reachability_profile_payload,
+)
 from core.runtime_v2.contracts import StrategySignal
 from core.runtime_v2.data_feed import KucoinPaperDataFeed
 from core.runtime_v2.decision_engine import DecisionEngineV2
@@ -420,6 +423,13 @@ def run_bot_v2(simulate: bool = False) -> None:
                 "source_path"
             ),
             "post_signal_trajectory_enabled": bool(post_signal_trajectory_enabled),
+            **admission_reachability_profile_payload(
+                default_v2_min_expected_net_ratio=(
+                    decision_engine.default_min_expected_net_ratio
+                ),
+                default_entry_min_net_usdt=risk_engine.default_entry_min_net_usdt,
+                default_v2_min_profile_samples=features._default_min_profile_samples,
+            ),
         },
     )
 

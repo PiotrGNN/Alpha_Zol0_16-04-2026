@@ -6,6 +6,9 @@ from collections import defaultdict, deque
 from typing import Deque, Dict, List
 
 from core.runtime_v2.contracts import FeatureFrame, QuoteTick
+from core.runtime_v2.admission_reachability import (
+    effective_v2_min_profile_samples,
+)
 
 
 class FeatureEngine:
@@ -16,7 +19,11 @@ class FeatureEngine:
             )
         except Exception:
             min_profile_samples = 8
-        self._min_profile_samples = max(2, int(min_profile_samples))
+        self._default_min_profile_samples = max(2, int(min_profile_samples))
+        self._min_profile_samples = max(
+            2,
+            int(effective_v2_min_profile_samples(self._default_min_profile_samples)),
+        )
         self._history: Dict[str, Deque[float]] = defaultdict(
             lambda: deque(maxlen=max(4, int(history_size)))
         )
