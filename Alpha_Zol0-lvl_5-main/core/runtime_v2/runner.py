@@ -953,14 +953,6 @@ def run_bot_v2(simulate: bool = False) -> None:
                 )
                 continue
 
-            position = execution_engine.open_position(
-                plan=plan,
-                quote=quote,
-                now_ts=now_ts,
-                take_profit_net_usdt=take_profit_net_usdt,
-                stop_loss_net_usdt=stop_loss_net_usdt,
-                max_hold_sec=float(paper_auto_close_sec),
-            )
             signal_horizon_ticks = _safe_float(
                 plan.signal_metadata.get("signal_horizon_ticks")
             )
@@ -1056,6 +1048,14 @@ def run_bot_v2(simulate: bool = False) -> None:
                     },
                 )
                 continue
+            position = execution_engine.open_position(
+                plan=plan,
+                quote=quote,
+                now_ts=now_ts,
+                take_profit_net_usdt=applied_take_profit_net_usdt,
+                stop_loss_net_usdt=applied_stop_loss_net_usdt,
+                max_hold_sec=execution_horizon_sec,
+            )
             position.take_profit_net_usdt = applied_take_profit_net_usdt
             position.stop_loss_net_usdt = applied_stop_loss_net_usdt
             position.max_hold_sec = execution_horizon_sec
