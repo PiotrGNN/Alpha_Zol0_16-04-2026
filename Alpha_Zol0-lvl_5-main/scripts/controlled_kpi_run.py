@@ -24,38 +24,6 @@ RESULTS_DIR.mkdir(exist_ok=True)
 if str(WORKDIR) not in sys.path:
     sys.path.insert(0, str(WORKDIR))
 
-EFFECTIVE_ENV_VALUE_KEYS = (
-    "ALPHA_WHITELIST_ENABLE",
-    "ALPHA_WHITELIST_COLDSTART_ALLOW",
-    "ALPHA_WHITELIST_FALLBACK_ENABLE",
-    "SEED_TRADES_ENABLE",
-    "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST",
-    "ALPHA_BOOTSTRAP_REQUIRE_EXTERNAL_SOURCE",
-    "LOSS_COOLDOWN_SEC",
-    "ENTRY_MIN_NET_USDT",
-    "ENTRY_MIN_NET_TO_STOP_RATIO",
-    "ENTRY_SYMBOL_STRATEGY_BLOCKLIST",
-    "ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST",
-    "ENTRY_SYMBOL_STRATEGY_SIDE_BLOCKLIST",
-    "DIAG_DISABLE_SIDE_EXPECTANCY",
-    "DIAG_DISABLE_NET_TARGET_GUARD",
-    "DIAG_ALLOW_REENTRY_WHILE_IN_POSITION",
-    "RESEARCH_POST_CLOSE_SUMMARY_GRACE_TICKS",
-    "RESEARCH_POST_CLOSE_SUMMARY_GRACE_TIMEOUT_SEC",
-    "POST_PROMOTION_OBSERVATION_ENABLED",
-    "POST_PROMOTION_OBSERVATION_MAX_SEC",
-    "POST_PROMOTION_OBSERVATION_MAX_CYCLES",
-    "V2_PAPER_ADMISSION_REACHABILITY_PROFILE_ENABLE",
-    "V2_PAPER_SHADOW_VERIFIED_ADVERSE_GUARD_ENABLE",
-    "V2_PAPER_SHADOW_VERIFIED_ADVERSE_GUARD_POLICY",
-    "V2_PAPER_SHADOW_VERIFIED_ADVERSE_GUARD_POLICY_SOURCE",
-)
-
-REJECTED_SHADOW_VERIFIED_GUARD_POLICY = "rejected_overfilter_force_off"
-REJECTED_SHADOW_VERIFIED_GUARD_POLICY_SOURCE = (
-    "analysis/shadow_guard_off_baseline_trade_attribution_current.json"
-)
-
 
 def _parse_symbols(value: str):
     if not value:
@@ -123,22 +91,6 @@ def _coerce_bool(value, default: bool = False) -> bool:
     if txt in {"0", "false", "no", "n", "off", ""}:
         return False
     return default
-
-
-def _apply_rejected_shadow_verified_guard_policy(env: dict) -> None:
-    if not isinstance(env, dict):
-        return
-    if not _coerce_bool(env.get("V2_PAPER_ADMISSION_REACHABILITY_PROFILE_ENABLE")):
-        return
-    if _coerce_bool(env.get("LIVE")):
-        return
-    env["V2_PAPER_SHADOW_VERIFIED_ADVERSE_GUARD_ENABLE"] = "0"
-    env["V2_PAPER_SHADOW_VERIFIED_ADVERSE_GUARD_POLICY"] = (
-        REJECTED_SHADOW_VERIFIED_GUARD_POLICY
-    )
-    env["V2_PAPER_SHADOW_VERIFIED_ADVERSE_GUARD_POLICY_SOURCE"] = (
-        REJECTED_SHADOW_VERIFIED_GUARD_POLICY_SOURCE
-    )
 
 
 def _path_is_within(path: Path, parent: Path) -> bool:
@@ -3178,7 +3130,6 @@ def _variant_env(
             if not k:
                 continue
             env[k] = str(value)
-    _apply_rejected_shadow_verified_guard_policy(env)
     return env
 
 
@@ -5331,7 +5282,29 @@ def _run_variant(
             "LIVE",
         )
     }
-    env_effective_flags = {key: env.get(key) for key in EFFECTIVE_ENV_VALUE_KEYS}
+    env_effective_flags = {
+        key: env.get(key)
+        for key in (
+            "ALPHA_WHITELIST_ENABLE",
+            "ALPHA_WHITELIST_COLDSTART_ALLOW",
+            "ALPHA_WHITELIST_FALLBACK_ENABLE",
+            "SEED_TRADES_ENABLE",
+            "PAPER_AUTO_OPEN_REQUIRE_EXPLICIT_SIDE_ALLOWLIST",
+            "ALPHA_BOOTSTRAP_REQUIRE_EXTERNAL_SOURCE",
+            "LOSS_COOLDOWN_SEC",
+            "ENTRY_SYMBOL_STRATEGY_BLOCKLIST",
+            "ENTRY_SYMBOL_STRATEGY_SIDE_ALLOWLIST",
+            "ENTRY_SYMBOL_STRATEGY_SIDE_BLOCKLIST",
+            "DIAG_DISABLE_SIDE_EXPECTANCY",
+            "DIAG_DISABLE_NET_TARGET_GUARD",
+            "DIAG_ALLOW_REENTRY_WHILE_IN_POSITION",
+            "RESEARCH_POST_CLOSE_SUMMARY_GRACE_TICKS",
+            "RESEARCH_POST_CLOSE_SUMMARY_GRACE_TIMEOUT_SEC",
+            "POST_PROMOTION_OBSERVATION_ENABLED",
+            "POST_PROMOTION_OBSERVATION_MAX_SEC",
+            "POST_PROMOTION_OBSERVATION_MAX_CYCLES",
+        )
+    }
     print(
         f"[{variant}] end={end_dt.isoformat()} actual_sec={int((end_dt - start_dt).total_seconds())} "  # noqa: E501
         f"trades={metrics.get('trade_count')} net_pnl={metrics.get('net_pnl')}"
