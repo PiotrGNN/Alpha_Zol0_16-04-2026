@@ -34,26 +34,13 @@ def _horizon_bucket(
     time_horizon_mismatch_ratio: Any,
 ) -> str:
     horizon = _safe_float(signal_horizon_sec_estimate)
-    mismatch_ratio = _safe_float(time_horizon_mismatch_ratio)
     if horizon is None:
         return "missing_horizon"
     if horizon < 5.0:
-        base = "signal_lt_5s"
-    elif horizon < 15.0:
-        base = "signal_5_15s"
-    else:
-        base = "signal_ge_15s"
-    if mismatch_ratio is None:
-        return f"{base}__mismatch_missing"
-    if mismatch_ratio < 1.25:
-        suffix = "aligned"
-    elif mismatch_ratio < 2.0:
-        suffix = "mild_mismatch"
-    elif mismatch_ratio < 4.0:
-        suffix = "strong_mismatch"
-    else:
-        suffix = "severe_mismatch"
-    return f"{base}__{suffix}"
+        return "signal_lt_5s"
+    if horizon < 15.0:
+        return "signal_5_15s"
+    return "signal_ge_15s"
 
 
 def _bucket_key(
@@ -132,6 +119,7 @@ def evaluate_expected_move_calibration_gate(
     min_positive_net_share: float,
     min_calibrated_expected_net: float,
     max_mismatch_ratio: float,
+    expected_notional_usdt: Any = None,
 ) -> Dict[str, Any]:
     result: Dict[str, Any] = {
         "allow": True,
@@ -147,6 +135,10 @@ def evaluate_expected_move_calibration_gate(
         "calibration_expected_over_realized_ratio": None,
         "calibrated_expected_gross": None,
         "calibrated_expected_net": None,
+        "uncalibrated_expected_gross": None,
+        "uncalibrated_expected_net": None,
+        "effective_expected_net": None,
+        "calibration_fallback_mode": None,
         "signal_horizon_bucket": _horizon_bucket(
             signal_horizon_sec_estimate,
             time_horizon_mismatch_ratio,
@@ -199,11 +191,6 @@ def evaluate_expected_move_calibration_gate(
         result["allow"] = not fail_closed
         return result
 
-    if calibration_factor is None or calibration_factor <= 0.0:
-        result["reason_code"] = "calibration_factor_missing_or_nonpositive"
-        result["allow"] = not fail_closed
-        return result
-
     if (
         positive_net_share is not None
         and positive_net_share < float(min_positive_net_share)
@@ -219,10 +206,28 @@ def evaluate_expected_move_calibration_gate(
         result["allow"] = not fail_closed
         return result
 
-    calibrated_expected_gross = float(expected_gross * float(calibration_factor))
-    calibrated_expected_net = float(calibrated_expected_gross - expected_cost)
-    result["calibrated_expected_gross"] = calibrated_expected_gross
-    result["calibrated_expected_net"] = calibrated_expected_net
+    expected_notional = _safe_float(expected_notional_usdt)
+    if expected_notional is None or expected_notional <= 0.0:
+        expected_notional = 1.0
+    uncalibrated_expected_gross = float(expected_gross * expected_notional)
+    uncalibrated_expected_net = float(uncalibrated_expected_gross - expected_cost)
+    result["uncalibrated_expected_gross"] = uncalibrated_expected_gross
+    result["uncalibrated_expected_net"] = uncalibrated_expected_net
+
+    if calibration_factor is None or calibration_factor <= 0.0:
+        result["calibration_fallback_mode"] = "uncalibrated_expected_net"
+        result["effective_expected_net"] = uncalibrated_expected_net
+        if uncalibrated_expected_net <= float(min_calibrated_expected_net):
+            result["reason_code"] = "calibrated_expected_net_nonpositive"
+            result["allow"] = False
+            return result
+        calibrated_expected_net = uncalibrated_expected_net
+    else:
+        calibrated_expected_gross = float(expected_gross * float(calibration_factor))
+        calibrated_expected_net = float(calibrated_expected_gross - expected_cost)
+        result["calibrated_expected_gross"] = calibrated_expected_gross
+        result["calibrated_expected_net"] = calibrated_expected_net
+        result["effective_expected_net"] = calibrated_expected_net
 
     if calibrated_expected_net <= float(min_calibrated_expected_net):
         result["reason_code"] = "calibrated_expected_net_nonpositive"
@@ -233,13 +238,8 @@ def evaluate_expected_move_calibration_gate(
     if (
         mismatch_ratio is not None
         and mismatch_ratio >= float(max_mismatch_ratio)
-        and (
-            (positive_net_share is not None and positive_net_share < 0.5)
-            or (
-                median_mismatch_ratio is not None
-                and median_mismatch_ratio >= float(max_mismatch_ratio)
-            )
-        )
+        and positive_net_share is not None
+        and positive_net_share < 0.5
     ):
         result["reason_code"] = "signal_horizon_execution_horizon_mismatch"
         result["allow"] = False
