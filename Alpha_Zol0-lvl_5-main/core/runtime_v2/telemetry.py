@@ -96,6 +96,39 @@ class TelemetryV2:
     def emit_equity(self, equity: float, pnl: float) -> None:
         save_equity_to_db(time.time(), equity, pnl)
 
+    def emit_immediate_adverse_guard(
+        self,
+        *,
+        status: str,
+        fields: Dict[str, Any],
+    ) -> None:
+        payload = dict(fields or {})
+        payload["immediate_adverse_guard_evaluated"] = True
+        payload["immediate_adverse_guard_status"] = str(status)
+        self._emit("immediate_adverse_guard_evaluated", payload)
+        if status == "blocked":
+            self._emit("immediate_adverse_guard_blocked", payload)
+        elif status == "allowed":
+            self._emit("immediate_adverse_guard_allowed", payload)
+
+    def emit_shadow_verified_guard(
+        self,
+        *,
+        status: str,
+        fields: Dict[str, Any],
+    ) -> None:
+        payload = dict(fields or {})
+        payload["shadow_verified_guard_evaluated"] = True
+        payload["shadow_verified_guard_status"] = str(status)
+        self._emit("shadow_verified_guard_evaluated", payload)
+        if status == "blocked":
+            self._emit("shadow_verified_guard_blocked", payload)
+        elif status == "allowed":
+            self._emit("shadow_verified_guard_allowed", payload)
+
+    def emit_immediate_adverse_shadow_outcome(self, payload: Dict[str, Any]) -> None:
+        self._emit("immediate_adverse_shadow_outcome", dict(payload or {}))
+
     def emit_entry_eval(
         self,
         *,

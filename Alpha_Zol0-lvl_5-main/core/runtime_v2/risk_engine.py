@@ -30,11 +30,110 @@ def _env_flag(key: str, default: bool) -> bool:
     return raw in {"1", "true", "yes", "on"}
 
 
+def _paper_diagnostic_gate_disabled(key: str) -> bool:
+    if _env_flag("LIVE", False):
+        return False
+    if not _env_flag("DIAGNOSTIC_MODE", False):
+        return False
+    return _env_flag(key, False)
+
+
+def _paper_immediate_adverse_guard_enabled() -> bool:
+    if _env_flag("LIVE", False):
+        return False
+    return _env_flag("V2_PAPER_IMMEDIATE_ADVERSE_GUARD_ENABLE", False)
+
+
+_SHADOW_VERIFIED_GUARD_RULE_ID = (
+    "SOLUSDTM_buy_TrendFollowingV2_shadow_verified_20260606_000500"
+)
+_SHADOW_VERIFIED_GUARD_SOURCE_ARTIFACT = (
+    "analysis/immediate_adverse_shadow_verified_guard_candidates_long_shadow_current.json"
+)
+_SHADOW_VERIFIED_GUARD_SYMBOL = "SOLUSDTM"
+_SHADOW_VERIFIED_GUARD_SIDE = "buy"
+_SHADOW_VERIFIED_GUARD_STRATEGY = "TrendFollowingV2"
+_SHADOW_VERIFIED_GUARD_TERMINAL_OUTCOME_COUNT = 18
+_SHADOW_VERIFIED_GUARD_IMMEDIATE_ADVERSE_LOSS_COUNT = 7
+_SHADOW_VERIFIED_GUARD_MISSED_WINNER_COUNT = 6
+_SHADOW_VERIFIED_GUARD_MISSED_WINNER_RATE = 0.3333333333333333
+_SHADOW_VERIFIED_GUARD_EXPECTED_NET_BENEFIT = 0.08687323999998789
+_SHADOW_VERIFIED_GUARD_AVOIDED_LOSS_PROXY_ABS = 0.22447031999998474
+_SHADOW_VERIFIED_GUARD_MISSED_WINNER_PROXY_NET = 0.13759707999999685
+
+
+def _paper_shadow_verified_adverse_guard_enabled() -> bool:
+    if _env_flag("LIVE", False):
+        return False
+    return _env_flag("V2_PAPER_SHADOW_VERIFIED_ADVERSE_GUARD_ENABLE", False)
+
+
 def _safe_float(value, default: float) -> float:
     try:
         return float(value)
     except Exception:
         return float(default)
+
+
+def _profile_key(symbol: str, side: str, strategy: str) -> str:
+    return f"{str(symbol or '').strip().upper()}:{str(side or '').strip().lower()}:{str(strategy or '').strip()}"
+
+
+def _profile_blocklist() -> set[str]:
+    raw = str(
+        os.environ.get(
+            "V2_PAPER_IMMEDIATE_ADVERSE_GUARD_PROFILE_BLOCKLIST",
+            "SOLUSDTM:buy:TrendFollowingV2",
+        )
+        or ""
+    )
+    return {_profile_key(*item.split(":", 2)) for item in raw.split(",") if item.count(":") >= 2}
+
+
+def _shadow_verified_guard_matches(candidate: EntryCandidate) -> bool:
+    return (
+        str(candidate.symbol or "").strip().upper() == _SHADOW_VERIFIED_GUARD_SYMBOL
+        and str(candidate.side or "").strip().lower() == _SHADOW_VERIFIED_GUARD_SIDE
+        and str(candidate.strategy or "").strip() == _SHADOW_VERIFIED_GUARD_STRATEGY
+    )
+
+
+def _shadow_verified_guard_trace(candidate: EntryCandidate) -> Dict[str, object]:
+    matched = _shadow_verified_guard_matches(candidate)
+    return {
+        "shadow_verified_guard_evaluated": True,
+        "shadow_verified_guard_allowed": not matched,
+        "shadow_verified_guard_blocked": bool(matched),
+        "shadow_verified_guard_rule_id": _SHADOW_VERIFIED_GUARD_RULE_ID,
+        "shadow_verified_guard_reason": (
+            "verified_rule_matched" if matched else "rule_not_matched"
+        ),
+        "shadow_verified_guard_symbol": str(candidate.symbol or "").strip().upper(),
+        "shadow_verified_guard_side": str(candidate.side or "").strip().lower(),
+        "shadow_verified_guard_strategy": str(candidate.strategy or "").strip(),
+        "shadow_verified_guard_source_artifact": _SHADOW_VERIFIED_GUARD_SOURCE_ARTIFACT,
+        "shadow_verified_guard_terminal_outcome_count": (
+            _SHADOW_VERIFIED_GUARD_TERMINAL_OUTCOME_COUNT
+        ),
+        "shadow_verified_guard_immediate_adverse_loss_count": (
+            _SHADOW_VERIFIED_GUARD_IMMEDIATE_ADVERSE_LOSS_COUNT
+        ),
+        "shadow_verified_guard_missed_winner_count": (
+            _SHADOW_VERIFIED_GUARD_MISSED_WINNER_COUNT
+        ),
+        "shadow_verified_guard_missed_winner_rate": (
+            _SHADOW_VERIFIED_GUARD_MISSED_WINNER_RATE
+        ),
+        "shadow_verified_guard_expected_net_benefit": (
+            _SHADOW_VERIFIED_GUARD_EXPECTED_NET_BENEFIT
+        ),
+        "shadow_verified_guard_avoided_loss_proxy_abs": (
+            _SHADOW_VERIFIED_GUARD_AVOIDED_LOSS_PROXY_ABS
+        ),
+        "shadow_verified_guard_missed_winner_proxy_net": (
+            _SHADOW_VERIFIED_GUARD_MISSED_WINNER_PROXY_NET
+        ),
+    }
 
 
 def _round_down_step(value: float, step: float) -> float:
@@ -247,28 +346,119 @@ class RiskEngineV2:
         exit_targets = self._estimate_exit_targets(expected_net_after_full_cost)
         estimated_stop_loss_net_usdt = float(exit_targets["stop_loss_net_usdt"])
         estimated_take_profit_net_usdt = float(exit_targets["take_profit_net_usdt"])
+        immediate_adverse_guard_trace = None
+        shadow_verified_guard_trace = None
+        if _paper_immediate_adverse_guard_enabled():
+            guard_profile = _profile_key(
+                candidate.symbol, candidate.side, candidate.strategy
+            )
+            quarantined_profiles = _profile_blocklist()
+            is_quarantined = guard_profile in quarantined_profiles
+            historical_immediate_adverse_rate = (
+                _env_float("V2_PAPER_IMMEDIATE_ADVERSE_GUARD_HIST_RATE", 0.75)
+                if is_quarantined
+                else 0.0
+            )
+            historical_tail_loss_net = (
+                _env_float("V2_PAPER_IMMEDIATE_ADVERSE_GUARD_HIST_TAIL_LOSS_NET", -0.647601055)
+                if is_quarantined
+                else 0.0
+            )
+            risk_score = historical_immediate_adverse_rate
+            guard_threshold = max(
+                0.0,
+                _env_float("V2_PAPER_IMMEDIATE_ADVERSE_GUARD_THRESHOLD", 0.50),
+            )
+            would_block_unverified = bool(is_quarantined and risk_score >= guard_threshold)
+            immediate_adverse_guard_trace = {
+                "immediate_adverse_guard_evaluated": True,
+                "immediate_adverse_guard_type": "SYMBOL_SIDE_PROFILE_QUARANTINE",
+                "immediate_adverse_guard_reason": (
+                    "shadow_net_benefit_unverified"
+                    if would_block_unverified
+                    else "profile_not_quarantined"
+                ),
+                "symbol": candidate.symbol,
+                "side": candidate.side,
+                "strategy": candidate.strategy,
+                "expected_net": expected_net_after_full_cost,
+                "probability": float(candidate.probability_of_profit),
+                "risk_score": risk_score,
+                "guard_threshold": guard_threshold,
+                "historical_immediate_adverse_rate": historical_immediate_adverse_rate,
+                "historical_tail_loss_net": historical_tail_loss_net,
+                "shadow_verified_guard_required": bool(would_block_unverified),
+                "immediate_adverse_guard_shadow_candidate": bool(would_block_unverified),
+                "immediate_adverse_guard_blocked": False,
+                "immediate_adverse_guard_allowed": True,
+            }
+        if _paper_shadow_verified_adverse_guard_enabled():
+            shadow_verified_guard_trace = _shadow_verified_guard_trace(candidate)
+            if bool(shadow_verified_guard_trace["shadow_verified_guard_blocked"]):
+                reject_trace = {
+                    "expected_net_after_full_cost": expected_net_after_full_cost,
+                    "estimated_take_profit_net_usdt": estimated_take_profit_net_usdt,
+                    "estimated_stop_loss_net_usdt": estimated_stop_loss_net_usdt,
+                }
+                if immediate_adverse_guard_trace:
+                    reject_trace.update(immediate_adverse_guard_trace)
+                reject_trace.update(shadow_verified_guard_trace)
+                return self._reject_plan(
+                    candidate=candidate,
+                    spec=spec,
+                    price=price,
+                    reason_code="entry_shadow_verified_immediate_adverse_guard",
+                    requested_notional_usdt=requested_notional_usdt,
+                    capped_notional_usdt=capped_notional_usdt,
+                    risk_cap_usdt=risk_cap_usdt,
+                    quantity_contracts=contracts,
+                    final_notional_usdt=final_notional_usdt,
+                    expected_net_after_full_cost=expected_net_after_full_cost,
+                    sizing_trace_extra=reject_trace,
+                )
         if (
             self.entry_min_net_usdt > 0.0
             and expected_net_after_full_cost < self.entry_min_net_usdt
         ):
-            return self._reject_plan(
-                candidate=candidate,
-                spec=spec,
-                price=price,
-                reason_code="entry_min_net_guard",
-                requested_notional_usdt=requested_notional_usdt,
-                capped_notional_usdt=capped_notional_usdt,
-                risk_cap_usdt=risk_cap_usdt,
-                quantity_contracts=contracts,
-                final_notional_usdt=final_notional_usdt,
-                expected_net_after_full_cost=expected_net_after_full_cost,
-                sizing_trace_extra={
+            entry_min_net_trace = {
+                "expected_net_after_full_cost": expected_net_after_full_cost,
+                "entry_min_net_usdt": self.entry_min_net_usdt,
+                "estimated_take_profit_net_usdt": estimated_take_profit_net_usdt,
+                "estimated_stop_loss_net_usdt": estimated_stop_loss_net_usdt,
+            }
+            if immediate_adverse_guard_trace:
+                entry_min_net_trace.update(immediate_adverse_guard_trace)
+            if shadow_verified_guard_trace:
+                entry_min_net_trace.update(shadow_verified_guard_trace)
+            if not _paper_diagnostic_gate_disabled(
+                "DIAG_DISABLE_ENTRY_MIN_NET_GUARD"
+            ):
+                return self._reject_plan(
+                    candidate=candidate,
+                    spec=spec,
+                    price=price,
+                    reason_code="entry_min_net_guard",
+                    requested_notional_usdt=requested_notional_usdt,
+                    capped_notional_usdt=capped_notional_usdt,
+                    risk_cap_usdt=risk_cap_usdt,
+                    quantity_contracts=contracts,
+                    final_notional_usdt=final_notional_usdt,
+                    expected_net_after_full_cost=expected_net_after_full_cost,
+                    sizing_trace_extra=entry_min_net_trace,
+                )
+            diagnostic_gate_skips = [
+                {
+                    "gate_skipped": True,
+                    "gate_name": "entry_min_net_guard",
+                    "skip_reason": "diagnostic_override",
                     "expected_net_after_full_cost": expected_net_after_full_cost,
                     "entry_min_net_usdt": self.entry_min_net_usdt,
-                    "estimated_take_profit_net_usdt": estimated_take_profit_net_usdt,
-                    "estimated_stop_loss_net_usdt": estimated_stop_loss_net_usdt,
-                },
-            )
+                    "effective_threshold_source": "ENTRY_MIN_NET_USDT",
+                    "diagnostic_flag": "DIAG_DISABLE_ENTRY_MIN_NET_GUARD",
+                }
+            ]
+        else:
+            diagnostic_gate_skips = []
         entry_net_to_stop_ratio = (
             expected_net_after_full_cost / estimated_stop_loss_net_usdt
             if estimated_stop_loss_net_usdt > 0.0
@@ -278,24 +468,44 @@ class RiskEngineV2:
             self.entry_min_net_to_stop_ratio > 0.0
             and entry_net_to_stop_ratio < self.entry_min_net_to_stop_ratio
         ):
-            return self._reject_plan(
-                candidate=candidate,
-                spec=spec,
-                price=price,
-                reason_code="entry_net_to_stop_guard",
-                requested_notional_usdt=requested_notional_usdt,
-                capped_notional_usdt=capped_notional_usdt,
-                risk_cap_usdt=risk_cap_usdt,
-                quantity_contracts=contracts,
-                final_notional_usdt=final_notional_usdt,
-                expected_net_after_full_cost=expected_net_after_full_cost,
-                sizing_trace_extra={
+            entry_stop_trace = {
+                "expected_net_after_full_cost": expected_net_after_full_cost,
+                "entry_net_to_stop_ratio": entry_net_to_stop_ratio,
+                "entry_min_net_to_stop_ratio": self.entry_min_net_to_stop_ratio,
+                "estimated_take_profit_net_usdt": estimated_take_profit_net_usdt,
+                "estimated_stop_loss_net_usdt": estimated_stop_loss_net_usdt,
+            }
+            if immediate_adverse_guard_trace:
+                entry_stop_trace.update(immediate_adverse_guard_trace)
+            if shadow_verified_guard_trace:
+                entry_stop_trace.update(shadow_verified_guard_trace)
+            if not _paper_diagnostic_gate_disabled(
+                "DIAG_DISABLE_ENTRY_NET_TO_STOP_GUARD"
+            ):
+                return self._reject_plan(
+                    candidate=candidate,
+                    spec=spec,
+                    price=price,
+                    reason_code="entry_net_to_stop_guard",
+                    requested_notional_usdt=requested_notional_usdt,
+                    capped_notional_usdt=capped_notional_usdt,
+                    risk_cap_usdt=risk_cap_usdt,
+                    quantity_contracts=contracts,
+                    final_notional_usdt=final_notional_usdt,
+                    expected_net_after_full_cost=expected_net_after_full_cost,
+                    sizing_trace_extra=entry_stop_trace,
+                )
+            diagnostic_gate_skips.append(
+                {
+                    "gate_skipped": True,
+                    "gate_name": "entry_net_to_stop_guard",
+                    "skip_reason": "diagnostic_override",
                     "expected_net_after_full_cost": expected_net_after_full_cost,
                     "entry_net_to_stop_ratio": entry_net_to_stop_ratio,
                     "entry_min_net_to_stop_ratio": self.entry_min_net_to_stop_ratio,
-                    "estimated_take_profit_net_usdt": estimated_take_profit_net_usdt,
-                    "estimated_stop_loss_net_usdt": estimated_stop_loss_net_usdt,
-                },
+                    "effective_threshold_source": "ENTRY_MIN_NET_TO_STOP_RATIO",
+                    "diagnostic_flag": "DIAG_DISABLE_ENTRY_NET_TO_STOP_GUARD",
+                }
             )
 
         sizing_trace = {
@@ -316,6 +526,12 @@ class RiskEngineV2:
             "estimated_stop_loss_net_usdt": estimated_stop_loss_net_usdt,
             "entry_net_to_stop_ratio": entry_net_to_stop_ratio,
         }
+        if immediate_adverse_guard_trace:
+            sizing_trace.update(immediate_adverse_guard_trace)
+        if shadow_verified_guard_trace:
+            sizing_trace.update(shadow_verified_guard_trace)
+        if diagnostic_gate_skips:
+            sizing_trace["diagnostic_gate_skips"] = diagnostic_gate_skips
         return OrderPlan(
             accepted=True,
             reason_code="allow",
