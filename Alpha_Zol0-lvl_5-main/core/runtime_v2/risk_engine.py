@@ -8,6 +8,7 @@ from typing import Dict, Optional
 
 from core.kucoin_futures_client import KucoinFuturesClient
 from core.runtime_v2.contracts import EntryCandidate, OrderPlan
+from core.runtime_v2.admission_reachability import effective_entry_min_net_usdt
 
 
 def _env_float(key: str, default: float) -> float:
@@ -112,7 +113,13 @@ class RiskEngineV2:
         self.max_contracts_env = _env_float("futures_max_contracts_per_trade", 0.0)
         if self.max_contracts_env <= 0:
             self.max_contracts_env = _env_float("FUTURES_MAX_CONTRACTS_PER_TRADE", 0.0)
-        self.entry_min_net_usdt = max(0.0, _env_float("ENTRY_MIN_NET_USDT", 0.0))
+        self.default_entry_min_net_usdt = max(
+            0.0, _env_float("ENTRY_MIN_NET_USDT", 0.0)
+        )
+        self.entry_min_net_usdt = max(
+            0.0,
+            effective_entry_min_net_usdt(self.default_entry_min_net_usdt),
+        )
         self.entry_min_net_to_stop_ratio = max(
             0.0, _env_float("ENTRY_MIN_NET_TO_STOP_RATIO", 0.0)
         )

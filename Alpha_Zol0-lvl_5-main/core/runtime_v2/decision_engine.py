@@ -10,6 +10,9 @@ from core.runtime_v2.contracts import (
     QuoteTick,
     StrategySignal,
 )
+from core.runtime_v2.admission_reachability import (
+    effective_v2_min_expected_net_ratio,
+)
 
 
 def _as_float_env(env_key: str, default: float) -> float:
@@ -43,7 +46,12 @@ class DecisionEngineV2:
         self.slippage_bps = max(0.0, _as_float_env("V2_SLIPPAGE_BPS", 0.25))
         self.spread_cost_mult = max(0.0, _as_float_env("V2_SPREAD_COST_MULT", 0.10))
         self.min_probability = max(0.0, _as_float_env("V2_MIN_PROBABILITY", 0.52))
-        self.min_expected_net_ratio = _as_float_env("V2_MIN_EXPECTED_NET_RATIO", 0.0006)
+        self.default_min_expected_net_ratio = _as_float_env(
+            "V2_MIN_EXPECTED_NET_RATIO", 0.0006
+        )
+        self.min_expected_net_ratio = effective_v2_min_expected_net_ratio(
+            self.default_min_expected_net_ratio
+        )
         self.profile_quality_fail_closed = _as_bool_env(
             "V2_PROFILE_QUALITY_FAIL_CLOSED", False
         )
