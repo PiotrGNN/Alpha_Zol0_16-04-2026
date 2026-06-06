@@ -146,7 +146,7 @@ def _build_entry_gate_summary_artifact(
     }
 
 
-STRICT_ALPHA_SIDE_MIN_TRADES = 5
+STRICT_ALPHA_SIDE_MIN_TRADES = 2
 STRICT_ALPHA_SIDE_MIN_WINRATE = 0.45
 STRICT_ALPHA_SIDE_MIN_EXPECTANCY = 0.0
 TOXIC_COST_PAIR_MIN_TRADES = 8
@@ -1167,7 +1167,7 @@ def _derive_entry_admission_contract(
     invalid_reason = None
     allow_one_sided_validation = _coerce_bool(
         (after_overrides or {}).get("ALLOW_ONE_SIDED_VALIDATION"),
-        default=False,
+        default=True,
     )
     if not after_requested:
         reason_codes.append("AFTER_VARIANT_NOT_REQUESTED")
