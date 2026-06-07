@@ -4053,6 +4053,27 @@ def _entry_profitability_fee_gate_enabled(*, live_mode, raw_value=None):
     return raw_text not in {"0", "false", "no", "off"}
 
 
+def _allowlist_diagnostic_force_open_enabled(
+    *,
+    live_mode,
+    allowlist_active,
+    raw_value=None,
+):
+    """Explicit PAPER-only opt-in for diagnostic force-open bypass."""
+
+    if bool(live_mode):
+        return False
+    if not bool(allowlist_active):
+        return False
+
+    try:
+        raw_text = str(raw_value if raw_value is not None else "0").strip().lower()
+    except Exception:
+        raw_text = "0"
+
+    return raw_text in {"1", "true", "yes", "on"}
+
+
 def _evaluate_entry_edge_fail_closed_gate(
     *,
     entry_decision,
@@ -28768,8 +28789,12 @@ def run_bot(simulate=False):
                         _entry_expected_edge_after_fee_value = _safe_float(
                             entry_expected_edge_after_fee
                         )
-                        allowlist_diagnostic_force_open = bool(
-                            entry_symbol_strategy_side_allowlist
+                        allowlist_diagnostic_force_open = _allowlist_diagnostic_force_open_enabled(
+                            live_mode=_env_flag("LIVE"),
+                            allowlist_active=bool(entry_symbol_strategy_side_allowlist),
+                            raw_value=os.environ.get(
+                                "PAPER_DIAGNOSTIC_FORCE_OPEN", "0"
+                            ),
                         )
                         # FAIL-CLOSED: Block zero-edge trades when history is unavailable
                         if (
