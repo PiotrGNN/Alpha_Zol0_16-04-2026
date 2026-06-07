@@ -1,6 +1,7 @@
 import pytest
 
 from core.BotCore import (
+    _allowlist_diagnostic_force_open_enabled,
     _evaluate_entry_edge_fail_closed_gate,
     _entry_profitability_fee_gate_enabled,
     _evaluate_entry_profitability_fee_gate,
@@ -333,3 +334,55 @@ def test_admission_fail_closed_live_mode_keeps_behavior_unaffected() -> None:
     )
     assert result["blocked"] is False
     assert result["reason"] == "live_unaffected_noop"
+
+
+def test_allowlist_diagnostic_force_open_requires_explicit_opt_in() -> None:
+    assert (
+        _allowlist_diagnostic_force_open_enabled(
+            live_mode=False,
+            allowlist_active=True,
+            raw_value="0",
+        )
+        is False
+    )
+    assert (
+        _allowlist_diagnostic_force_open_enabled(
+            live_mode=False,
+            allowlist_active=True,
+            raw_value="1",
+        )
+        is True
+    )
+
+
+def test_allowlist_presence_does_not_bypass_fail_closed_without_opt_in() -> None:
+    gate = _evaluate_entry_edge_fail_closed_gate(
+        entry_decision="buy",
+        expected_edge_after_fee_effective=-0.003,
+        entry_expected_edge_after_fee=-0.003,
+        edge_zero_reason="COST_MODEL_OVERDOMINANCE",
+        history_ready=False,
+        trade_count=1,
+        min_trades_required=20,
+        live_mode=False,
+    )
+    assert gate["blocked"] is True
+    assert gate["reason"] == "entry_edge_cost_overdominance"
+
+    bypass = _allowlist_diagnostic_force_open_enabled(
+        live_mode=False,
+        allowlist_active=True,
+        raw_value="0",
+    )
+    assert bypass is False
+
+
+def test_live_mode_never_enables_allowlist_diagnostic_force_open() -> None:
+    assert (
+        _allowlist_diagnostic_force_open_enabled(
+            live_mode=True,
+            allowlist_active=True,
+            raw_value="1",
+        )
+        is False
+    )
