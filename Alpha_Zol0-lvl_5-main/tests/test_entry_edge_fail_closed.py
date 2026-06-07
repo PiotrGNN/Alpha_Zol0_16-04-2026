@@ -1,6 +1,7 @@
 import pytest
 
 from core.BotCore import (
+    _evaluate_entry_edge_fail_closed_gate,
     _entry_profitability_fee_gate_enabled,
     _evaluate_entry_profitability_fee_gate,
     _paper_known_entry_execution_cost_context,
@@ -227,3 +228,108 @@ def test_profitability_fee_gate_disable_is_paper_only():
         )
         is True
     )
+
+
+def test_admission_fail_closed_blocks_negative_effective_edge() -> None:
+    result = _evaluate_entry_edge_fail_closed_gate(
+        entry_decision="buy",
+        expected_edge_after_fee_effective=-0.001,
+        entry_expected_edge_after_fee=-0.001,
+        edge_zero_reason=None,
+        history_ready=True,
+        trade_count=10,
+        min_trades_required=5,
+        live_mode=False,
+    )
+    assert result["blocked"] is True
+    assert result["reason"] == "entry_edge_nonpositive_after_fee"
+
+
+def test_admission_fail_closed_blocks_zero_effective_edge() -> None:
+    result = _evaluate_entry_edge_fail_closed_gate(
+        entry_decision="sell",
+        expected_edge_after_fee_effective=0.0,
+        entry_expected_edge_after_fee=0.0,
+        edge_zero_reason=None,
+        history_ready=True,
+        trade_count=10,
+        min_trades_required=5,
+        live_mode=False,
+    )
+    assert result["blocked"] is True
+    assert result["reason"] == "entry_edge_nonpositive_after_fee"
+
+
+def test_admission_fail_closed_blocks_cost_overdominance() -> None:
+    result = _evaluate_entry_edge_fail_closed_gate(
+        entry_decision="buy",
+        expected_edge_after_fee_effective=-0.0002,
+        entry_expected_edge_after_fee=-0.0002,
+        edge_zero_reason="COST_MODEL_OVERDOMINANCE",
+        history_ready=False,
+        trade_count=2,
+        min_trades_required=20,
+        live_mode=False,
+    )
+    assert result["blocked"] is True
+    assert result["reason"] == "entry_edge_cost_overdominance"
+
+
+def test_admission_fail_closed_blocks_history_unready_zero_default() -> None:
+    result = _evaluate_entry_edge_fail_closed_gate(
+        entry_decision="buy",
+        expected_edge_after_fee_effective=0.0,
+        entry_expected_edge_after_fee=0.0,
+        edge_zero_reason="HISTORY_UNAVAILABLE_ZERO_DEFAULT",
+        history_ready=False,
+        trade_count=0,
+        min_trades_required=5,
+        live_mode=False,
+    )
+    assert result["blocked"] is True
+    assert result["reason"] == "entry_edge_history_unready"
+
+
+def test_admission_fail_closed_blocks_history_unready_below_min_trades() -> None:
+    result = _evaluate_entry_edge_fail_closed_gate(
+        entry_decision="buy",
+        expected_edge_after_fee_effective=0.003,
+        entry_expected_edge_after_fee=0.003,
+        edge_zero_reason=None,
+        history_ready=False,
+        trade_count=2,
+        min_trades_required=20,
+        live_mode=False,
+    )
+    assert result["blocked"] is True
+    assert result["reason"] == "entry_edge_history_unready"
+
+
+def test_admission_fail_closed_allows_positive_with_sufficient_history() -> None:
+    result = _evaluate_entry_edge_fail_closed_gate(
+        entry_decision="buy",
+        expected_edge_after_fee_effective=0.004,
+        entry_expected_edge_after_fee=0.004,
+        edge_zero_reason=None,
+        history_ready=True,
+        trade_count=32,
+        min_trades_required=20,
+        live_mode=False,
+    )
+    assert result["blocked"] is False
+    assert result["reason"] == "allow"
+
+
+def test_admission_fail_closed_live_mode_keeps_behavior_unaffected() -> None:
+    result = _evaluate_entry_edge_fail_closed_gate(
+        entry_decision="buy",
+        expected_edge_after_fee_effective=-0.01,
+        entry_expected_edge_after_fee=-0.01,
+        edge_zero_reason="COST_MODEL_OVERDOMINANCE",
+        history_ready=False,
+        trade_count=0,
+        min_trades_required=20,
+        live_mode=True,
+    )
+    assert result["blocked"] is False
+    assert result["reason"] == "live_unaffected_noop"

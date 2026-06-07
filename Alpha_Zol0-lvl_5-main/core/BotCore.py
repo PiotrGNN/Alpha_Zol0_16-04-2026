@@ -4053,6 +4053,94 @@ def _entry_profitability_fee_gate_enabled(*, live_mode, raw_value=None):
     return raw_text not in {"0", "false", "no", "off"}
 
 
+def _evaluate_entry_edge_fail_closed_gate(
+    *,
+    entry_decision,
+    expected_edge_after_fee_effective,
+    entry_expected_edge_after_fee,
+    edge_zero_reason,
+    history_ready,
+    trade_count,
+    min_trades_required,
+    live_mode,
+):
+    """Paper-only hardening gate for nonpositive/cost-overdominated edge entries."""
+
+    def _gate_float(value):
+        try:
+            if value is None:
+                return None
+            out = float(value)
+        except Exception:
+            return None
+        if out != out or out in (float("inf"), float("-inf")):
+            return None
+        return out
+
+    side_value = str(entry_decision or "").strip().lower()
+    if side_value not in ("buy", "sell"):
+        return {
+            "blocked": False,
+            "reason": "not_entry_side",
+            "expected_edge_after_fee": None,
+        }
+
+    if bool(live_mode):
+        return {
+            "blocked": False,
+            "reason": "live_unaffected_noop",
+            "expected_edge_after_fee": None,
+        }
+
+    expected_edge = _gate_float(expected_edge_after_fee_effective)
+    if expected_edge is None:
+        expected_edge = _gate_float(entry_expected_edge_after_fee)
+
+    edge_zero_reason_norm = str(edge_zero_reason or "").strip().upper()
+    history_ready_value = bool(history_ready)
+    try:
+        trade_count_value = max(0, int(trade_count or 0))
+    except Exception:
+        trade_count_value = 0
+    try:
+        min_trades_value = max(1, int(min_trades_required or 1))
+    except Exception:
+        min_trades_value = 1
+
+    if edge_zero_reason_norm == "COST_MODEL_OVERDOMINANCE":
+        return {
+            "blocked": True,
+            "reason": "entry_edge_cost_overdominance",
+            "expected_edge_after_fee": expected_edge,
+        }
+
+    if (
+        not history_ready_value
+        and (
+            edge_zero_reason_norm == "HISTORY_UNAVAILABLE_ZERO_DEFAULT"
+            or trade_count_value < min_trades_value
+        )
+    ):
+        return {
+            "blocked": True,
+            "reason": "entry_edge_history_unready",
+            "expected_edge_after_fee": expected_edge,
+        }
+
+    if expected_edge is None or float(expected_edge) <= 0.0:
+        return {
+            "blocked": True,
+            "reason": "entry_edge_nonpositive_after_fee",
+            "expected_edge_after_fee": expected_edge,
+        }
+
+    return {
+        "blocked": False,
+        "reason": "allow",
+        "expected_edge_after_fee": expected_edge,
+    }
+
+
 def _build_entry_edge_over_fee_no_history_status(
     *,
     symbol_name,
@@ -28852,6 +28940,68 @@ def run_bot(simulate=False):
                                 )
                             except Exception:
                                 pass
+                        fail_closed_edge_eval = _evaluate_entry_edge_fail_closed_gate(
+                            entry_decision=entry_decision,
+                            expected_edge_after_fee_effective=(
+                                expected_edge_after_fee_effective
+                            ),
+                            entry_expected_edge_after_fee=(
+                                _entry_expected_edge_after_fee_value
+                            ),
+                            edge_zero_reason=edge_zero_reason,
+                            history_ready=history_ready,
+                            trade_count=history_count_used,
+                            min_trades_required=min_trades_required,
+                            live_mode=_env_flag("LIVE"),
+                        )
+                        if (
+                            isinstance(fail_closed_edge_eval, dict)
+                            and bool(fail_closed_edge_eval.get("blocked"))
+                        ):
+                            if allowlist_diagnostic_force_open:
+                                fail_closed_edge_eval["blocked"] = False
+                                fail_closed_edge_eval["reason"] = (
+                                    "allowlist_diagnostic_force_open"
+                                )
+                            else:
+                                edge_blocked = True
+                                entry_decision, entry_reason = _apply_side_profit_edge_gate_pipeline(
+                                    entry_decision=entry_decision,
+                                    entry_reason=entry_reason,
+                                    gate_blocked=True,
+                                    gate_reason="entry_edge_filtered",
+                                )
+                                edge_filter_pass = False
+                                edge_filter_reason = str(
+                                    fail_closed_edge_eval.get("reason")
+                                    or "entry_edge_nonpositive_after_fee"
+                                )
+                                try:
+                                    infinity_logger.log(
+                                        "entry_edge_filtered",
+                                        {
+                                            "ts": datetime.now(timezone.utc).isoformat(),
+                                            "symbol": symbol,
+                                            "strategy": edge_strategy,
+                                            "side": edge_candidate_side,
+                                            "entry_decision_raw": decision_value,
+                                            "entry_decision_final": entry_decision,
+                                            "expected_edge_after_fee": (
+                                                _entry_expected_edge_after_fee_value
+                                            ),
+                                            "expected_edge_after_fee_effective": (
+                                                expected_edge_after_fee_effective
+                                            ),
+                                            "history_ready": history_ready,
+                                            "history_count_used": history_count_used,
+                                            "min_trades_required": min_trades_required,
+                                            "edge_build_status": edge_build_status,
+                                            "edge_zero_reason": edge_zero_reason,
+                                            "reason": edge_filter_reason,
+                                        },
+                                    )
+                                except Exception:
+                                    pass
                         if entry_profitability_fee_gate_enable:
                             fee_edge_gate_eval = _evaluate_entry_profitability_fee_gate(
                                 entry_decision=entry_decision,
