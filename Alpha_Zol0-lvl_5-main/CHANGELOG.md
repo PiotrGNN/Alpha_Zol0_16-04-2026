@@ -1,39 +1,29 @@
-# CHANGELOG.md — ZoL0 AI Trading System
+# CHANGELOG.md — ZoL0
+
+## 2026-06-09
+
+- Squash-merged PR #16: paid-beta SaaS foundation.
+- Added FastAPI authentication, roles, plans, Stripe Checkout, subscriptions, idempotent webhooks, Alembic migration, usage analytics, dashboard routes, Docker assets, and dedicated CI.
+- Hardened administrator provisioning: public registration always creates role `user`; first administrator uses a separate one-time, secret-guarded bootstrap flow.
+- Fixed full Python CI integration for paid-beta dependencies and repository-independent contract-test paths.
+- Verified green paid-beta backend/frontend CI, full Python test job, and LEVEL-OMEGA regression job before merge.
+- Added the profitability and revenue plan separating SaaS revenue, operational readiness, trading profitability, and LIVE eligibility.
+- KuCoin-only and PAPER-first constraints remain unchanged. Bybit/pybit remain deprecated.
+- No profitability or LIVE-readiness claim is made without fresh evidence.
 
 ## 2026-04-20
-- Fresh paper readiness gate ran (09:23–09:32 UTC): `paper_readiness_gate_20260420_072346`. All 4 KPI corridors passed (ETH, BTC+SOL, BTC, XRP). `operational_gate_status=PASS`, `global_verdict=PROMOTE_CANDIDATE`, `paper_ready=True`, `economics_go_no_go=GO`, `runs_passed=4/4`. `latest_gate.json` / `latest_gate.md` updated. Gate artifact: `reports/paper_readiness/paper_readiness_gate_20260420_072346.md`.
-- Completed autonomous PAPER corridor validation of the post-green protective exit runtime contract patch (frozen state: `POST_GREEN_RUNTIME_CONTRACT_FIXED`).
-- Conducted 17 PAPER corridor runs (batches 1–10g) on KuCoin futures, all runtime-clean (`shutdown_classification=close_flush_done_pending_positions_zero`, `process_returncode=0`).
-- Confirmed `post_green_protective_terminal_trigger_seen=True` in `position_close` events for 5 of 7 closes in batch10g (ETHUSDTM, SOLUSDTM, XRPUSDTM, BTCUSDTM).
-- Validated all 6 required attribution fields non-null and consistent between `position_close` and `post_green_protective_exit_terminal_outcome` events: `post_green_attempt_seq`, `post_green_branch_seq`, `post_green_trigger_mode`, `post_green_trigger_reason_detail`, `post_green_peak_to_burden_ratio`, `post_green_bnr_time_forced_exit_sec`.
-- Audit artifact updated: `verdict=CONTRACT_PATCH_VALIDATED_POST_GREEN_TRIGGERED`, `audit_status=CONTRACT_VALIDATED_TRIGGERED_CLOSE_OBTAINED`. Full record at `artifacts/diagnostics/post_green_natural_entry_contract_audit_20260419_expanded.json`.
-- Key finding: `EXIT_CLOSE_ATTEMPT_FEE_GUARD_COOLDOWN_SEC` default of 300s can suppress post_green_protective_exit for up to 300s after a `BLOCK_FEE_GUARD` event; future validation runs should override with `EXIT_CLOSE_ATTEMPT_FEE_GUARD_COOLDOWN_SEC=10`.
-- `BotCore.py` remains frozen at `POST_GREEN_RUNTIME_CONTRACT_FIXED`; no source changes were made.
+
+- Recorded a historical PAPER readiness run and post-green protective-exit contract validation.
+- The historical result remains useful as an artifact-specific observation only. It is not current proof of profitability or LIVE readiness.
 
 ## 2026-02-06
-- Added KuCoin-only REST client for public market data + private balance fetch.
-- Added `/api/health`, `/api/market`, `/api/balance`, `/api/paper_state`, `/api/logs` endpoints.
-- Enforced multi-step LIVE arming gate; default mode set to PAPER; LIVE blocked unless explicitly armed.
-- Dashboard now renders real market snapshot + account balances.
-- Added tests for API endpoints, balance normalization, and LIVE block behavior.
 
-## 2025-08-04
-- Zintegrowano monitorowanie zasobów systemowych — wątek monitoringu startowany wraz z API w `main.py`.
-- Dodano endpoint `POST /start-live` w `api_status.py` uruchamiający bota w trybie live w osobnym wątku.
-- Uzupełniono dashboard: zaimplementowano komponent `PositionTable` do wyświetlania i zarządzania otwartymi pozycjami; dodano przycisk „Start Live Trading” w `DashboardStatus.tsx`.
-- Zaktualizowano checklistę TODO, oznaczając wszystkie pozostałe zadania jako wykonane; uzupełniono `progress.yaml`.
-- Przygotowano finalny raport i aktualizację dokumentacji.
+- Added KuCoin-only market-data and account-balance paths.
+- Added health, market, balance, PAPER-state, and log endpoints.
+- Enforced multi-step LIVE arming and PAPER-by-default behavior.
 
-## 2025-07-30
-- Pełna synchronizacja checklist, changelog, statusów LEVEL-Ω.
-- Dodano diagram architektury, opis AI flow, linki do checklist, rozszerzona sekcja instalacji i deploymentu.
-- Wszystkie TODO, stubs, placeholders usunięte z kodu produkcyjnego.
-- System gotowy do produkcji, testy 100% coverage, audyt LEVEL-Ω.
+## Historical entries
 
-## 2025-07-29
-- Produkcyjny release LEVEL-Ω, pełny audyt, testy, bezpieczeństwo, federated learning.
-- Rozbudowa loggerów, risk, backtest, dynamic strategy routing.
+Entries dated 2025-07 through 2025-08 describing production readiness, complete coverage, Bybit support, or LEVEL-OMEGA completion are retained only as historical project claims. They are not authoritative current-state evidence.
 
-## 2025-07-28 i wcześniej
-- Rozwój warstw ML, risk, federated learning, dashboard, testy jednostkowe i integracyjne.
-- Refaktoryzacja architektury, checklisty LEVEL0-5, wdrożenie CI/CD.
+Current status is defined by `PROJECT_OVERVIEW.md`, `RUNBOOK.md`, `PAID_BETA.md`, `PROFITABILITY_AND_REVENUE.md`, current tests, and fresh runtime artifacts.
