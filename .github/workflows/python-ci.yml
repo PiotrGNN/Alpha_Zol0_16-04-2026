@@ -23,6 +23,7 @@ jobs:
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           if [ -f Alpha_Zol0-lvl_5-main/requirements.txt ]; then pip install -r Alpha_Zol0-lvl_5-main/requirements.txt; fi
+          if [ -f Alpha_Zol0-lvl_5-main/requirements-paid-beta.txt ]; then pip install -r Alpha_Zol0-lvl_5-main/requirements-paid-beta.txt; fi
           python -m pip install pytest
 
       - name: Compile check for core modules
@@ -32,6 +33,7 @@ jobs:
 
       - name: Run tests
         run: |
+          set +e
           python -m pytest -q \
             --ignore=Alpha_Zol0-lvl_5-main/tests/test_edge_history_accumulation_root_cause.py \
             --ignore=Alpha_Zol0-lvl_5-main/tests/test_edge_history_linkage_redesign_plan.py \
@@ -41,7 +43,20 @@ jobs:
             --ignore=Alpha_Zol0-lvl_5-main/tests/test_proxy_readiness_shadow_only.py \
             --ignore=Alpha_Zol0-lvl_5-main/tests/test_proxy_shadow_realized_agreement_audit.py \
             --ignore=Alpha_Zol0-lvl_5-main/tests/test_proxy_shadow_realized_agreement_expanded.py \
-            --ignore=Alpha_Zol0-lvl_5-main/tests/test_readiness_model_redesign_plan.py
+            --ignore=Alpha_Zol0-lvl_5-main/tests/test_readiness_model_redesign_plan.py \
+            > pytest-output.txt 2>&1
+          status=$?
+          cat pytest-output.txt
+          exit $status
+
+      - name: Upload pytest output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-ci-pytest-output
+          path: pytest-output.txt
+          if-no-files-found: warn
+          retention-days: 7
 
   level-omega-regression:
     runs-on: ubuntu-latest
