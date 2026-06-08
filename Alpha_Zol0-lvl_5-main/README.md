@@ -2,44 +2,45 @@
 
 This directory contains the source-of-truth Python project for ZoL0.
 
-For the full repo-grounded current-state description, see `../PROJECT_OVERVIEW.md`.
+## Operating constraints
 
-## Operating Constraints
+- KuCoin only.
+- PAPER first.
+- LIVE disabled by default and hard-gated.
+- Bybit/pybit deprecated and excluded.
+- Profitability and LIVE readiness require fresh artifacts.
+- Paid beta does not expose public LIVE trading.
 
-- KuCoin-only.
-- PAPER-first.
-- LIVE is disabled by default and hard-gated.
-- Runtime/profitability readiness must be established from fresh gate artifacts, not from historical LEVEL notes.
-- No profitability, production-readiness, or LIVE-readiness claim is made by this README.
+## Main entrypoints
 
-## Main Entrypoints
-
-- Runtime loop: `core/BotCore.py`
+- Runtime: `core/BotCore.py`
 - Controlled PAPER runner: `scripts/controlled_kpi_run.py`
 - PAPER readiness gate: `scripts/run_paper_readiness_gate.py`
-- Profitability/economics audit: `scripts/profitability_audit_scorecard.py`
+- Profitability audit: `scripts/profitability_audit_scorecard.py`
+- Paid-beta API: `paid_beta/app.py`
+- Paid-beta dashboard: `dashboard/`
 
-## Operational Presets
+## Paid-beta state
 
-- The corrected ETH momentum buy PAPER path is documented in `RUNBOOK.md`.
-- `paper_gate_run_a_eth` in `scripts/run_paper_readiness_gate.py` now uses the ETH explicit-allowlist preset automatically.
-- Use `python scripts/run_eth_momentum_buy_preset.py --runs 1` for a single operational ETH preset run or `--runs 3` for a stability series with an auto-written summary artifact.
-- The ETH preset is now fail-closed: the explicit side allowlist constrains eligible candidates, but it does not force a startup position when no natural candidate appears.
-- Forced startup admission is treated as debug-only evidence and is excluded from preferred readiness economics corpus selection.
+The repository includes authentication, plans, Stripe billing, subscriptions, migrations, usage analytics, dashboard routes, CI, and Docker assets. Paid reports, signal history, backtests, alerts, exports, and entitlement delivery remain P0 before charging customers.
 
-## Run / Test
+Public registration always creates role `user`. First administrator creation uses a separate one-time bootstrap flow documented in `PAID_BETA.md`.
 
-From the repository root:
+## Validation
 
 ```powershell
-python -m py_compile Alpha_Zol0-lvl_5-main/core/BotCore.py
 python -m pytest -q
 ```
 
-Run a controlled PAPER command:
+```powershell
+python scripts/controlled_kpi_run.py --variant-only before --before-min 5
+python scripts/run_paper_readiness_gate.py
+```
 
 ```powershell
-Push-Location Alpha_Zol0-lvl_5-main
-python scripts/controlled_kpi_run.py --variant-only before --before-min 5
-Pop-Location
+pip install -r requirements-paid-beta.txt
+alembic upgrade head
+pytest -q tests/test_paid_beta_security.py tests/test_paid_beta_contract.py tests/test_paid_beta_api.py
 ```
+
+See `../PROJECT_OVERVIEW.md` and `../PROFITABILITY_AND_REVENUE.md` for the authoritative current state and profitability plan.
