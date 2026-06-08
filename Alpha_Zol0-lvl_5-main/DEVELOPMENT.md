@@ -1,106 +1,79 @@
+# DEVELOPMENT.md — Current developer guidance
 
-# DEVELOPMENT.md – Dokumentacja developerska
+## Authoritative status
 
-**Uwaga: Od LEVEL-Ω cała logika decyzji, equity i logów została przeniesiona do bazy danych Postgres. API oraz worker komunikują się wyłącznie przez bazę – nie są już używane pliki CSV ani logi lokalne. Szczegóły: core/db_models.py, core/db_utils.py, api_status.py, core/BotCore.py.**
+ZoL0 is a KuCoin-only, PAPER-first trading research and validation system with an isolated paid-beta SaaS foundation.
 
+Historical LEVEL and LEVEL-OMEGA documents describe prior ambitions and snapshots. They are not proof of current production readiness, complete coverage, trading profitability, or LIVE eligibility.
 
-## Kluczowe strategie i technologie
+## Supported scope
 
-- **Trend Following & Momentum** – klasyczne strategie podążania za trendem, pozwalające zyskom rosnąć w hossie.
-- **Mean Reversion & Grid Trading** – strategie na konsolidacje, wielokrotne małe zyski z wahań.
-- **Breakout** – szybka reakcja na wybicia i nagłe ruchy.
-- **Sentiment/NLP AI** – analiza newsów, tweetów i nastrojów rynkowych (transformery, modele językowe, szybka reakcja na newsy).
-- **Arbitraż & Market Making** – wykorzystywanie nieefektywności, zysk na spreadach, cross-exchange, HFT.
-- **Reinforcement Learning (RL)** – adaptacyjne strategie AI, uczenie przez doświadczenie, dynamiczne dostosowanie polityki, integracja z federated learning.
-- **Federated Learning** – rozproszona aktualizacja modeli AI, dzielenie wiedzy między instancjami, ciągłe doskonalenie.
-- **DynamicStrategyRouter** – automatyczne przełączanie strategii w zależności od warunków rynkowych.
+- KuCoin market data and execution paths.
+- PAPER-first runtime validation.
+- Controlled KPI runs, readiness gates, telemetry, persistence, and profitability audits.
+- Paid-beta authentication, plans, Stripe billing, subscriptions, migrations, analytics, dashboard, CI, and Docker foundation.
+- Bybit/pybit are deprecated and must not be restored.
 
-## Synergia i adaptacja
+## Trading development rules
 
-ZoL0 łączy klasyczne strategie, AI/ML, RL, federated learning i dynamiczne zarządzanie ryzykiem w jeden ekosystem. Bot uczy się z każdego trade’u, aktualizuje modele i parametry, dzieląc wiedzę między instancjami. Dzięki temu przewaga bota rośnie z czasem, a system adaptuje się do każdego typu rynku (hossa, bessa, konsolidacja, newsy, anomalie, wysokie VIX).
+1. Keep `LIVE=0` for discovery and profitability validation.
+2. Do not lower entry thresholds merely to increase trade count.
+3. Separate operational readiness from profitability.
+4. Accept only natural, uncontaminated PAPER trades into the profitability corpus.
+5. Retain commit SHA, configuration fingerprint, data window, cost assumptions, and artifact hashes.
+6. Add regression tests for runtime, gate, persistence, and evidence-contract changes.
+7. Do not claim edge from code presence, simulated examples, or stale artifacts.
 
-## Przykład użycia Reinforcement Learning (RL)
+## Profitability contract
 
-```python
-from strategies.rl_omega import RLOmegaAgent
-agent = RLOmegaAgent(state_dim=10, action_dim=3)
-state = [0.1]*10
-action = agent.act(state)
-reward = 1.0
-next_state = [0.2]*10
-done = False
-agent.remember(state, action, reward, next_state, done)
-agent.replay()  # Uczy się na podstawie doświadczeń
+A promoted symbol/strategy/side cohort requires at least 60 natural closed trades, positive expectancy after fees/spread/slippage/funding, OOS profit factor at least 1.15, zero assisted/forced/mock/unknown entries, and four consecutive positive fresh weekly windows.
+
+See `../PROFITABILITY_AND_REVENUE.md` for the complete governance contract.
+
+## Paid-beta development rules
+
+- Public registration always creates role `user`.
+- First administrator provisioning is separate, secret-guarded, fail-closed, and one-time.
+- Apply entitlement checks to every paid resource.
+- Use managed PostgreSQL, Alembic deployment migrations, backups, and restore testing for production customer data.
+- Validate Stripe replay, concurrency, cancellation, failed payment, refund, and one-time fulfillment paths.
+- Do not expose public LIVE trading through the paid-beta product.
+
+## Main validation commands
+
+From the repository root:
+
+```powershell
+python -m pytest -q
 ```
 
-## Przykład użycia Federated Learning
+From `Alpha_Zol0-lvl_5-main/`:
 
-```python
-# Załóżmy, że mamy kilka agentów RL na różnych maszynach:
-local_weights = agent.get_weights_for_federation()
-# ...zbierzemy je z innych instancji...
-agent.aggregate_federated_weights([local_weights, other_weights1, other_weights2])
-# Aktualizacja globalnej polityki
+```powershell
+python scripts/controlled_kpi_run.py --variant-only before --before-min 5
+python scripts/run_paper_readiness_gate.py
+pytest -q tests/test_paid_beta_security.py tests/test_paid_beta_contract.py tests/test_paid_beta_api.py
 ```
 
-## Przykład użycia NLP/Sentiment
+Dashboard:
 
-```python
-from ai.sentiment_model import SentimentModel
-model = SentimentModel()
-score, label = model.predict("Bitcoin to the moon!")
+```powershell
+Push-Location dashboard
+npm ci
+npm run build
+Pop-Location
 ```
 
-## Przykład arbitrażu/market making
+## Documentation hierarchy
 
-```python
-# Pseudokod: wykrywanie różnicy cen na giełdach
-price_a = fetch_price('BTCUSDT', exchange='A')
-price_b = fetch_price('BTCUSDT', exchange='B')
-if abs(price_a - price_b) > threshold:
-    execute_arbitrage(price_a, price_b)
-```
+Current state is defined by:
 
+- `../PROJECT_OVERVIEW.md`
+- `../RUNBOOK.md`
+- `../PROFITABILITY_AND_REVENUE.md`
+- `README.md`
+- `PAID_BETA.md`
+- current CI/test output
+- fresh runtime artifacts
 
-## Checklisty LEVEL0-5
-
-Pełne checklisty i statusy znajdują się w plikach:
-- [ZoL0-Level-0-5.md](ZoL0-Level-0-5.md)
-- [AUDIT_STATUS.md](AUDIT_STATUS.md)
-- [TODO.md](TODO.md)
-
-## Przykłady użycia
-
-### Uruchomienie bota
-```sh
-python main.py
-```
-
-### Przykład użycia modelu ML
-```python
-from models.trend_predictor import TrendPredictor
-model = TrendPredictor()
-trend = model.predict(ohlcv_data)
-```
-
-### Przykład testu jednostkowego
-```sh
-pytest tests/test_risk_manager.py
-```
-
-## Integracja z Bybit, FL, ZTA
-
-- **Bybit**: MarketDataFetcher i OrderExecutor obsługują REST API Bybit (multi-symbol, retry, throttle).
-- **Federated Learning (FL)**: Modele ML mogą być aktualizowane rozproszonymi wagami (patrz: fl/training.py, fl/runner.py).
-- **ZTA (Zero Trust Architecture)**: Moduły security/zero_trust.py, autoryzacja tokenów, logowanie zdarzeń.
-
-
-## Testy i coverage
-
-Testy pokrywają wszystkie kluczowe moduły (MarketDataFetcher, OrderExecutor, RiskManager, AI, warstwy profit, bezpieczeństwo, federated learning). **Logi, decyzje i equity są testowane pod kątem poprawności zapisu do bazy Postgres.**
-
-## Status LEVEL-Ω (2025-07-30)
-
-- Wszystkie warstwy, modele, strategie i testy są produkcyjne i w pełni pokryte testami.
-- Brak stubs, TODO, placeholderów w kodzie produkcyjnym.
-- System gotowy do wdrożenia produkcyjnego.
+Older TODO, LEVEL, AI, RL, federated-learning, market-making, arbitrage, coverage, and production-readiness statements are historical context unless re-proven by current code and evidence.
