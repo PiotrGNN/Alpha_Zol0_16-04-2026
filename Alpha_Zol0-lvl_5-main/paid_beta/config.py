@@ -21,6 +21,7 @@ class Settings:
     stripe_price_pro: str = os.getenv("STRIPE_PRICE_PRO", "")
     stripe_price_report: str = os.getenv("STRIPE_PRICE_REPORT", "")
     bootstrap_admin_email: str = os.getenv("PAID_BETA_BOOTSTRAP_ADMIN_EMAIL", "").strip().lower()
+    bootstrap_admin_secret: str = os.getenv("PAID_BETA_ADMIN_BOOTSTRAP_SECRET", "")
 
     def validate_runtime(self) -> None:
         if not self.token_secret or len(self.token_secret) < 32:
