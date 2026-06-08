@@ -93,11 +93,10 @@ def status_endpoint(db: Session = Depends(get_db)) -> dict:
 @auth.post("/register", status_code=201)
 def register(credentials: Credentials, db: Session = Depends(get_db)):
     email = credentials.email.lower()
-    role = "admin" if email == settings.bootstrap_admin_email else "user"
     user = User(
         email=email,
         password_hash=hash_password(credentials.password),
-        role=role,
+        role="user",
     )
     db.add(user)
     try:
