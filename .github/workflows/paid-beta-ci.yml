@@ -1,0 +1,56 @@
+name: paid-beta-ci
+
+on:
+  pull_request:
+    paths:
+      - 'Alpha_Zol0-lvl_5-main/paid_beta/**'
+      - 'Alpha_Zol0-lvl_5-main/tests/test_paid_beta_*'
+      - 'Alpha_Zol0-lvl_5-main/dashboard/**'
+      - 'Alpha_Zol0-lvl_5-main/requirements-paid-beta.txt'
+      - 'Alpha_Zol0-lvl_5-main/Dockerfile.paid-beta'
+      - '.github/workflows/paid-beta-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'Alpha_Zol0-lvl_5-main/paid_beta/**'
+      - 'Alpha_Zol0-lvl_5-main/tests/test_paid_beta_*'
+      - 'Alpha_Zol0-lvl_5-main/dashboard/**'
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Alpha_Zol0-lvl_5-main
+    env:
+      PAID_BETA_TOKEN_SECRET: test-secret-that-is-at-least-32-characters
+      PAID_BETA_DATABASE_URL: sqlite:///./paid_beta_test.db
+      STRIPE_PRICE_STARTER: price_test_starter
+      STRIPE_PRICE_PRO: price_test_pro
+      STRIPE_PRICE_REPORT: price_test_report
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install -r requirements-paid-beta.txt pytest httpx
+      - run: python -m py_compile paid_beta/*.py paid_beta/migrations/env.py paid_beta/migrations/versions/*.py
+      - run: alembic upgrade head
+      - run: pytest -q tests/test_paid_beta_security.py tests/test_paid_beta_contract.py tests/test_paid_beta_api.py
+      - run: python -c "from paid_beta.app import app; assert app.title == 'ZoL0 Paid Beta API'"
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Alpha_Zol0-lvl_5-main/dashboard
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: Alpha_Zol0-lvl_5-main/dashboard/package-lock.json
+      - run: npm ci
+      - run: npm run build
