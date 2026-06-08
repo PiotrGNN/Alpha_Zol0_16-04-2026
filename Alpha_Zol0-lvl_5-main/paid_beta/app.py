@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import hmac
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, FastAPI, HTTPException
+from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import text
@@ -56,7 +57,12 @@ app.add_middleware(
     allow_origins=list(settings.cors_origins),
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "Stripe-Signature"],
+    allow_headers=[
+        "Authorization",
+        "Content-Type",
+        "Stripe-Signature",
+        "X-Admin-Bootstrap-Token",
+    ],
 )
 
 public = APIRouter(tags=["public"])
@@ -167,6 +173,41 @@ def create_event(
         properties=request.properties,
     )
     return {"accepted": True, "event_id": event.id}
+
+
+@internal.post("/bootstrap-admin", status_code=201)
+def bootstrap_admin(
+    credentials: Credentials,
+    bootstrap_token: str = Header(alias="X-Admin-Bootstrap-Token"),
+    db: Session = Depends(get_db),
+):
+    configured_token = settings.bootstrap_admin_secret
+    if len(configured_token) < 32:
+        raise HTTPException(status_code=503, detail="admin bootstrap is not configured")
+    if not hmac.compare_digest(bootstrap_token, configured_token):
+        raise HTTPException(status_code=403, detail="invalid admin bootstrap token")
+    if db.query(User).filter(User.role == "admin").first() is not None:
+        raise HTTPException(status_code=409, detail="admin bootstrap already completed")
+
+    email = credentials.email.lower()
+    if settings.bootstrap_admin_email and email != settings.bootstrap_admin_email:
+        raise HTTPException(status_code=403, detail="admin email is not authorized")
+    if db.query(User).filter(User.email == email).first() is not None:
+        raise HTTPException(status_code=409, detail="admin email is already registered")
+
+    user = User(
+        email=email,
+        password_hash=hash_password(credentials.password),
+        role="admin",
+    )
+    db.add(user)
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="admin bootstrap failed") from exc
+    db.refresh(user)
+    return {"created": True, "email": user.email, "role": user.role}
 
 
 @internal.get("/funnel")
