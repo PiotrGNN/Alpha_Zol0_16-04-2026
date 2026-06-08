@@ -3,9 +3,16 @@ import importlib
 from fastapi.testclient import TestClient
 
 
+ADMIN_BOOTSTRAP_TOKEN = "bootstrap-token-that-is-at-least-32-characters"
+
+
 def _client(monkeypatch, tmp_path):
     monkeypatch.setenv("PAID_BETA_TOKEN_SECRET", "test-secret-that-is-at-least-32-characters")
     monkeypatch.setenv("PAID_BETA_DATABASE_URL", f"sqlite:///{tmp_path / 'paid_beta.db'}")
+    monkeypatch.setenv("PAID_BETA_ADMIN_BOOTSTRAP_SECRET", ADMIN_BOOTSTRAP_TOKEN)
+    monkeypatch.setenv("STRIPE_PRICE_STARTER", "price_test_starter")
+    monkeypatch.setenv("STRIPE_PRICE_PRO", "price_test_pro")
+    monkeypatch.setenv("STRIPE_PRICE_REPORT", "price_test_report")
     import paid_beta.config as config
     import paid_beta.database as database
     import paid_beta.models as models
@@ -44,14 +51,55 @@ def test_register_login_and_protected_me(monkeypatch, tmp_path):
         assert login.status_code == 200
 
 
-def test_admin_endpoints_are_role_gated(monkeypatch, tmp_path):
+def test_public_register_never_bootstraps_admin(monkeypatch, tmp_path):
     monkeypatch.setenv("PAID_BETA_BOOTSTRAP_ADMIN_EMAIL", "admin@example.com")
     with _client(monkeypatch, tmp_path) as client:
-        user = client.post("/auth/register", json={"email": "user@example.com", "password": "correct-horse-battery"}).json()
-        denied = client.get("/internal/funnel", headers={"Authorization": f"Bearer {user['access_token']}"})
+        registered = client.post(
+            "/auth/register",
+            json={"email": "admin@example.com", "password": "correct-horse-battery"},
+        )
+        assert registered.status_code == 201
+        assert registered.json()["role"] == "user"
+        denied = client.get(
+            "/internal/funnel",
+            headers={"Authorization": f"Bearer {registered.json()['access_token']}"},
+        )
         assert denied.status_code == 403
-        admin = client.post("/auth/register", json={"email": "admin@example.com", "password": "correct-horse-battery"}).json()
-        allowed = client.get("/internal/funnel", headers={"Authorization": f"Bearer {admin['access_token']}"})
+
+
+def test_admin_bootstrap_is_secret_guarded_and_one_time(monkeypatch, tmp_path):
+    monkeypatch.setenv("PAID_BETA_BOOTSTRAP_ADMIN_EMAIL", "admin@example.com")
+    with _client(monkeypatch, tmp_path) as client:
+        payload = {"email": "admin@example.com", "password": "correct-horse-battery"}
+
+        denied = client.post(
+            "/internal/bootstrap-admin",
+            json=payload,
+            headers={"X-Admin-Bootstrap-Token": "wrong-token"},
+        )
+        assert denied.status_code == 403
+
+        created = client.post(
+            "/internal/bootstrap-admin",
+            json=payload,
+            headers={"X-Admin-Bootstrap-Token": ADMIN_BOOTSTRAP_TOKEN},
+        )
+        assert created.status_code == 201
+        assert created.json()["role"] == "admin"
+
+        replay = client.post(
+            "/internal/bootstrap-admin",
+            json={"email": "second@example.com", "password": "correct-horse-battery"},
+            headers={"X-Admin-Bootstrap-Token": ADMIN_BOOTSTRAP_TOKEN},
+        )
+        assert replay.status_code == 409
+
+        login = client.post("/auth/login", json=payload)
+        assert login.status_code == 200
+        allowed = client.get(
+            "/internal/funnel",
+            headers={"Authorization": f"Bearer {login.json()['access_token']}"},
+        )
         assert allowed.status_code == 200
 
 
