@@ -23,6 +23,7 @@ jobs:
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           if [ -f Alpha_Zol0-lvl_5-main/requirements.txt ]; then pip install -r Alpha_Zol0-lvl_5-main/requirements.txt; fi
+          if [ -f Alpha_Zol0-lvl_5-main/requirements-paid-beta.txt ]; then pip install -r Alpha_Zol0-lvl_5-main/requirements-paid-beta.txt; fi
           python -m pip install pytest
 
       - name: Compile check for core modules
