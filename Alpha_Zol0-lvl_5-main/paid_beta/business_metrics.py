@@ -59,8 +59,84 @@ def _period_metrics(period: EconomicsPeriod) -> dict[str, Any]:
     }
 
 
+def _consecutive(metrics: list[dict[str, Any]]) -> bool:
+    if len(metrics) != WEEKS_REQUIRED:
+        return False
+    starts = [date.fromisoformat(item["period_start"]) for item in metrics]
+    ends = [date.fromisoformat(item["period_end"]) for item in metrics]
+    if any((end - start).days != 6 for start, end in zip(starts, ends)):
+        return False
+    return all(starts[index] == ends[index - 1] + timedelta(days=1) for index in range(1, len(starts)))
+
+
+def _evaluate_period(item: dict[str, Any], *, scale: bool) -> list[str]:
+    reasons: list[str] = []
+    minimums = {
+        "checkout_completion": 0.70 if scale else 0.60,
+        "activation_rate": 0.65 if scale else 0.50,
+        "gross_margin": 0.75 if scale else 0.65,
+    }
+    maximums = {
+        "churn_rate": 0.05 if scale else 0.10,
+        "refund_rate": 0.04 if scale else 0.08,
+        "support_minutes_per_customer": 15.0 if scale else 30.0,
+    }
+    for field, threshold in minimums.items():
+        value = item.get(field)
+        if value is None:
+            reasons.append(f"{field.upper()}_MISSING")
+        elif value < threshold:
+            reasons.append(f"{field.upper()}_BELOW_THRESHOLD")
+    for field, threshold in maximums.items():
+        value = item.get(field)
+        if value is None:
+            reasons.append(f"{field.upper()}_MISSING")
+        elif value > threshold:
+            reasons.append(f"{field.upper()}_ABOVE_THRESHOLD")
+    recovery = item.get("payment_recovery")
+    if recovery is not None and recovery < (0.60 if scale else 0.40):
+        reasons.append("PAYMENT_RECOVERY_BELOW_THRESHOLD")
+    if item["contribution"] <= 0:
+        reasons.append("CONTRIBUTION_NOT_POSITIVE")
+    if item["net_after_acquisition"] <= 0:
+        reasons.append("NET_AFTER_ACQUISITION_NOT_POSITIVE")
+    if scale:
+        payback = item.get("cac_payback_months")
+        ltv_cac = item.get("ltv_cac")
+        if payback is None:
+            reasons.append("CAC_PAYBACK_MISSING")
+        elif payback > 3.0:
+            reasons.append("CAC_PAYBACK_ABOVE_3_MONTHS")
+        if ltv_cac is None:
+            reasons.append("LTV_CAC_MISSING")
+        elif ltv_cac < 3.0:
+            reasons.append("LTV_CAC_BELOW_3")
+    return reasons
+
+
 def build_business_metrics(db: Session) -> dict[str, Any]:
     rows = db.query(EconomicsPeriod).order_by(EconomicsPeriod.period_start.desc()).limit(4).all()
     rows.reverse()
     metrics = [_period_metrics(row) for row in rows]
-    return {"period_count": len(metrics), "periods": metrics, "ready": False, "blockers": ["THRESHOLDS_NOT_EVALUATED"]}
+    shared: list[str] = []
+    if len(metrics) < WEEKS_REQUIRED:
+        shared.append("FOUR_WEEK_HISTORY_MISSING")
+    if metrics and len({item["currency"] for item in metrics}) != 1:
+        shared.append("MIXED_CURRENCY_PERIODS")
+    if not _consecutive(metrics):
+        shared.append("PERIODS_NOT_FOUR_CONSECUTIVE_WEEKS")
+    closed_blockers = sorted(set(shared + [reason for item in metrics for reason in _evaluate_period(item, scale=False)]))
+    scale_blockers = sorted(set(shared + [reason for item in metrics for reason in _evaluate_period(item, scale=True)]))
+    return {
+        "period_count": len(metrics),
+        "periods": metrics,
+        "closed_beta_ready": not closed_blockers,
+        "scale_ready": not scale_blockers,
+        "closed_beta_blockers": closed_blockers,
+        "scale_blockers": scale_blockers,
+        "method": {
+            "required_consecutive_weeks": WEEKS_REQUIRED,
+            "churn_denominator": "active_customers + churned_customers",
+            "ltv": "implied from monthly contribution per customer and monthlyized churn",
+        },
+    }
