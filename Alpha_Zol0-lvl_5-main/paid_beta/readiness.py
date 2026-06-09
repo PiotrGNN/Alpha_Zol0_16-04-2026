@@ -17,7 +17,7 @@ from .economics_models import EconomicsPeriod
 from .models import User
 from .trading_metrics import assess_trading_metrics, load_scorecard
 
-router = APIRouter(prefix="/internal", tags=["internal"])
+router = APIRouter(prefix="/admin", tags=["internal"])
 PROJECT_DIR = Path(__file__).resolve().parents[1]
 
 
