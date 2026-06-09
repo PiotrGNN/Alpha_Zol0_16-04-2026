@@ -6,8 +6,10 @@ on:
       - 'Alpha_Zol0-lvl_5-main/paid_beta/**'
       - 'Alpha_Zol0-lvl_5-main/tests/test_paid_beta_*'
       - 'Alpha_Zol0-lvl_5-main/dashboard/**'
+      - 'Alpha_Zol0-lvl_5-main/scripts/paid_beta_*'
       - 'Alpha_Zol0-lvl_5-main/requirements-paid-beta.txt'
       - 'Alpha_Zol0-lvl_5-main/Dockerfile.paid-beta'
+      - 'Alpha_Zol0-lvl_5-main/docker-compose.paid-beta.yml'
       - '.github/workflows/paid-beta-ci.yml'
   push:
     branches: [main]
@@ -15,6 +17,11 @@ on:
       - 'Alpha_Zol0-lvl_5-main/paid_beta/**'
       - 'Alpha_Zol0-lvl_5-main/tests/test_paid_beta_*'
       - 'Alpha_Zol0-lvl_5-main/dashboard/**'
+      - 'Alpha_Zol0-lvl_5-main/scripts/paid_beta_*'
+      - 'Alpha_Zol0-lvl_5-main/requirements-paid-beta.txt'
+      - 'Alpha_Zol0-lvl_5-main/Dockerfile.paid-beta'
+      - 'Alpha_Zol0-lvl_5-main/docker-compose.paid-beta.yml'
+      - '.github/workflows/paid-beta-ci.yml'
 
 jobs:
   backend:
@@ -23,8 +30,10 @@ jobs:
       run:
         working-directory: Alpha_Zol0-lvl_5-main
     env:
+      PAID_BETA_ENV: test
       PAID_BETA_TOKEN_SECRET: test-secret-that-is-at-least-32-characters
       PAID_BETA_DATABASE_URL: sqlite:///./paid_beta_test.db
+      PAID_BETA_EXPOSE_PASSWORD_RESET_TOKEN: '1'
       STRIPE_PRICE_STARTER: price_test_starter
       STRIPE_PRICE_PRO: price_test_pro
       STRIPE_PRICE_REPORT: price_test_report
@@ -35,10 +44,57 @@ jobs:
           python-version: '3.12'
           cache: pip
       - run: pip install -r requirements-paid-beta.txt pytest httpx
-      - run: python -m py_compile paid_beta/*.py paid_beta/migrations/env.py paid_beta/migrations/versions/*.py
+      - run: python -m py_compile paid_beta/*.py paid_beta/migrations/env.py paid_beta/migrations/versions/*.py tests/test_paid_beta_*.py
+      - run: rm -f paid_beta_test.db && alembic upgrade head
+      - run: pytest -q tests/test_paid_beta_security.py tests/test_paid_beta_contract.py tests/test_paid_beta_api.py tests/test_paid_beta_p0.py
+      - run: python -c "from paid_beta.app import app; assert app.title == 'ZoL0 Paid Beta API'; assert app.version == '0.2.0'"
+
+  postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: paid_beta
+          POSTGRES_USER: paid_beta
+          POSTGRES_PASSWORD: paid_beta_test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U paid_beta -d paid_beta"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    defaults:
+      run:
+        working-directory: Alpha_Zol0-lvl_5-main
+    env:
+      PAID_BETA_ENV: production
+      PAID_BETA_DATABASE_URL: postgresql://paid_beta:paid_beta_test_password@localhost:5432/paid_beta
+      PAID_BETA_RESTORE_DATABASE_URL: postgresql://paid_beta:paid_beta_test_password@localhost:5432/paid_beta_restore
+      PAID_BETA_TOKEN_SECRET: production-test-secret-that-is-at-least-32-characters
+      PAID_BETA_APP_URL: https://paid-beta.example.test
+      PAID_BETA_CORS_ORIGINS: https://paid-beta.example.test
+      PAID_BETA_ALLOW_ADMIN_BOOTSTRAP: '0'
+      STRIPE_SECRET_KEY: sk_test_placeholder
+      STRIPE_WEBHOOK_SECRET: whsec_test_placeholder
+      STRIPE_PRICE_STARTER: price_test_starter
+      STRIPE_PRICE_PRO: price_test_pro
+      STRIPE_PRICE_REPORT: price_test_report
+      PAID_BETA_SMTP_HOST: smtp.example.test
+      PAID_BETA_SMTP_FROM: no-reply@example.test
+      PGPASSWORD: paid_beta_test_password
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install -r requirements-paid-beta.txt pytest httpx
+      - run: createdb -h localhost -U paid_beta paid_beta_restore
       - run: alembic upgrade head
-      - run: pytest -q tests/test_paid_beta_security.py tests/test_paid_beta_contract.py tests/test_paid_beta_api.py
-      - run: python -c "from paid_beta.app import app; assert app.title == 'ZoL0 Paid Beta API'"
+      - run: python -c "from paid_beta.app import app; assert app.version == '0.2.0'"
+      - run: bash scripts/paid_beta_backup_restore_smoke.sh
 
   frontend:
     runs-on: ubuntu-latest
