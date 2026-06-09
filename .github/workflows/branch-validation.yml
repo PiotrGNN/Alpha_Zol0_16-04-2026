@@ -57,4 +57,18 @@ jobs:
       - run: pytest -q tests/test_exchange_kucoin_only.py tests/test_health_check_runtime.py tests/test_marketdata_fetcher.py tests/test_position_manager_contracts.py
       - run: npm ci && npm run build
         working-directory: Alpha_Zol0-lvl_5-main/dashboard
-      - run: python -m pytest -q --ignore=tests/test_profitability_audit_scorecard.py
+      - name: Run comprehensive pytest
+        run: |
+          set +e
+          python -m pytest -q --maxfail=1 --ignore=tests/test_profitability_audit_scorecard.py > comprehensive-pytest-output.txt 2>&1
+          status=$?
+          cat comprehensive-pytest-output.txt
+          exit $status
+      - name: Upload comprehensive pytest output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: comprehensive-pytest-output
+          path: Alpha_Zol0-lvl_5-main/comprehensive-pytest-output.txt
+          if-no-files-found: warn
+          retention-days: 7
