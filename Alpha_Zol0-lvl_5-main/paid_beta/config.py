@@ -54,10 +54,31 @@ class Settings:
     smtp_password: str = os.getenv("PAID_BETA_SMTP_PASSWORD", "")
     smtp_from: str = os.getenv("PAID_BETA_SMTP_FROM", "")
     smtp_starttls: bool = _bool_env("PAID_BETA_SMTP_STARTTLS", True)
+    trading_scorecard_path: str = os.getenv(
+        "PAID_BETA_TRADING_SCORECARD_PATH",
+        "analysis/zol0_profitability_audit_scorecard.json",
+    )
+    terms_approved: bool = _bool_env("PAID_BETA_TERMS_APPROVED", False)
+    privacy_approved: bool = _bool_env("PAID_BETA_PRIVACY_APPROVED", False)
+    refunds_approved: bool = _bool_env("PAID_BETA_REFUNDS_APPROVED", False)
+    risk_disclosure_approved: bool = _bool_env(
+        "PAID_BETA_RISK_DISCLOSURE_APPROVED", False
+    )
 
     @property
     def is_production(self) -> bool:
         return self.environment == "production"
+
+    @property
+    def legal_approved(self) -> bool:
+        return all(
+            (
+                self.terms_approved,
+                self.privacy_approved,
+                self.refunds_approved,
+                self.risk_disclosure_approved,
+            )
+        )
 
     def validate_runtime(self) -> None:
         if not self.token_secret or len(self.token_secret) < 32:
@@ -89,6 +110,10 @@ class Settings:
                 raise RuntimeError("production PAID_BETA_APP_URL must use HTTPS")
             if any("localhost" in origin or "127.0.0.1" in origin for origin in self.cors_origins):
                 raise RuntimeError("production CORS origins cannot use localhost")
+            if not self.legal_approved:
+                raise RuntimeError(
+                    "production paid-beta legal approvals are incomplete"
+                )
 
 
 settings = Settings()
