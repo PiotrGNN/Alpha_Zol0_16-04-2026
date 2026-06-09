@@ -76,6 +76,10 @@ jobs:
       PAID_BETA_APP_URL: https://paid-beta.example.test
       PAID_BETA_CORS_ORIGINS: https://paid-beta.example.test
       PAID_BETA_ALLOW_ADMIN_BOOTSTRAP: '0'
+      PAID_BETA_TERMS_APPROVED: '1'
+      PAID_BETA_PRIVACY_APPROVED: '1'
+      PAID_BETA_REFUNDS_APPROVED: '1'
+      PAID_BETA_RISK_DISCLOSURE_APPROVED: '1'
       STRIPE_SECRET_KEY: sk_test_placeholder
       STRIPE_WEBHOOK_SECRET: whsec_test_placeholder
       STRIPE_PRICE_STARTER: price_test_starter
