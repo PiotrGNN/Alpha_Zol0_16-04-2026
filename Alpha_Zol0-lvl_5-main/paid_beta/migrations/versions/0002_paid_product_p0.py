@@ -39,11 +39,13 @@ def upgrade() -> None:
         with op.batch_alter_table("paid_beta_checkout_sessions") as batch:
             if "artifact_id" not in checkout_columns:
                 batch.add_column(sa.Column("artifact_id", sa.Integer(), nullable=True))
+            if "provider_payment_intent_id" not in checkout_columns:
+                batch.add_column(
+                    sa.Column("provider_payment_intent_id", sa.String(length=128), nullable=True)
+                )
             if "payment_status" not in checkout_columns:
                 batch.add_column(sa.Column("payment_status", sa.String(length=32), nullable=True))
 
-    # Migration 0001 historically used current Base.metadata. checkfirst keeps this
-    # revision valid both for fresh databases and for installations already on 0001.
     Base.metadata.create_all(bind=bind, checkfirst=True)
 
     inspector = sa.inspect(bind)
@@ -54,6 +56,13 @@ def upgrade() -> None:
                 "ix_paid_beta_checkout_sessions_artifact_id",
                 "paid_beta_checkout_sessions",
                 ["artifact_id"],
+            )
+        if "ix_paid_beta_checkout_sessions_provider_payment_intent_id" not in indexes:
+            op.create_index(
+                "ix_paid_beta_checkout_sessions_provider_payment_intent_id",
+                "paid_beta_checkout_sessions",
+                ["provider_payment_intent_id"],
+                unique=True,
             )
 
 
@@ -78,6 +87,8 @@ def downgrade() -> None:
         with op.batch_alter_table("paid_beta_checkout_sessions") as batch:
             if "payment_status" in columns:
                 batch.drop_column("payment_status")
+            if "provider_payment_intent_id" in columns:
+                batch.drop_column("provider_payment_intent_id")
             if "artifact_id" in columns:
                 batch.drop_column("artifact_id")
 
