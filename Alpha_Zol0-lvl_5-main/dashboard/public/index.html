@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="ZoL0 Analytics — research, signals and backtest reports.">
+  <meta name="description" content="ZoL0 Analytics — KuCoin PAPER research, signals and backtest reports.">
   <title>ZoL0 Analytics</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
@@ -11,10 +11,13 @@
   <nav aria-label="Główna nawigacja">
     <strong>ZoL0 Analytics</strong>
     <a href="/pricing" data-route>Cennik</a>
+    <a href="/research" data-route>Research</a>
     <a href="/onboarding" data-route>Onboarding</a>
     <a href="/account/billing" data-route>Billing</a>
-    <a href="/admin" data-route>Admin KPI</a>
+    <a href="/login" data-route id="auth-link">Logowanie</a>
+    <button id="logout" hidden>Wyloguj</button>
   </nav>
+  <div id="notice" role="status" aria-live="polite"></div>
   <main id="app" aria-live="polite"></main>
   <script type="module" src="/app.js"></script>
 </body>
