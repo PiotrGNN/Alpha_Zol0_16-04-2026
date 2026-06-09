@@ -15,8 +15,10 @@ from .database import get_db
 from .dependencies import require_admin, require_pro_user, require_user
 from .entitlements import has_artifact_access, require_artifact, require_plan
 from .models import Alert, ProductArtifact, SignalRecord, User
+from .readiness import router as readiness_router
 
 router = APIRouter(prefix="/resources", tags=["resources"])
+router.include_router(readiness_router)
 
 
 class AlertRequest(BaseModel):
