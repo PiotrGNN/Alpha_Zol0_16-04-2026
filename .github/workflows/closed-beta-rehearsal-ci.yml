@@ -1,0 +1,93 @@
+name: closed-beta-rehearsal-ci
+
+on:
+  pull_request:
+    paths:
+      - 'Alpha_Zol0-lvl_5-main/scripts/paid_beta_preflight.py'
+      - 'Alpha_Zol0-lvl_5-main/scripts/import_paid_beta_economics_period.py'
+      - 'Alpha_Zol0-lvl_5-main/scripts/paid_beta_staging_backup_restore_rehearsal.sh'
+      - 'Alpha_Zol0-lvl_5-main/tests/test_paid_beta_preflight.py'
+      - 'Alpha_Zol0-lvl_5-main/tests/test_paid_beta_economics_import.py'
+      - 'Alpha_Zol0-lvl_5-main/tests/test_paid_beta_closed_beta_rehearsal.py'
+      - 'Alpha_Zol0-lvl_5-main/tests/test_paid_beta_mailer_rehearsal.py'
+      - 'Alpha_Zol0-lvl_5-main/CLOSED_BETA_REHEARSAL.md'
+      - 'Alpha_Zol0-lvl_5-main/.env.closed-beta.example'
+      - 'Alpha_Zol0-lvl_5-main/examples/economics-period.example.json'
+      - '.github/workflows/closed-beta-rehearsal-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'Alpha_Zol0-lvl_5-main/scripts/paid_beta_preflight.py'
+      - 'Alpha_Zol0-lvl_5-main/scripts/import_paid_beta_economics_period.py'
+      - 'Alpha_Zol0-lvl_5-main/scripts/paid_beta_staging_backup_restore_rehearsal.sh'
+      - 'Alpha_Zol0-lvl_5-main/tests/test_paid_beta_preflight.py'
+      - 'Alpha_Zol0-lvl_5-main/tests/test_paid_beta_economics_import.py'
+      - 'Alpha_Zol0-lvl_5-main/tests/test_paid_beta_closed_beta_rehearsal.py'
+      - 'Alpha_Zol0-lvl_5-main/tests/test_paid_beta_mailer_rehearsal.py'
+      - 'Alpha_Zol0-lvl_5-main/CLOSED_BETA_REHEARSAL.md'
+      - 'Alpha_Zol0-lvl_5-main/.env.closed-beta.example'
+      - 'Alpha_Zol0-lvl_5-main/examples/economics-period.example.json'
+      - '.github/workflows/closed-beta-rehearsal-ci.yml'
+
+jobs:
+  application-rehearsal:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Alpha_Zol0-lvl_5-main
+    env:
+      PAID_BETA_ENV: test
+      PAID_BETA_TOKEN_SECRET: test-secret-that-is-at-least-32-characters
+      PAID_BETA_DATABASE_URL: sqlite:///./closed_beta_rehearsal.db
+      PAID_BETA_EXPOSE_PASSWORD_RESET_TOKEN: '1'
+      PAID_BETA_ADMIN_BOOTSTRAP_SECRET: bootstrap-token-that-is-at-least-32-characters
+      STRIPE_PRICE_STARTER: price_test_starter
+      STRIPE_PRICE_PRO: price_test_pro
+      STRIPE_PRICE_REPORT: price_test_report
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install -r requirements-paid-beta.txt pytest httpx
+      - run: python -m py_compile scripts/paid_beta_preflight.py scripts/import_paid_beta_economics_period.py tests/test_paid_beta_preflight.py tests/test_paid_beta_economics_import.py tests/test_paid_beta_closed_beta_rehearsal.py tests/test_paid_beta_mailer_rehearsal.py
+      - run: pytest -q tests/test_paid_beta_preflight.py tests/test_paid_beta_economics_import.py tests/test_paid_beta_closed_beta_rehearsal.py tests/test_paid_beta_mailer_rehearsal.py
+      - name: Validate importer dry-run
+        run: python scripts/import_paid_beta_economics_period.py examples/economics-period.example.json --dry-run
+
+  postgres-restore-rehearsal:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: paid_beta
+          POSTGRES_USER: paid_beta
+          POSTGRES_PASSWORD: paid_beta_test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U paid_beta -d paid_beta"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    defaults:
+      run:
+        working-directory: Alpha_Zol0-lvl_5-main
+    env:
+      PAID_BETA_ENV: test
+      PAID_BETA_DATABASE_URL: postgresql://paid_beta:paid_beta_test_password@localhost:5432/paid_beta
+      PAID_BETA_RESTORE_DATABASE_URL: postgresql://paid_beta:paid_beta_test_password@localhost:5432/paid_beta_rehearsal_restore
+      PAID_BETA_STAGING_REHEARSAL: '1'
+      PGPASSWORD: paid_beta_test_password
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install -r requirements-paid-beta.txt
+      - run: createdb -h localhost -U paid_beta paid_beta_rehearsal_restore
+      - run: alembic upgrade head
+      - run: bash scripts/paid_beta_staging_backup_restore_rehearsal.sh
