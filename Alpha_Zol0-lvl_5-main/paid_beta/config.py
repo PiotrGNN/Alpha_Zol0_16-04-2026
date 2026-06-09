@@ -13,17 +13,20 @@ def _bool_env(name: str, default: bool = False) -> bool:
 
 
 def _env_or_file(name: str, default: str = "") -> str:
+    file_path = os.getenv(f"{name}_FILE", "").strip()
+    if file_path:
+        path = Path(file_path)
+        try:
+            value = path.read_text(encoding="utf-8").strip()
+        except OSError as exc:
+            raise RuntimeError(f"unable to read secret file for {name}") from exc
+        if not value:
+            raise RuntimeError(f"secret file for {name} is empty")
+        return value
     value = os.getenv(name)
     if value is not None:
         return value.strip()
-    file_path = os.getenv(f"{name}_FILE", "").strip()
-    if not file_path:
-        return default
-    path = Path(file_path)
-    try:
-        return path.read_text(encoding="utf-8").strip()
-    except OSError as exc:
-        raise RuntimeError(f"unable to read secret file for {name}") from exc
+    return default
 
 
 @dataclass(frozen=True)
@@ -123,7 +126,10 @@ class Settings:
                 )
             if not self.app_url.startswith("https://"):
                 raise RuntimeError("production PAID_BETA_APP_URL must use HTTPS")
-            if any("localhost" in origin or "127.0.0.1" in origin for origin in self.cors_origins):
+            if any(
+                "localhost" in origin or "127.0.0.1" in origin
+                for origin in self.cors_origins
+            ):
                 raise RuntimeError("production CORS origins cannot use localhost")
             if not self.legal_approved:
                 raise RuntimeError(
