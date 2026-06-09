@@ -78,7 +78,11 @@ def create_checkout(
     db: Session = Depends(get_db),
 ):
     price_id, mode = _price_for(request.product_code)
-    artifact = _report_artifact(db, request.artifact_slug) if request.product_code == "report" else None
+    artifact = (
+        _report_artifact(db, request.artifact_slug)
+        if request.product_code == "report"
+        else None
+    )
     stripe = _stripe()
     metadata = {"user_id": str(user.id), "product_code": request.product_code}
     if artifact is not None:
@@ -102,6 +106,7 @@ def create_checkout(
         product_code=request.product_code,
         artifact_id=artifact.id if artifact else None,
         provider_session_id=session.id,
+        provider_payment_intent_id=getattr(session, "payment_intent", None),
         mode=mode,
         status=getattr(session, "status", "open") or "open",
         payment_status=getattr(session, "payment_status", None),
@@ -112,7 +117,10 @@ def create_checkout(
         db,
         event_name="checkout_started",
         user_id=user.id,
-        properties={"product_code": request.product_code, "artifact_slug": request.artifact_slug},
+        properties={
+            "product_code": request.product_code,
+            "artifact_slug": request.artifact_slug,
+        },
         commit=False,
     )
     record_audit(
@@ -165,10 +173,12 @@ def _upsert_subscription(
             provider_subscription_id=str(subscription_id),
         )
         db.add(subscription)
-    subscription.status = status_override or str(payload.get("status") or "active")
+    subscription.status = status_override or str(payload.get("status") or "incomplete")
     period_end = payload.get("current_period_end")
     if period_end:
-        subscription.current_period_end = datetime.fromtimestamp(int(period_end), tz=timezone.utc)
+        subscription.current_period_end = datetime.fromtimestamp(
+            int(period_end), tz=timezone.utc
+        )
     return subscription
 
 
@@ -186,7 +196,10 @@ def _grant_report(db: Session, obj: dict, event_id: str) -> None:
     if checkout is None:
         return
     checkout.status = "complete"
-    checkout.payment_status = str(obj.get("payment_status") or "paid")
+    checkout.payment_status = str(obj.get("payment_status") or "")
+    payment_intent = obj.get("payment_intent")
+    if payment_intent:
+        checkout.provider_payment_intent_id = str(payment_intent)
     if checkout.payment_status != "paid":
         return
     grant = (
@@ -209,16 +222,42 @@ def _grant_report(db: Session, obj: dict, event_id: str) -> None:
     grant.revoked_at = None
 
 
-def _revoke_grant(db: Session, obj: dict) -> None:
+def _checkout_from_refund(db: Session, obj: dict) -> CheckoutSession | None:
+    payment_intent = obj.get("payment_intent")
+    if payment_intent:
+        return (
+            db.query(CheckoutSession)
+            .filter(
+                CheckoutSession.provider_payment_intent_id == str(payment_intent)
+            )
+            .one_or_none()
+        )
     metadata = obj.get("metadata") or {}
     user_id = metadata.get("user_id")
     artifact_id = metadata.get("artifact_id")
     if not user_id or not artifact_id:
+        return None
+    return (
+        db.query(CheckoutSession)
+        .filter(
+            CheckoutSession.user_id == int(user_id),
+            CheckoutSession.artifact_id == int(artifact_id),
+        )
+        .order_by(CheckoutSession.id.desc())
+        .first()
+    )
+
+
+def _revoke_grant(db: Session, obj: dict) -> None:
+    checkout = _checkout_from_refund(db, obj)
+    if checkout is None or checkout.artifact_id is None:
         return
     now = datetime.now(timezone.utc)
+    checkout.status = "refunded"
+    checkout.payment_status = "refunded"
     db.query(ArtifactGrant).filter(
-        ArtifactGrant.user_id == int(user_id),
-        ArtifactGrant.artifact_id == int(artifact_id),
+        ArtifactGrant.user_id == checkout.user_id,
+        ArtifactGrant.artifact_id == checkout.artifact_id,
     ).update(
         {ArtifactGrant.status: "revoked", ArtifactGrant.revoked_at: now},
         synchronize_session=False,
@@ -247,7 +286,9 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
     payload = await request.body()
     signature = request.headers.get("Stripe-Signature", "")
     try:
-        event = stripe.Webhook.construct_event(payload, signature, settings.stripe_webhook_secret)
+        event = stripe.Webhook.construct_event(
+            payload, signature, settings.stripe_webhook_secret
+        )
     except Exception as exc:
         raise HTTPException(status_code=400, detail="invalid stripe webhook") from exc
 
@@ -262,7 +303,10 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
     metadata = obj.get("metadata") or {}
     user_id = int(metadata["user_id"]) if metadata.get("user_id") else None
 
-    if event_type in {"checkout.session.completed", "checkout.session.async_payment_succeeded"}:
+    if event_type in {
+        "checkout.session.completed",
+        "checkout.session.async_payment_succeeded",
+    }:
         checkout = (
             db.query(CheckoutSession)
             .filter(CheckoutSession.provider_session_id == str(obj.get("id")))
@@ -270,7 +314,9 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
         )
         if checkout:
             checkout.status = "complete"
-            checkout.payment_status = str(obj.get("payment_status") or "paid")
+            checkout.payment_status = str(obj.get("payment_status") or "")
+            if obj.get("payment_intent"):
+                checkout.provider_payment_intent_id = str(obj["payment_intent"])
         if metadata.get("product_code") == "report":
             _grant_report(db, obj, event_id)
         elif obj.get("subscription"):
@@ -283,7 +329,10 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                 properties={"product_code": metadata.get("product_code")},
                 commit=False,
             )
-    elif event_type in {"checkout.session.expired", "checkout.session.async_payment_failed"}:
+    elif event_type in {
+        "checkout.session.expired",
+        "checkout.session.async_payment_failed",
+    }:
         checkout = (
             db.query(CheckoutSession)
             .filter(CheckoutSession.provider_session_id == str(obj.get("id")))
@@ -299,7 +348,11 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
         if user_id:
             record_event(
                 db,
-                event_name="subscription_canceled" if status_value else "subscription_activated",
+                event_name=(
+                    "subscription_canceled"
+                    if status_value
+                    else "subscription_activated"
+                ),
                 user_id=user_id,
                 properties={"plan": metadata.get("product_code")},
                 commit=False,
@@ -309,9 +362,17 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
         if subscription_id:
             db.query(Subscription).filter(
                 Subscription.provider_subscription_id == str(subscription_id)
-            ).update({Subscription.status: "past_due"}, synchronize_session=False)
+            ).update(
+                {Subscription.status: "past_due"}, synchronize_session=False
+            )
         if user_id:
-            record_event(db, event_name="payment_failed", user_id=user_id, properties={}, commit=False)
+            record_event(
+                db,
+                event_name="payment_failed",
+                user_id=user_id,
+                properties={},
+                commit=False,
+            )
     elif event_type in {"charge.refunded", "refund.created"}:
         _revoke_grant(db, obj)
 
