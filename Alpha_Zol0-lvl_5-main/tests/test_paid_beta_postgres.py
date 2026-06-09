@@ -1,8 +1,15 @@
 from concurrent.futures import ThreadPoolExecutor
 
+import pytest
+
 from paid_beta.billing_lifecycle import store_event_once
-from paid_beta.database import SessionLocal
+from paid_beta.database import SessionLocal, engine
 from paid_beta.models import WebhookEvent
+
+pytestmark = pytest.mark.skipif(
+    engine.dialect.name != "postgresql",
+    reason="concurrent webhook proof requires PostgreSQL",
+)
 
 
 def _store(event):
