@@ -93,7 +93,17 @@ jobs:
       - run: pip install -r requirements-paid-beta.txt pytest httpx
       - run: createdb -h localhost -U paid_beta paid_beta_restore
       - run: alembic upgrade head
-      - run: python -c "from paid_beta.app import app; assert app.version == '0.2.0'"
+      - name: Validate production lifespan
+        run: |
+          python - <<'PY'
+          from fastapi.testclient import TestClient
+          from paid_beta.app import app
+          with TestClient(app) as client:
+              response = client.get('/health')
+              assert response.status_code == 200, response.text
+              assert response.json()['public_live_trading'] is False
+          PY
+      - run: pytest -q tests/test_paid_beta_postgres.py
       - run: bash scripts/paid_beta_backup_restore_smoke.sh
 
   frontend:
