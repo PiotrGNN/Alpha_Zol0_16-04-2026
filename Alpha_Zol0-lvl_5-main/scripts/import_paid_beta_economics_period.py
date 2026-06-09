@@ -34,12 +34,17 @@ REQUIRED_FIELDS = {
 }
 
 
+def _is_non_negative_number(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and value >= 0
+
+
 def validate_payload(payload: dict[str, Any]) -> list[str]:
     errors: list[str] = []
     missing = sorted(REQUIRED_FIELDS - set(payload))
     if missing:
         errors.append("missing fields: " + ", ".join(missing))
         return errors
+
     try:
         start = date.fromisoformat(str(payload["period_start"]))
         end = date.fromisoformat(str(payload["period_end"]))
@@ -47,26 +52,39 @@ def validate_payload(payload: dict[str, Any]) -> list[str]:
             errors.append("period must contain exactly 7 calendar days")
     except ValueError:
         errors.append("period_start and period_end must use ISO YYYY-MM-DD")
+
     if not str(payload.get("source") or "").strip():
         errors.append("source must be non-empty")
     if len(str(payload.get("currency") or "")) != 3:
         errors.append("currency must contain exactly 3 characters")
-    numeric_fields = REQUIRED_FIELDS - {"period_start", "period_end", "source", "currency"}
+
+    numeric_fields = REQUIRED_FIELDS - {
+        "period_start",
+        "period_end",
+        "source",
+        "currency",
+    }
     for field in sorted(numeric_fields):
-        value = payload.get(field)
-        if not isinstance(value, (int, float)) or isinstance(value, bool) or value < 0:
+        if not _is_non_negative_number(payload.get(field)):
             errors.append(f"{field} must be a non-negative number")
-    if not errors:
-        if payload["checkout_completed"] > payload["checkout_started"]:
-            errors.append("checkout_completed exceeds checkout_started")
-        if payload["activated_customers"] > payload["new_customers"]:
-            errors.append("activated_customers exceeds new_customers")
-        if payload["recovered_payments"] > payload["failed_payments"]:
-            errors.append("recovered_payments exceeds failed_payments")
+
+    comparable_pairs = (
+        ("checkout_completed", "checkout_started", "checkout_completed exceeds checkout_started"),
+        ("activated_customers", "new_customers", "activated_customers exceeds new_customers"),
+        ("recovered_payments", "failed_payments", "recovered_payments exceeds failed_payments"),
+    )
+    for numerator, denominator, message in comparable_pairs:
+        left = payload.get(numerator)
+        right = payload.get(denominator)
+        if _is_non_negative_number(left) and _is_non_negative_number(right) and left > right:
+            errors.append(message)
+
     return errors
 
 
-def submit_payload(*, base_url: str, token: str, payload: dict[str, Any]) -> tuple[str, int]:
+def submit_payload(
+    *, base_url: str, token: str, payload: dict[str, Any]
+) -> tuple[str, int]:
     endpoint = base_url.rstrip("/") + "/resources/admin/economics-periods"
     request = urllib.request.Request(
         endpoint,
@@ -89,8 +107,12 @@ def submit_payload(*, base_url: str, token: str, payload: dict[str, Any]) -> tup
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Import one weekly paid-beta economics period")
-    parser.add_argument("payload", type=Path, help="JSON file containing one seven-day period")
+    parser = argparse.ArgumentParser(
+        description="Import one weekly paid-beta economics period"
+    )
+    parser.add_argument(
+        "payload", type=Path, help="JSON file containing one seven-day period"
+    )
     parser.add_argument("--base-url", default=os.getenv("PAID_BETA_APP_URL", ""))
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
@@ -98,7 +120,14 @@ def main() -> int:
     try:
         payload = json.loads(args.payload.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        print(json.dumps({"status": "INVALID", "detail": f"{type(exc).__name__}: cannot read payload"}))
+        print(
+            json.dumps(
+                {
+                    "status": "INVALID",
+                    "detail": f"{type(exc).__name__}: cannot read payload",
+                }
+            )
+        )
         return 2
     if not isinstance(payload, dict):
         print(json.dumps({"status": "INVALID", "detail": "payload must be a JSON object"}))
@@ -116,7 +145,12 @@ def main() -> int:
         "currency": str(payload["currency"]).upper(),
     }
     if args.dry_run:
-        print(json.dumps({"status": "VALID", "dry_run": True, "period": summary}, sort_keys=True))
+        print(
+            json.dumps(
+                {"status": "VALID", "dry_run": True, "period": summary},
+                sort_keys=True,
+            )
+        )
         return 0
 
     token = os.getenv("PAID_BETA_ADMIN_TOKEN", "")
@@ -124,11 +158,24 @@ def main() -> int:
         print(json.dumps({"status": "BLOCKED", "detail": "HTTPS base URL required"}))
         return 2
     if not token:
-        print(json.dumps({"status": "BLOCKED", "detail": "PAID_BETA_ADMIN_TOKEN is required"}))
+        print(
+            json.dumps(
+                {"status": "BLOCKED", "detail": "PAID_BETA_ADMIN_TOKEN is required"}
+            )
+        )
         return 2
 
-    status, code = submit_payload(base_url=args.base_url, token=token, payload=payload)
-    print(json.dumps({"status": status, "http_status": code, "period": summary}, sort_keys=True))
+    status, code = submit_payload(
+        base_url=args.base_url,
+        token=token,
+        payload=payload,
+    )
+    print(
+        json.dumps(
+            {"status": status, "http_status": code, "period": summary},
+            sort_keys=True,
+        )
+    )
     return 0 if status in {"RECORDED", "ALREADY_RECORDED"} else 1
 
 
