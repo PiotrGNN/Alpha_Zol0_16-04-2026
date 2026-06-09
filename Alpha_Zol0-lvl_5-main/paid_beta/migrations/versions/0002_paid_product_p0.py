@@ -23,8 +23,15 @@ def _index_names(inspector, table: str) -> set[str]:
     return {item["name"] for item in inspector.get_indexes(table)}
 
 
-def _foreign_key_names(inspector, table: str) -> set[str]:
-    return {item.get("name") for item in inspector.get_foreign_keys(table)}
+def _has_artifact_fk(inspector) -> bool:
+    for item in inspector.get_foreign_keys("paid_beta_checkout_sessions"):
+        if (
+            item.get("referred_table") == "paid_beta_artifacts"
+            and item.get("constrained_columns") == ["artifact_id"]
+            and item.get("referred_columns") == ["id"]
+        ):
+            return True
+    return False
 
 
 def upgrade() -> None:
@@ -68,8 +75,8 @@ def upgrade() -> None:
                 ["provider_payment_intent_id"],
                 unique=True,
             )
-        foreign_keys = _foreign_key_names(inspector, "paid_beta_checkout_sessions")
-        if "fk_paid_beta_checkout_artifact" not in foreign_keys:
+        inspector = sa.inspect(bind)
+        if not _has_artifact_fk(inspector):
             with op.batch_alter_table("paid_beta_checkout_sessions") as batch:
                 batch.create_foreign_key(
                     "fk_paid_beta_checkout_artifact",
@@ -83,19 +90,8 @@ def downgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
     tables = set(inspector.get_table_names())
-    for table in (
-        "paid_beta_audit_logs",
-        "paid_beta_password_reset_tokens",
-        "paid_beta_alerts",
-        "paid_beta_signal_records",
-        "paid_beta_artifact_grants",
-        "paid_beta_artifacts",
-    ):
-        if table in tables:
-            op.drop_table(table)
 
-    inspector = sa.inspect(bind)
-    if "paid_beta_checkout_sessions" in inspector.get_table_names():
+    if "paid_beta_checkout_sessions" in tables:
         columns = _column_names(inspector, "paid_beta_checkout_sessions")
         with op.batch_alter_table("paid_beta_checkout_sessions") as batch:
             if "payment_status" in columns:
@@ -104,6 +100,18 @@ def downgrade() -> None:
                 batch.drop_column("provider_payment_intent_id")
             if "artifact_id" in columns:
                 batch.drop_column("artifact_id")
+
+    inspector = sa.inspect(bind)
+    for table in (
+        "paid_beta_audit_logs",
+        "paid_beta_password_reset_tokens",
+        "paid_beta_alerts",
+        "paid_beta_signal_records",
+        "paid_beta_artifact_grants",
+        "paid_beta_artifacts",
+    ):
+        if table in inspector.get_table_names():
+            op.drop_table(table)
 
     inspector = sa.inspect(bind)
     if "paid_beta_users" in inspector.get_table_names():
