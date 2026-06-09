@@ -6,6 +6,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 COPY requirements-paid-beta.txt ./
 RUN pip install --no-cache-dir -r requirements-paid-beta.txt
+COPY alembic.ini ./
 COPY paid_beta ./paid_beta
 EXPOSE 8000
-CMD ["uvicorn", "paid_beta.app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "alembic upgrade head && uvicorn paid_beta.app:app --host 0.0.0.0 --port 8000"]

@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import json
 import os
+import secrets
 import time
 from dataclasses import dataclass
 
@@ -46,11 +47,25 @@ class TokenClaims:
     user_id: int
     role: str
     expires_at: int
+    token_version: int
 
 
-def create_token(*, user_id: int, role: str, secret: str, ttl_seconds: int) -> str:
+def create_token(
+    *,
+    user_id: int,
+    role: str,
+    secret: str,
+    ttl_seconds: int,
+    token_version: int = 0,
+) -> str:
     now = int(time.time())
-    payload = {"sub": int(user_id), "role": role, "iat": now, "exp": now + ttl_seconds}
+    payload = {
+        "sub": int(user_id),
+        "role": role,
+        "iat": now,
+        "exp": now + ttl_seconds,
+        "ver": int(token_version),
+    }
     body = _b64encode(json.dumps(payload, separators=(",", ":"), sort_keys=True).encode())
     signature = hmac.new(secret.encode(), body.encode(), hashlib.sha256).digest()
     return f"{body}.{_b64encode(signature)}"
@@ -67,7 +82,18 @@ def decode_token(token: str, *, secret: str) -> TokenClaims:
         if expires_at <= int(time.time()):
             raise ValueError("token expired")
         return TokenClaims(
-            user_id=int(payload["sub"]), role=str(payload.get("role", "user")), expires_at=expires_at
+            user_id=int(payload["sub"]),
+            role=str(payload.get("role", "user")),
+            expires_at=expires_at,
+            token_version=int(payload.get("ver", 0)),
         )
     except (KeyError, ValueError, TypeError, json.JSONDecodeError) as exc:
         raise ValueError("invalid token") from exc
+
+
+def generate_reset_token() -> str:
+    return secrets.token_urlsafe(32)
+
+
+def hash_reset_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()

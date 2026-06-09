@@ -1,0 +1,47 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: paid_beta
+      POSTGRES_USER: paid_beta
+      POSTGRES_PASSWORD: ${PAID_BETA_POSTGRES_PASSWORD:?set PAID_BETA_POSTGRES_PASSWORD}
+    volumes:
+      - paid_beta_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U paid_beta -d paid_beta"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.paid-beta
+    environment:
+      PAID_BETA_ENV: production
+      PAID_BETA_DATABASE_URL: postgresql://paid_beta:${PAID_BETA_POSTGRES_PASSWORD}@postgres:5432/paid_beta
+      PAID_BETA_TOKEN_SECRET: ${PAID_BETA_TOKEN_SECRET:?set PAID_BETA_TOKEN_SECRET}
+      PAID_BETA_APP_URL: ${PAID_BETA_APP_URL:?set PAID_BETA_APP_URL}
+      PAID_BETA_CORS_ORIGINS: ${PAID_BETA_CORS_ORIGINS:?set PAID_BETA_CORS_ORIGINS}
+      PAID_BETA_ALLOW_ADMIN_BOOTSTRAP: ${PAID_BETA_ALLOW_ADMIN_BOOTSTRAP:-0}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:?set STRIPE_SECRET_KEY}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:?set STRIPE_WEBHOOK_SECRET}
+      STRIPE_PRICE_STARTER: ${STRIPE_PRICE_STARTER:?set STRIPE_PRICE_STARTER}
+      STRIPE_PRICE_PRO: ${STRIPE_PRICE_PRO:?set STRIPE_PRICE_PRO}
+      STRIPE_PRICE_REPORT: ${STRIPE_PRICE_REPORT:?set STRIPE_PRICE_REPORT}
+      PAID_BETA_SMTP_HOST: ${PAID_BETA_SMTP_HOST:?set PAID_BETA_SMTP_HOST}
+      PAID_BETA_SMTP_PORT: ${PAID_BETA_SMTP_PORT:-587}
+      PAID_BETA_SMTP_USERNAME: ${PAID_BETA_SMTP_USERNAME:-}
+      PAID_BETA_SMTP_PASSWORD: ${PAID_BETA_SMTP_PASSWORD:-}
+      PAID_BETA_SMTP_FROM: ${PAID_BETA_SMTP_FROM:?set PAID_BETA_SMTP_FROM}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["sh", "-c", "alembic upgrade head && uvicorn paid_beta.app:app --host 0.0.0.0 --port 8000"]
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+volumes:
+  paid_beta_postgres:
