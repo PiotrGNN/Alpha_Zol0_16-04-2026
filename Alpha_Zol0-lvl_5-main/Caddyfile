@@ -1,4 +1,4 @@
-{$ZOLO_SITE_ADDRESS:http://localhost} {
+{$ZOLO_SITE_ADDRESS:http://localhost:8080} {
     encode zstd gzip
 
     header {
@@ -7,12 +7,15 @@
         X-Frame-Options "DENY"
         Referrer-Policy "strict-origin-when-cross-origin"
         Permissions-Policy "camera=(), microphone=(), geolocation=()"
-        Content-Security-Policy "default-src 'self'; connect-src 'self' https://api.stripe.com; script-src 'self'; style-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://checkout.stripe.com"
+        Content-Security-Policy "default-src 'self'; connect-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://checkout.stripe.com"
     }
 
-    @api path /auth* /billing* /resources* /events* /metrics* /health /docs* /openapi.json
+    @api path /auth* /billing* /resources* /events* /metrics* /health /status /docs* /openapi.json
     reverse_proxy @api api:8000
-    reverse_proxy dashboard:8080
+
+    root * /srv
+    try_files {path} /index.html
+    file_server
 
     log {
         output stdout
