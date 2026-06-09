@@ -1,4 +1,6 @@
 import importlib.util
+import json
+import sqlite3
 from pathlib import Path
 
 
@@ -67,17 +69,37 @@ def test_render_md_contains_required_sections():
     assert "UPSTREAM_GATING_PREVENTS_HISTORY_ACCUMULATION" in md
 
 
-def test_build_report_stable_keys():
-    root = Path(__file__).resolve().parents[1]
+def _create_empty_logs_db(path: Path) -> None:
+    connection = sqlite3.connect(path)
+    try:
+        connection.execute(
+            "create table logs (id integer primary key, timestamp text, event text, details text)"
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def test_build_report_stable_keys(tmp_path):
+    db_paths = [
+        tmp_path / "controlled_kpi_before_20260328_010209.db",
+        tmp_path / "controlled_kpi_before_20260328_010418.db",
+        tmp_path / "controlled_kpi_before_20260328_011249.db",
+    ]
+    for db_path in db_paths:
+        _create_empty_logs_db(db_path)
+
+    terminal_paths_report = tmp_path / "terminal_paths.json"
+    terminal_paths_report.write_text(
+        json.dumps({"per_symbol": {}}),
+        encoding="utf-8",
+    )
+
     report = audit._build_report(
         ["BTCUSDTM", "ETHUSDTM"],
         ["baseline", "disable_net_target_guard", "disable_current_side"],
-        [
-            root / "tmp" / "controlled_kpi_before_20260328_010209.db",
-            root / "tmp" / "controlled_kpi_before_20260328_010418.db",
-            root / "tmp" / "controlled_kpi_before_20260328_011249.db",
-        ],
-        root / "artifacts" / "diagnostics" / "run_end_cutoff_terminal_paths_report_20260328_012425.json",
+        db_paths,
+        terminal_paths_report,
     )
     assert "metadata" in report
     assert "per_symbol" in report
