@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
 
 
 def _bool_env(name: str, default: bool = False) -> bool:
@@ -11,11 +12,25 @@ def _bool_env(name: str, default: bool = False) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _env_or_file(name: str, default: str = "") -> str:
+    value = os.getenv(name)
+    if value is not None:
+        return value.strip()
+    file_path = os.getenv(f"{name}_FILE", "").strip()
+    if not file_path:
+        return default
+    path = Path(file_path)
+    try:
+        return path.read_text(encoding="utf-8").strip()
+    except OSError as exc:
+        raise RuntimeError(f"unable to read secret file for {name}") from exc
+
+
 @dataclass(frozen=True)
 class Settings:
     environment: str = os.getenv("PAID_BETA_ENV", "development").strip().lower()
-    database_url: str = os.getenv("PAID_BETA_DATABASE_URL", "sqlite:///./paid_beta.db")
-    token_secret: str = os.getenv("PAID_BETA_TOKEN_SECRET", "")
+    database_url: str = _env_or_file("PAID_BETA_DATABASE_URL", "sqlite:///./paid_beta.db")
+    token_secret: str = _env_or_file("PAID_BETA_TOKEN_SECRET")
     token_ttl_seconds: int = int(os.getenv("PAID_BETA_TOKEN_TTL_SECONDS", "86400"))
     password_reset_ttl_seconds: int = int(
         os.getenv("PAID_BETA_PASSWORD_RESET_TTL_SECONDS", "1800")
@@ -23,21 +38,21 @@ class Settings:
     expose_password_reset_token: bool = _bool_env(
         "PAID_BETA_EXPOSE_PASSWORD_RESET_TOKEN", False
     )
-    app_url: str = os.getenv("PAID_BETA_APP_URL", "http://localhost:5173")
+    app_url: str = os.getenv("PAID_BETA_APP_URL", "http://localhost:8080")
     cors_origins: tuple[str, ...] = tuple(
         origin.strip()
-        for origin in os.getenv("PAID_BETA_CORS_ORIGINS", "http://localhost:5173").split(",")
+        for origin in os.getenv("PAID_BETA_CORS_ORIGINS", "http://localhost:8080").split(",")
         if origin.strip()
     )
-    stripe_secret_key: str = os.getenv("STRIPE_SECRET_KEY", "")
-    stripe_webhook_secret: str = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+    stripe_secret_key: str = _env_or_file("STRIPE_SECRET_KEY")
+    stripe_webhook_secret: str = _env_or_file("STRIPE_WEBHOOK_SECRET")
     stripe_price_starter: str = os.getenv("STRIPE_PRICE_STARTER", "")
     stripe_price_pro: str = os.getenv("STRIPE_PRICE_PRO", "")
     stripe_price_report: str = os.getenv("STRIPE_PRICE_REPORT", "")
     bootstrap_admin_email: str = os.getenv(
         "PAID_BETA_BOOTSTRAP_ADMIN_EMAIL", ""
     ).strip().lower()
-    bootstrap_admin_secret: str = os.getenv("PAID_BETA_ADMIN_BOOTSTRAP_SECRET", "")
+    bootstrap_admin_secret: str = _env_or_file("PAID_BETA_ADMIN_BOOTSTRAP_SECRET")
     allow_admin_bootstrap: bool = _bool_env("PAID_BETA_ALLOW_ADMIN_BOOTSTRAP", True)
     rate_limit_window_seconds: int = int(
         os.getenv("PAID_BETA_RATE_LIMIT_WINDOW_SECONDS", "60")
@@ -51,7 +66,7 @@ class Settings:
     smtp_host: str = os.getenv("PAID_BETA_SMTP_HOST", "")
     smtp_port: int = int(os.getenv("PAID_BETA_SMTP_PORT", "587"))
     smtp_username: str = os.getenv("PAID_BETA_SMTP_USERNAME", "")
-    smtp_password: str = os.getenv("PAID_BETA_SMTP_PASSWORD", "")
+    smtp_password: str = _env_or_file("PAID_BETA_SMTP_PASSWORD")
     smtp_from: str = os.getenv("PAID_BETA_SMTP_FROM", "")
     smtp_starttls: bool = _bool_env("PAID_BETA_SMTP_STARTTLS", True)
     trading_scorecard_path: str = os.getenv(
