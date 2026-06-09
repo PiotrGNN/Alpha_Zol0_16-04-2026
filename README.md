@@ -1,39 +1,45 @@
 # ZoL0
 
-ZoL0 = KuCoin-only PAPER trading system.
+ZoL0 is a KuCoin-only, PAPER-first trading research and validation system with an isolated paid-beta SaaS foundation.
 
-The source-of-truth project directory is `Alpha_Zol0-lvl_5-main/`.
+The source-of-truth Python project is `Alpha_Zol0-lvl_5-main/`.
 
-For the full repo-grounded current-state description, see `PROJECT_OVERVIEW.md`.
+## Current state
 
-## Core Principles
+- Trading runtime: KuCoin only, PAPER by default, LIVE hard-gated.
+- Paid beta: authentication, plans, Stripe billing, subscriptions, migrations, analytics, dashboard, CI, and deployment foundation.
+- Profitability is not proven by repository code alone.
+- LIVE readiness requires fresh operational and profitability evidence.
+- Bybit and pybit remain deprecated and excluded.
 
-- Deterministic execution and validation.
-- Evidence-first conclusions from code, tests, logs, or runtime artifacts.
-- Minimal patch scope for changes.
-- No guessing when evidence is missing.
+## Documentation
 
-## Execution Modes
+- `PROJECT_OVERVIEW.md`: current technical state.
+- `PROFITABILITY_AND_REVENUE.md`: SaaS revenue plan and trading profit gate.
+- `RUNBOOK.md`: validation and paid-beta commands.
+- `Alpha_Zol0-lvl_5-main/PAID_BETA.md`: paid-beta deployment and security notes.
 
-- `PAPER` is the default mode.
-- `LIVE` is disabled by default and must remain gated.
-- No live secrets, runtime databases, logs, KPI outputs, or experiment artifacts belong in git.
+## Core principles
 
-## Basic Run Command
-
-From `Alpha_Zol0-lvl_5-main/`:
-
-```powershell
-python scripts/controlled_kpi_run.py
-```
+- Evidence-first conclusions.
+- Natural PAPER evidence only for profitability claims.
+- Operational readiness and profitability are separate gates.
+- No automatic LIVE promotion.
+- No guaranteed-return claims.
 
 ## Validation
-
-From the repository root:
 
 ```powershell
 python -m py_compile Alpha_Zol0-lvl_5-main/core/BotCore.py
 python -m pytest -q
 ```
 
-See `RUNBOOK.md` for the minimal PAPER runbook.
+Controlled PAPER run:
+
+```powershell
+Push-Location Alpha_Zol0-lvl_5-main
+python scripts/controlled_kpi_run.py --variant-only before --before-min 5
+Pop-Location
+```
+
+Do not commit secrets, runtime databases, logs, KPI outputs, generated reports, or local experiment artifacts.
