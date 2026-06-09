@@ -1,8 +1,9 @@
-name: branch-validation
+name: comprehensive-validation
 
 on:
+  pull_request:
   push:
-    branches: [feat/paid-beta-reporting-v2]
+    branches: [main]
 
 jobs:
   validate:
@@ -13,7 +14,7 @@ jobs:
     env:
       PAID_BETA_ENV: test
       PAID_BETA_TOKEN_SECRET: test-secret-that-is-at-least-32-characters
-      PAID_BETA_DATABASE_URL: sqlite:///./branch_validation.db
+      PAID_BETA_DATABASE_URL: sqlite:///./comprehensive_validation.db
       STRIPE_PRICE_STARTER: price_test_starter
       STRIPE_PRICE_PRO: price_test_pro
       STRIPE_PRICE_REPORT: price_test_report
@@ -30,9 +31,10 @@ jobs:
           pip install -r requirements.txt
           pip install -r requirements-paid-beta.txt pytest httpx
       - run: python -m compileall -q core paid_beta
-      - run: rm -f branch_validation.db && alembic upgrade head
+      - run: rm -f comprehensive_validation.db && alembic upgrade head
       - run: pytest -q tests/test_paid_beta_security.py tests/test_paid_beta_contract.py tests/test_paid_beta_api.py tests/test_paid_beta_p0.py tests/test_business_metrics_missing.py
-      - run: |
+      - name: Validate reporting controls
+        run: |
           python - <<'PY'
           from paid_beta.app import app
           from paid_beta.business_metrics import build_business_metrics
@@ -45,9 +47,12 @@ jobs:
           try:
               result = build_business_metrics(db)
               assert result['closed_beta_ready'] is False
+              assert 'FOUR_WEEK_HISTORY_MISSING' in result['closed_beta_blockers']
           finally:
               db.close()
-          assert assess_trading_metrics(None)['live_ready'] is False
+          trading = assess_trading_metrics(None)
+          assert trading['profitability_ready'] is False
+          assert trading['live_ready'] is False
           PY
       - run: pytest -q tests/test_exchange_kucoin_only.py tests/test_health_check_runtime.py tests/test_marketdata_fetcher.py tests/test_position_manager_contracts.py
       - run: npm ci && npm run build
