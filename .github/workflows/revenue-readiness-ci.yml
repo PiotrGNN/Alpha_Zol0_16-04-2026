@@ -12,6 +12,8 @@ on:
       - 'Alpha_Zol0-lvl_5-main/paid_beta/resources.py'
       - 'Alpha_Zol0-lvl_5-main/paid_beta/migrations/**'
       - 'Alpha_Zol0-lvl_5-main/tests/test_business_metrics_missing.py'
+      - 'Alpha_Zol0-lvl_5-main/tests/test_paid_beta_economics.py'
+      - 'Alpha_Zol0-lvl_5-main/tests/test_trading_metrics_contract.py'
       - '.github/workflows/revenue-readiness-ci.yml'
   push:
     branches: [main]
@@ -25,6 +27,8 @@ on:
       - 'Alpha_Zol0-lvl_5-main/paid_beta/resources.py'
       - 'Alpha_Zol0-lvl_5-main/paid_beta/migrations/**'
       - 'Alpha_Zol0-lvl_5-main/tests/test_business_metrics_missing.py'
+      - 'Alpha_Zol0-lvl_5-main/tests/test_paid_beta_economics.py'
+      - 'Alpha_Zol0-lvl_5-main/tests/test_trading_metrics_contract.py'
       - '.github/workflows/revenue-readiness-ci.yml'
 
 jobs:
@@ -47,9 +51,9 @@ jobs:
           python-version: '3.12'
           cache: pip
       - run: pip install -r requirements-paid-beta.txt pytest httpx
-      - run: python -m py_compile paid_beta/business_metrics.py paid_beta/economics_models.py paid_beta/readiness.py paid_beta/trading_metrics.py paid_beta/migrations/versions/0003_revenue_readiness_gate.py tests/test_business_metrics_missing.py
+      - run: python -m py_compile paid_beta/business_metrics.py paid_beta/economics_models.py paid_beta/readiness.py paid_beta/trading_metrics.py paid_beta/migrations/versions/0003_revenue_readiness_gate.py tests/test_business_metrics_missing.py tests/test_paid_beta_economics.py tests/test_trading_metrics_contract.py
       - run: rm -f revenue_readiness_test.db && alembic upgrade head
-      - run: pytest -q tests/test_business_metrics_missing.py
+      - run: pytest -q tests/test_business_metrics_missing.py tests/test_paid_beta_economics.py tests/test_trading_metrics_contract.py
       - name: Validate registered routes and fail-closed decisions
         run: |
           python - <<'PY'
