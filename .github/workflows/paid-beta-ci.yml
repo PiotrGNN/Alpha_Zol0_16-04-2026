@@ -96,7 +96,14 @@ jobs:
           cache: pip
       - run: pip install -r requirements-paid-beta.txt pytest httpx
       - run: createdb -h localhost -U paid_beta paid_beta_restore
-      - run: alembic upgrade head
+      - name: Validate empty PostgreSQL migration
+        run: alembic upgrade head
+      - name: Validate PostgreSQL 0002 to 0003 upgrade
+        run: |
+          alembic downgrade 0002_paid_product_p0
+          alembic current | grep -q 0002_paid_product_p0
+          alembic upgrade head
+          alembic current | grep -q 0003_revenue_readiness_gate
       - name: Validate production lifespan
         run: |
           python - <<'PY'
