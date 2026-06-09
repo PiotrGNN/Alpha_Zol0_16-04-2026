@@ -1,0 +1,102 @@
+name: zol0
+
+x-paid-beta-environment: &paid-beta-environment
+  PAID_BETA_ENV: ${PAID_BETA_ENV:-development}
+  PAID_BETA_DATABASE_URL: ${PAID_BETA_DATABASE_URL:-postgresql://paid_beta:paid_beta_local@postgres:5432/paid_beta}
+  PAID_BETA_TOKEN_SECRET: ${PAID_BETA_TOKEN_SECRET:-local-development-token-secret-32-chars}
+  PAID_BETA_APP_URL: ${PAID_BETA_APP_URL:-http://localhost:8080}
+  PAID_BETA_CORS_ORIGINS: ${PAID_BETA_CORS_ORIGINS:-http://localhost:8080}
+  PAID_BETA_ALLOW_ADMIN_BOOTSTRAP: ${PAID_BETA_ALLOW_ADMIN_BOOTSTRAP:-0}
+  PAID_BETA_EXPOSE_PASSWORD_RESET_TOKEN: ${PAID_BETA_EXPOSE_PASSWORD_RESET_TOKEN:-1}
+  PAID_BETA_TRADING_SCORECARD_PATH: /app/analysis/zol0_profitability_audit_scorecard.json
+  PAID_BETA_TERMS_APPROVED: ${PAID_BETA_TERMS_APPROVED:-0}
+  PAID_BETA_PRIVACY_APPROVED: ${PAID_BETA_PRIVACY_APPROVED:-0}
+  PAID_BETA_REFUNDS_APPROVED: ${PAID_BETA_REFUNDS_APPROVED:-0}
+  PAID_BETA_RISK_DISCLOSURE_APPROVED: ${PAID_BETA_RISK_DISCLOSURE_APPROVED:-0}
+  STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-sk_test_local_placeholder}
+  STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-whsec_local_placeholder}
+  STRIPE_PRICE_STARTER: ${STRIPE_PRICE_STARTER:-price_local_starter}
+  STRIPE_PRICE_PRO: ${STRIPE_PRICE_PRO:-price_local_pro}
+  STRIPE_PRICE_REPORT: ${STRIPE_PRICE_REPORT:-price_local_report}
+  PAID_BETA_SMTP_HOST: ${PAID_BETA_SMTP_HOST:-mailpit}
+  PAID_BETA_SMTP_PORT: ${PAID_BETA_SMTP_PORT:-1025}
+  PAID_BETA_SMTP_FROM: ${PAID_BETA_SMTP_FROM:-no-reply@localhost.test}
+  PAID_BETA_SMTP_STARTTLS: ${PAID_BETA_SMTP_STARTTLS:-0}
+
+services:
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.paid-beta
+    command: ["alembic", "upgrade", "head"]
+    environment: *paid-beta-environment
+    profiles: ["local", "staging"]
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.paid-beta
+    command: ["uvicorn", "paid_beta.app:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment: *paid-beta-environment
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import json,urllib.request; p=json.load(urllib.request.urlopen('http://127.0.0.1:8000/health')); assert p['public_live_trading'] is False"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    profiles: ["local", "staging"]
+    restart: unless-stopped
+
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    environment:
+      ZOLO_SITE_ADDRESS: ${ZOLO_SITE_ADDRESS:-http://localhost:8080}
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    profiles: ["local", "staging"]
+    restart: unless-stopped
+
+  preflight:
+    build:
+      context: .
+      dockerfile: Dockerfile.paid-beta
+    command: ["python", "scripts/paid_beta_preflight.py"]
+    environment: *paid-beta-environment
+    profiles: ["ops"]
+    restart: "no"
+
+  economics-import:
+    build:
+      context: .
+      dockerfile: Dockerfile.paid-beta
+    command: ["python", "scripts/import_paid_beta_economics_period.py", "examples/economics-period.example.json", "--dry-run"]
+    environment: *paid-beta-environment
+    profiles: ["ops"]
+    restart: "no"
+
+  paper-scorecard:
+    image: python:3.12-slim
+    working_dir: /workspace
+    command: ["python", "scripts/profitability_audit_scorecard.py"]
+    volumes:
+      - ./:/workspace
+    environment:
+      LIVE: "0"
+      USE_MOCK: "0"
+    profiles: ["paper"]
+    restart: "no"
