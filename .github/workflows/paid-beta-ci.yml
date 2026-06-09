@@ -76,6 +76,10 @@ jobs:
       PAID_BETA_APP_URL: https://paid-beta.example.test
       PAID_BETA_CORS_ORIGINS: https://paid-beta.example.test
       PAID_BETA_ALLOW_ADMIN_BOOTSTRAP: '0'
+      PAID_BETA_TERMS_APPROVED: '1'
+      PAID_BETA_PRIVACY_APPROVED: '1'
+      PAID_BETA_REFUNDS_APPROVED: '1'
+      PAID_BETA_RISK_DISCLOSURE_APPROVED: '1'
       STRIPE_SECRET_KEY: sk_test_placeholder
       STRIPE_WEBHOOK_SECRET: whsec_test_placeholder
       STRIPE_PRICE_STARTER: price_test_starter
@@ -92,7 +96,14 @@ jobs:
           cache: pip
       - run: pip install -r requirements-paid-beta.txt pytest httpx
       - run: createdb -h localhost -U paid_beta paid_beta_restore
-      - run: alembic upgrade head
+      - name: Validate empty PostgreSQL migration
+        run: alembic upgrade head
+      - name: Validate PostgreSQL 0002 to 0003 upgrade
+        run: |
+          alembic downgrade 0002_paid_product_p0
+          alembic current | grep -q 0002_paid_product_p0
+          alembic upgrade head
+          alembic current | grep -q 0003_revenue_readiness_gate
       - name: Validate production lifespan
         run: |
           python - <<'PY'

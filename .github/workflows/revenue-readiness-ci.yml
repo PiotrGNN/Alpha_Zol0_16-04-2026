@@ -1,0 +1,81 @@
+name: revenue-readiness-ci
+
+on:
+  pull_request:
+    paths:
+      - 'Alpha_Zol0-lvl_5-main/paid_beta/business_metrics.py'
+      - 'Alpha_Zol0-lvl_5-main/paid_beta/economics_models.py'
+      - 'Alpha_Zol0-lvl_5-main/paid_beta/readiness.py'
+      - 'Alpha_Zol0-lvl_5-main/paid_beta/trading_metrics.py'
+      - 'Alpha_Zol0-lvl_5-main/paid_beta/config.py'
+      - 'Alpha_Zol0-lvl_5-main/paid_beta/database.py'
+      - 'Alpha_Zol0-lvl_5-main/paid_beta/resources.py'
+      - 'Alpha_Zol0-lvl_5-main/paid_beta/migrations/**'
+      - 'Alpha_Zol0-lvl_5-main/tests/test_business_metrics_missing.py'
+      - 'Alpha_Zol0-lvl_5-main/tests/test_paid_beta_economics.py'
+      - 'Alpha_Zol0-lvl_5-main/tests/test_trading_metrics_contract.py'
+      - '.github/workflows/revenue-readiness-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'Alpha_Zol0-lvl_5-main/paid_beta/business_metrics.py'
+      - 'Alpha_Zol0-lvl_5-main/paid_beta/economics_models.py'
+      - 'Alpha_Zol0-lvl_5-main/paid_beta/readiness.py'
+      - 'Alpha_Zol0-lvl_5-main/paid_beta/trading_metrics.py'
+      - 'Alpha_Zol0-lvl_5-main/paid_beta/config.py'
+      - 'Alpha_Zol0-lvl_5-main/paid_beta/database.py'
+      - 'Alpha_Zol0-lvl_5-main/paid_beta/resources.py'
+      - 'Alpha_Zol0-lvl_5-main/paid_beta/migrations/**'
+      - 'Alpha_Zol0-lvl_5-main/tests/test_business_metrics_missing.py'
+      - 'Alpha_Zol0-lvl_5-main/tests/test_paid_beta_economics.py'
+      - 'Alpha_Zol0-lvl_5-main/tests/test_trading_metrics_contract.py'
+      - '.github/workflows/revenue-readiness-ci.yml'
+
+jobs:
+  readiness:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Alpha_Zol0-lvl_5-main
+    env:
+      PAID_BETA_ENV: test
+      PAID_BETA_TOKEN_SECRET: test-secret-that-is-at-least-32-characters
+      PAID_BETA_DATABASE_URL: sqlite:///./revenue_readiness_test.db
+      STRIPE_PRICE_STARTER: price_test_starter
+      STRIPE_PRICE_PRO: price_test_pro
+      STRIPE_PRICE_REPORT: price_test_report
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install -r requirements-paid-beta.txt pytest httpx
+      - run: python -m py_compile paid_beta/business_metrics.py paid_beta/economics_models.py paid_beta/readiness.py paid_beta/trading_metrics.py paid_beta/migrations/versions/0003_revenue_readiness_gate.py tests/test_business_metrics_missing.py tests/test_paid_beta_economics.py tests/test_trading_metrics_contract.py
+      - run: rm -f revenue_readiness_test.db && alembic upgrade head
+      - run: pytest -q tests/test_business_metrics_missing.py tests/test_paid_beta_economics.py tests/test_trading_metrics_contract.py
+      - name: Validate registered routes and fail-closed decisions
+        run: |
+          python - <<'PY'
+          from paid_beta.app import app
+          from paid_beta.business_metrics import build_business_metrics
+          from paid_beta.database import SessionLocal
+          from paid_beta.trading_metrics import assess_trading_metrics
+
+          paths = {route.path for route in app.routes}
+          assert '/resources/admin/economics-periods' in paths
+          assert '/resources/admin/profitability-readiness' in paths
+
+          db = SessionLocal()
+          try:
+              business = build_business_metrics(db)
+              assert business['closed_beta_ready'] is False
+              assert 'FOUR_WEEK_HISTORY_MISSING' in business['closed_beta_blockers']
+          finally:
+              db.close()
+
+          trading = assess_trading_metrics(None)
+          assert trading['profitability_ready'] is False
+          assert trading['live_ready'] is False
+          assert trading['blockers'] == ['FRESH_SCORECARD_MISSING']
+          PY

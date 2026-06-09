@@ -1,0 +1,74 @@
+name: comprehensive-validation
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Alpha_Zol0-lvl_5-main
+    env:
+      PAID_BETA_ENV: test
+      PAID_BETA_TOKEN_SECRET: test-secret-that-is-at-least-32-characters
+      PAID_BETA_DATABASE_URL: sqlite:///./comprehensive_validation.db
+      STRIPE_PRICE_STARTER: price_test_starter
+      STRIPE_PRICE_PRO: price_test_pro
+      STRIPE_PRICE_REPORT: price_test_report
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-paid-beta.txt pytest httpx
+      - run: python -m compileall -q core paid_beta
+      - run: rm -f comprehensive_validation.db && alembic upgrade head
+      - run: pytest -q tests/test_paid_beta_security.py tests/test_paid_beta_contract.py tests/test_paid_beta_api.py tests/test_paid_beta_p0.py tests/test_business_metrics_missing.py
+      - name: Validate reporting controls
+        run: |
+          python - <<'PY'
+          from paid_beta.app import app
+          from paid_beta.business_metrics import build_business_metrics
+          from paid_beta.database import SessionLocal
+          from paid_beta.trading_metrics import assess_trading_metrics
+          paths = {route.path for route in app.routes}
+          assert '/resources/admin/economics-periods' in paths
+          assert '/resources/admin/profitability-readiness' in paths
+          db = SessionLocal()
+          try:
+              result = build_business_metrics(db)
+              assert result['closed_beta_ready'] is False
+              assert 'FOUR_WEEK_HISTORY_MISSING' in result['closed_beta_blockers']
+          finally:
+              db.close()
+          trading = assess_trading_metrics(None)
+          assert trading['profitability_ready'] is False
+          assert trading['live_ready'] is False
+          PY
+      - run: pytest -q tests/test_exchange_kucoin_only.py tests/test_health_check_runtime.py tests/test_marketdata_fetcher.py tests/test_position_manager_contracts.py
+      - run: npm ci && npm run build
+        working-directory: Alpha_Zol0-lvl_5-main/dashboard
+      - name: Run comprehensive pytest
+        run: |
+          set +e
+          python -m pytest -q --maxfail=1 --ignore=tests/test_profitability_audit_scorecard.py > comprehensive-pytest-output.txt 2>&1
+          status=$?
+          cat comprehensive-pytest-output.txt
+          exit $status
+      - name: Upload comprehensive pytest output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: comprehensive-pytest-output
+          path: Alpha_Zol0-lvl_5-main/comprehensive-pytest-output.txt
+          if-no-files-found: warn
+          retention-days: 7

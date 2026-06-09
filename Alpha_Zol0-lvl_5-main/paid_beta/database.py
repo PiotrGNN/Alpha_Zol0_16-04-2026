@@ -18,7 +18,7 @@ Base = declarative_base()
 
 
 def init_db() -> None:
-    from . import models  # noqa: F401
+    from . import economics_models, models  # noqa: F401
 
     if not settings.is_production:
         Base.metadata.create_all(bind=engine)
@@ -32,6 +32,7 @@ def init_db() -> None:
         "paid_beta_artifacts",
         "paid_beta_artifact_grants",
         "paid_beta_audit_logs",
+        "paid_beta_economics_periods",
     }
     missing = sorted(required - tables)
     if missing:
@@ -40,7 +41,7 @@ def init_db() -> None:
         )
     with engine.connect() as connection:
         version = connection.execute(text("SELECT version_num FROM alembic_version")).scalar()
-    if version != "0002_paid_product_p0":
+    if version != "0003_revenue_readiness_gate":
         raise RuntimeError(
             f"paid-beta production schema revision mismatch: {version!r}"
         )
