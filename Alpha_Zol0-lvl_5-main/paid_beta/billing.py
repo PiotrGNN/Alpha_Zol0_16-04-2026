@@ -1,26 +1,25 @@
 from __future__ import annotations
 
-import json
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .analytics import record_event
 from .audit import record_audit
+from .billing_lifecycle import (
+    grant_report,
+    purchasable_artifact,
+    revoke_grant,
+    store_event_once,
+    subscription_from_payload,
+    upsert_subscription,
+)
 from .config import settings
 from .database import get_db
 from .dependencies import require_user
-from .models import (
-    ArtifactGrant,
-    CheckoutSession,
-    ProductArtifact,
-    Subscription,
-    User,
-    WebhookEvent,
-)
+from .models import CheckoutSession, Subscription, User
 
 router = APIRouter(prefix="/billing", tags=["billing"])
 
@@ -54,23 +53,6 @@ def _price_for(product_code: str) -> tuple[str, str]:
     return price_id, mode
 
 
-def _report_artifact(db: Session, slug: str | None) -> ProductArtifact:
-    if not slug:
-        raise HTTPException(status_code=400, detail="artifact_slug is required for report")
-    artifact = (
-        db.query(ProductArtifact)
-        .filter(
-            ProductArtifact.slug == slug,
-            ProductArtifact.resource_type.in_(("report", "backtest")),
-            ProductArtifact.is_active.is_(True),
-        )
-        .one_or_none()
-    )
-    if artifact is None:
-        raise HTTPException(status_code=404, detail="purchasable artifact not found")
-    return artifact
-
-
 @router.post("/checkout")
 def create_checkout(
     request: CheckoutRequest,
@@ -79,7 +61,7 @@ def create_checkout(
 ):
     price_id, mode = _price_for(request.product_code)
     artifact = (
-        _report_artifact(db, request.artifact_slug)
+        purchasable_artifact(db, request.artifact_slug)
         if request.product_code == "report"
         else None
     )
@@ -146,140 +128,6 @@ def create_portal(user: User = Depends(require_user)):
     return {"portal_url": session.url}
 
 
-def _upsert_subscription(
-    db: Session, payload: dict, *, status_override: str | None = None
-) -> Subscription | None:
-    metadata = payload.get("metadata") or {}
-    user_id = metadata.get("user_id")
-    subscription_id = payload.get("subscription") or payload.get("id")
-    if not user_id or not subscription_id:
-        return None
-    user = db.get(User, int(user_id))
-    if user is None:
-        return None
-    customer_id = payload.get("customer")
-    if customer_id and not user.stripe_customer_id:
-        user.stripe_customer_id = str(customer_id)
-    subscription = (
-        db.query(Subscription)
-        .filter(Subscription.provider_subscription_id == str(subscription_id))
-        .one_or_none()
-    )
-    if subscription is None:
-        subscription = Subscription(
-            user_id=user.id,
-            plan_code=str(metadata.get("product_code") or "pro"),
-            provider="stripe",
-            provider_subscription_id=str(subscription_id),
-        )
-        db.add(subscription)
-    subscription.status = status_override or str(payload.get("status") or "incomplete")
-    period_end = payload.get("current_period_end")
-    if period_end:
-        subscription.current_period_end = datetime.fromtimestamp(
-            int(period_end), tz=timezone.utc
-        )
-    return subscription
-
-
-def _grant_report(db: Session, obj: dict, event_id: str) -> None:
-    metadata = obj.get("metadata") or {}
-    user_id = metadata.get("user_id")
-    artifact_id = metadata.get("artifact_id")
-    if not user_id or not artifact_id:
-        return
-    checkout = (
-        db.query(CheckoutSession)
-        .filter(CheckoutSession.provider_session_id == str(obj.get("id")))
-        .one_or_none()
-    )
-    if checkout is None:
-        return
-    checkout.status = "complete"
-    checkout.payment_status = str(obj.get("payment_status") or "")
-    payment_intent = obj.get("payment_intent")
-    if payment_intent:
-        checkout.provider_payment_intent_id = str(payment_intent)
-    if checkout.payment_status != "paid":
-        return
-    grant = (
-        db.query(ArtifactGrant)
-        .filter(
-            ArtifactGrant.user_id == int(user_id),
-            ArtifactGrant.artifact_id == int(artifact_id),
-        )
-        .one_or_none()
-    )
-    if grant is None:
-        grant = ArtifactGrant(
-            user_id=int(user_id),
-            artifact_id=int(artifact_id),
-            checkout_session_id=checkout.id,
-        )
-        db.add(grant)
-    grant.status = "active"
-    grant.provider_event_id = event_id
-    grant.revoked_at = None
-
-
-def _checkout_from_refund(db: Session, obj: dict) -> CheckoutSession | None:
-    payment_intent = obj.get("payment_intent")
-    if payment_intent:
-        return (
-            db.query(CheckoutSession)
-            .filter(
-                CheckoutSession.provider_payment_intent_id == str(payment_intent)
-            )
-            .one_or_none()
-        )
-    metadata = obj.get("metadata") or {}
-    user_id = metadata.get("user_id")
-    artifact_id = metadata.get("artifact_id")
-    if not user_id or not artifact_id:
-        return None
-    return (
-        db.query(CheckoutSession)
-        .filter(
-            CheckoutSession.user_id == int(user_id),
-            CheckoutSession.artifact_id == int(artifact_id),
-        )
-        .order_by(CheckoutSession.id.desc())
-        .first()
-    )
-
-
-def _revoke_grant(db: Session, obj: dict) -> None:
-    checkout = _checkout_from_refund(db, obj)
-    if checkout is None or checkout.artifact_id is None:
-        return
-    now = datetime.now(timezone.utc)
-    checkout.status = "refunded"
-    checkout.payment_status = "refunded"
-    db.query(ArtifactGrant).filter(
-        ArtifactGrant.user_id == checkout.user_id,
-        ArtifactGrant.artifact_id == checkout.artifact_id,
-    ).update(
-        {ArtifactGrant.status: "revoked", ArtifactGrant.revoked_at: now},
-        synchronize_session=False,
-    )
-
-
-def _store_event_once(db: Session, event: dict) -> WebhookEvent | None:
-    stored = WebhookEvent(
-        provider="stripe",
-        provider_event_id=str(event["id"]),
-        event_type=str(event["type"]),
-        payload=json.dumps(event, default=str, sort_keys=True),
-    )
-    try:
-        with db.begin_nested():
-            db.add(stored)
-            db.flush()
-    except IntegrityError:
-        return None
-    return stored
-
-
 @router.post("/webhook")
 async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
     stripe = _stripe()
@@ -292,7 +140,7 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
     except Exception as exc:
         raise HTTPException(status_code=400, detail="invalid stripe webhook") from exc
 
-    stored = _store_event_once(db, event)
+    stored = store_event_once(db, event)
     if stored is None:
         db.rollback()
         return {"ok": True, "duplicate": True}
@@ -301,7 +149,16 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
     event_type = str(event["type"])
     event_id = str(event["id"])
     metadata = obj.get("metadata") or {}
-    user_id = int(metadata["user_id"]) if metadata.get("user_id") else None
+    existing_subscription = subscription_from_payload(db, obj)
+    user_id = (
+        int(metadata["user_id"])
+        if metadata.get("user_id")
+        else (
+            existing_subscription.user_id
+            if existing_subscription is not None
+            else None
+        )
+    )
 
     if event_type in {
         "checkout.session.completed",
@@ -318,9 +175,9 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
             if obj.get("payment_intent"):
                 checkout.provider_payment_intent_id = str(obj["payment_intent"])
         if metadata.get("product_code") == "report":
-            _grant_report(db, obj, event_id)
+            grant_report(db, obj, event_id)
         elif obj.get("subscription"):
-            _upsert_subscription(db, obj, status_override="active")
+            upsert_subscription(db, obj, status_override="active")
         if user_id:
             record_event(
                 db,
@@ -333,19 +190,16 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
         "checkout.session.expired",
         "checkout.session.async_payment_failed",
     }:
-        checkout = (
-            db.query(CheckoutSession)
-            .filter(CheckoutSession.provider_session_id == str(obj.get("id")))
-            .one_or_none()
+        revoke_grant(
+            db,
+            obj,
+            checkout_status="failed",
+            payment_status=str(obj.get("payment_status") or "unpaid"),
         )
-        if checkout:
-            checkout.status = "failed"
-            checkout.payment_status = str(obj.get("payment_status") or "unpaid")
-        _revoke_grant(db, obj)
     elif event_type.startswith("customer.subscription."):
         status_value = "canceled" if event_type.endswith("deleted") else None
-        _upsert_subscription(db, obj, status_override=status_value)
-        if user_id:
+        updated = upsert_subscription(db, obj, status_override=status_value)
+        if updated is not None and user_id:
             record_event(
                 db,
                 event_name=(
@@ -354,7 +208,7 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                     else "subscription_activated"
                 ),
                 user_id=user_id,
-                properties={"plan": metadata.get("product_code")},
+                properties={"plan": updated.plan_code},
                 commit=False,
             )
     elif event_type == "invoice.payment_failed":
@@ -374,7 +228,12 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                 commit=False,
             )
     elif event_type in {"charge.refunded", "refund.created"}:
-        _revoke_grant(db, obj)
+        revoke_grant(
+            db,
+            obj,
+            checkout_status="refunded",
+            payment_status="refunded",
+        )
 
     record_audit(
         db,
