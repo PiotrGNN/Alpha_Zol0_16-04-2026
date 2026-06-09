@@ -82,7 +82,9 @@ class ProductArtifact(Base):
 
 class ArtifactGrant(Base):
     __tablename__ = "paid_beta_artifact_grants"
-    __table_args__ = (UniqueConstraint("user_id", "artifact_id", name="uq_paid_beta_grant_user_artifact"),)
+    __table_args__ = (
+        UniqueConstraint("user_id", "artifact_id", name="uq_paid_beta_grant_user_artifact"),
+    )
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("paid_beta_users.id"), nullable=False, index=True)
@@ -102,6 +104,7 @@ class CheckoutSession(Base):
     product_code = Column(String(32), nullable=False)
     artifact_id = Column(Integer, ForeignKey("paid_beta_artifacts.id"), nullable=True, index=True)
     provider_session_id = Column(String(128), unique=True, nullable=False)
+    provider_payment_intent_id = Column(String(128), unique=True, nullable=True, index=True)
     mode = Column(String(32), nullable=False)
     status = Column(String(32), nullable=False, default="open")
     payment_status = Column(String(32), nullable=True)
