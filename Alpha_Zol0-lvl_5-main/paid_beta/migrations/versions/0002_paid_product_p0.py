@@ -23,6 +23,10 @@ def _index_names(inspector, table: str) -> set[str]:
     return {item["name"] for item in inspector.get_indexes(table)}
 
 
+def _foreign_key_names(inspector, table: str) -> set[str]:
+    return {item.get("name") for item in inspector.get_foreign_keys(table)}
+
+
 def upgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
@@ -64,6 +68,15 @@ def upgrade() -> None:
                 ["provider_payment_intent_id"],
                 unique=True,
             )
+        foreign_keys = _foreign_key_names(inspector, "paid_beta_checkout_sessions")
+        if "fk_paid_beta_checkout_artifact" not in foreign_keys:
+            with op.batch_alter_table("paid_beta_checkout_sessions") as batch:
+                batch.create_foreign_key(
+                    "fk_paid_beta_checkout_artifact",
+                    "paid_beta_artifacts",
+                    ["artifact_id"],
+                    ["id"],
+                )
 
 
 def downgrade() -> None:
