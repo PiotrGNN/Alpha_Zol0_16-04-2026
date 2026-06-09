@@ -1,0 +1,21 @@
+{$ZOLO_SITE_ADDRESS:http://localhost} {
+    encode zstd gzip
+
+    header {
+        -Server
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "camera=(), microphone=(), geolocation=()"
+        Content-Security-Policy "default-src 'self'; connect-src 'self' https://api.stripe.com; script-src 'self'; style-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://checkout.stripe.com"
+    }
+
+    @api path /auth* /billing* /resources* /events* /metrics* /health /docs* /openapi.json
+    reverse_proxy @api api:8000
+    reverse_proxy dashboard:8080
+
+    log {
+        output stdout
+        format json
+    }
+}
