@@ -1,0 +1,135 @@
+name: unified-control-plane-ci
+
+on:
+  pull_request:
+    paths:
+      - 'Alpha_Zol0-lvl_5-main/tools/**'
+      - 'Alpha_Zol0-lvl_5-main/zol0.ps1'
+      - 'Alpha_Zol0-lvl_5-main/zol0.sh'
+      - 'Alpha_Zol0-lvl_5-main/START_ZOLO.cmd'
+      - 'Alpha_Zol0-lvl_5-main/STOP_ZOLO.cmd'
+      - 'Alpha_Zol0-lvl_5-main/compose*.yml'
+      - 'Alpha_Zol0-lvl_5-main/Caddyfile'
+      - 'Alpha_Zol0-lvl_5-main/Dockerfile.dashboard'
+      - 'Alpha_Zol0-lvl_5-main/Dockerfile.paid-beta'
+      - 'Alpha_Zol0-lvl_5-main/paid_beta/config.py'
+      - 'Alpha_Zol0-lvl_5-main/dashboard/**'
+      - 'Alpha_Zol0-lvl_5-main/tests/test_control_plane.py'
+      - '.github/workflows/unified-control-plane-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'Alpha_Zol0-lvl_5-main/tools/**'
+      - 'Alpha_Zol0-lvl_5-main/zol0.ps1'
+      - 'Alpha_Zol0-lvl_5-main/zol0.sh'
+      - 'Alpha_Zol0-lvl_5-main/START_ZOLO.cmd'
+      - 'Alpha_Zol0-lvl_5-main/STOP_ZOLO.cmd'
+      - 'Alpha_Zol0-lvl_5-main/compose*.yml'
+      - 'Alpha_Zol0-lvl_5-main/Caddyfile'
+      - 'Alpha_Zol0-lvl_5-main/Dockerfile.dashboard'
+      - 'Alpha_Zol0-lvl_5-main/Dockerfile.paid-beta'
+      - 'Alpha_Zol0-lvl_5-main/paid_beta/config.py'
+      - 'Alpha_Zol0-lvl_5-main/dashboard/**'
+      - 'Alpha_Zol0-lvl_5-main/tests/test_control_plane.py'
+      - '.github/workflows/unified-control-plane-ci.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Alpha_Zol0-lvl_5-main
+    env:
+      PAID_BETA_APP_URL: https://beta.example.test
+      PAID_BETA_CORS_ORIGINS: https://beta.example.test
+      PAID_BETA_TERMS_APPROVED: '1'
+      PAID_BETA_PRIVACY_APPROVED: '1'
+      PAID_BETA_REFUNDS_APPROVED: '1'
+      PAID_BETA_RISK_DISCLOSURE_APPROVED: '1'
+      STRIPE_PRICE_STARTER: price_test_starter
+      STRIPE_PRICE_PRO: price_test_pro
+      STRIPE_PRICE_REPORT: price_test_report
+      PAID_BETA_SMTP_HOST: smtp.example.test
+      PAID_BETA_SMTP_FROM: no-reply@example.test
+      PAID_BETA_TRADING_SCORECARD_FILE: ./analysis/local-empty-scorecard.json
+      ZOLO_SITE_ADDRESS: https://beta.example.test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: Alpha_Zol0-lvl_5-main/dashboard/package-lock.json
+      - run: pip install -r requirements-paid-beta.txt pytest pyyaml
+      - name: Compile control plane
+        run: python -m py_compile tools/zol0ctl.py paid_beta/config.py tests/test_control_plane.py
+      - name: Run control-plane contracts
+        run: pytest -q tests/test_control_plane.py
+      - name: Validate local Compose model
+        run: docker compose -f compose.yml -f compose.local.yml --profile local config --quiet
+      - name: Prepare disposable staging secrets
+        run: |
+          mkdir -p runtime/ci-secrets
+          printf '%s' 'postgresql://paid_beta:password@db.example.test:5432/paid_beta' > runtime/ci-secrets/database_url
+          printf '%s' 'ci-token-secret-that-is-at-least-32-characters' > runtime/ci-secrets/token_secret
+          printf '%s' 'sk_test_ci_placeholder' > runtime/ci-secrets/stripe_secret
+          printf '%s' 'whsec_ci_placeholder' > runtime/ci-secrets/webhook_secret
+          printf '%s' 'smtp-ci-password' > runtime/ci-secrets/smtp_password
+          echo "PAID_BETA_DATABASE_URL_SECRET_FILE=$PWD/runtime/ci-secrets/database_url" >> "$GITHUB_ENV"
+          echo "PAID_BETA_TOKEN_SECRET_FILE=$PWD/runtime/ci-secrets/token_secret" >> "$GITHUB_ENV"
+          echo "STRIPE_SECRET_KEY_FILE=$PWD/runtime/ci-secrets/stripe_secret" >> "$GITHUB_ENV"
+          echo "STRIPE_WEBHOOK_SECRET_FILE=$PWD/runtime/ci-secrets/webhook_secret" >> "$GITHUB_ENV"
+          echo "PAID_BETA_SMTP_PASSWORD_FILE=$PWD/runtime/ci-secrets/smtp_password" >> "$GITHUB_ENV"
+      - name: Validate staging Compose model
+        run: docker compose -f compose.yml -f compose.staging.yml --profile staging config --quiet
+      - name: Validate Caddy configuration
+        run: docker run --rm -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2.8-alpine caddy validate --config /etc/caddy/Caddyfile
+      - name: Build dashboard locally
+        run: npm ci && npm run build
+        working-directory: Alpha_Zol0-lvl_5-main/dashboard
+      - name: Build gateway container
+        run: docker build -f Dockerfile.dashboard -t zol0-gateway:ci .
+      - name: Validate forbidden runtime exposure and live commands
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          files = {
+              name: Path(name).read_text(encoding='utf-8')
+              for name in ('compose.yml', 'compose.local.yml', 'compose.staging.yml', 'tools/zol0ctl.py')
+          }
+          combined_compose = files['compose.yml'] + files['compose.local.yml'] + files['compose.staging.yml']
+          assert '8000:8000' not in combined_compose
+          assert '5432:5432' not in combined_compose
+          assert 'live-start' not in files['tools/zol0ctl.py'].lower()
+          assert 'promote-to-live' not in files['tools/zol0ctl.py'].lower()
+          PY
+      - name: Static secret scan for deployable configuration
+        run: |
+          python - <<'PY'
+          import re
+          from pathlib import Path
+          paths = [
+              Path('compose.yml'), Path('compose.local.yml'), Path('compose.staging.yml'),
+              Path('Caddyfile'), Path('Dockerfile.dashboard'), Path('Dockerfile.paid-beta'),
+              Path('.env.closed-beta.example'), Path('zol0.ps1'), Path('zol0.sh'),
+          ]
+          patterns = [
+              re.compile(r'sk_live_[A-Za-z0-9]{12,}'),
+              re.compile(r'whsec_[A-Za-z0-9]{20,}'),
+              re.compile(r'AKIA[0-9A-Z]{16}'),
+              re.compile(r'-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----'),
+          ]
+          findings = []
+          for path in paths:
+              if not path.exists():
+                  continue
+              text = path.read_text(encoding='utf-8')
+              for pattern in patterns:
+                  if pattern.search(text):
+                      findings.append(f'{path}:{pattern.pattern}')
+          assert not findings, findings
+          PY
