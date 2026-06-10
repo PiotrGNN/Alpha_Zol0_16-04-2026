@@ -2,6 +2,7 @@ name: zol0
 
 services:
   migrate:
+    image: zol0-paid-beta:${ZOLO_RELEASE_TAG:-local}
     build:
       context: .
       dockerfile: Dockerfile.paid-beta
@@ -11,6 +12,7 @@ services:
     restart: "no"
 
   api:
+    image: zol0-paid-beta:${ZOLO_RELEASE_TAG:-local}
     build:
       context: .
       dockerfile: Dockerfile.paid-beta
@@ -31,6 +33,7 @@ services:
     restart: unless-stopped
 
   gateway:
+    image: zol0-gateway:${ZOLO_RELEASE_TAG:-local}
     build:
       context: .
       dockerfile: Dockerfile.dashboard
@@ -47,6 +50,7 @@ services:
     restart: unless-stopped
 
   preflight:
+    image: zol0-paid-beta:${ZOLO_RELEASE_TAG:-local}
     build:
       context: .
       dockerfile: Dockerfile.paid-beta
@@ -56,6 +60,7 @@ services:
     restart: "no"
 
   economics-import:
+    image: zol0-paid-beta:${ZOLO_RELEASE_TAG:-local}
     build:
       context: .
       dockerfile: Dockerfile.paid-beta
