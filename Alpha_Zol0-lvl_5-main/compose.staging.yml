@@ -2,8 +2,10 @@ services:
   migrate:
     environment:
       PAID_BETA_ENV: production
-      PAID_BETA_DATABASE_URL: ${PAID_BETA_DATABASE_URL:?required}
-      PAID_BETA_TOKEN_SECRET: ${PAID_BETA_TOKEN_SECRET:?required}
+      PAID_BETA_DATABASE_URL: ""
+      PAID_BETA_DATABASE_URL_FILE: /run/secrets/paid_beta_database_url
+      PAID_BETA_TOKEN_SECRET: ""
+      PAID_BETA_TOKEN_SECRET_FILE: /run/secrets/paid_beta_token_secret
       PAID_BETA_APP_URL: ${PAID_BETA_APP_URL:?required}
       PAID_BETA_CORS_ORIGINS: ${PAID_BETA_CORS_ORIGINS:?required}
       PAID_BETA_ALLOW_ADMIN_BOOTSTRAP: "0"
@@ -12,23 +14,29 @@ services:
       PAID_BETA_PRIVACY_APPROVED: ${PAID_BETA_PRIVACY_APPROVED:-0}
       PAID_BETA_REFUNDS_APPROVED: ${PAID_BETA_REFUNDS_APPROVED:-0}
       PAID_BETA_RISK_DISCLOSURE_APPROVED: ${PAID_BETA_RISK_DISCLOSURE_APPROVED:-0}
-      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:?required}
-      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:?required}
+      STRIPE_SECRET_KEY: ""
+      STRIPE_SECRET_KEY_FILE: /run/secrets/stripe_secret_key
+      STRIPE_WEBHOOK_SECRET: ""
+      STRIPE_WEBHOOK_SECRET_FILE: /run/secrets/stripe_webhook_secret
       STRIPE_PRICE_STARTER: ${STRIPE_PRICE_STARTER:?required}
       STRIPE_PRICE_PRO: ${STRIPE_PRICE_PRO:?required}
       STRIPE_PRICE_REPORT: ${STRIPE_PRICE_REPORT:?required}
       PAID_BETA_SMTP_HOST: ${PAID_BETA_SMTP_HOST:?required}
       PAID_BETA_SMTP_PORT: ${PAID_BETA_SMTP_PORT:-587}
       PAID_BETA_SMTP_USERNAME: ${PAID_BETA_SMTP_USERNAME:-}
-      PAID_BETA_SMTP_PASSWORD: ${PAID_BETA_SMTP_PASSWORD:?required}
+      PAID_BETA_SMTP_PASSWORD: ""
+      PAID_BETA_SMTP_PASSWORD_FILE: /run/secrets/smtp_password
       PAID_BETA_SMTP_FROM: ${PAID_BETA_SMTP_FROM:?required}
       PAID_BETA_SMTP_STARTTLS: ${PAID_BETA_SMTP_STARTTLS:-1}
+    secrets: [paid_beta_database_url, paid_beta_token_secret, stripe_secret_key, stripe_webhook_secret, smtp_password]
 
   api:
     environment:
       PAID_BETA_ENV: production
-      PAID_BETA_DATABASE_URL: ${PAID_BETA_DATABASE_URL:?required}
-      PAID_BETA_TOKEN_SECRET: ${PAID_BETA_TOKEN_SECRET:?required}
+      PAID_BETA_DATABASE_URL: ""
+      PAID_BETA_DATABASE_URL_FILE: /run/secrets/paid_beta_database_url
+      PAID_BETA_TOKEN_SECRET: ""
+      PAID_BETA_TOKEN_SECRET_FILE: /run/secrets/paid_beta_token_secret
       PAID_BETA_APP_URL: ${PAID_BETA_APP_URL:?required}
       PAID_BETA_CORS_ORIGINS: ${PAID_BETA_CORS_ORIGINS:?required}
       PAID_BETA_ALLOW_ADMIN_BOOTSTRAP: "0"
@@ -38,17 +46,21 @@ services:
       PAID_BETA_PRIVACY_APPROVED: ${PAID_BETA_PRIVACY_APPROVED:-0}
       PAID_BETA_REFUNDS_APPROVED: ${PAID_BETA_REFUNDS_APPROVED:-0}
       PAID_BETA_RISK_DISCLOSURE_APPROVED: ${PAID_BETA_RISK_DISCLOSURE_APPROVED:-0}
-      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:?required}
-      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:?required}
+      STRIPE_SECRET_KEY: ""
+      STRIPE_SECRET_KEY_FILE: /run/secrets/stripe_secret_key
+      STRIPE_WEBHOOK_SECRET: ""
+      STRIPE_WEBHOOK_SECRET_FILE: /run/secrets/stripe_webhook_secret
       STRIPE_PRICE_STARTER: ${STRIPE_PRICE_STARTER:?required}
       STRIPE_PRICE_PRO: ${STRIPE_PRICE_PRO:?required}
       STRIPE_PRICE_REPORT: ${STRIPE_PRICE_REPORT:?required}
       PAID_BETA_SMTP_HOST: ${PAID_BETA_SMTP_HOST:?required}
       PAID_BETA_SMTP_PORT: ${PAID_BETA_SMTP_PORT:-587}
       PAID_BETA_SMTP_USERNAME: ${PAID_BETA_SMTP_USERNAME:-}
-      PAID_BETA_SMTP_PASSWORD: ${PAID_BETA_SMTP_PASSWORD:?required}
+      PAID_BETA_SMTP_PASSWORD: ""
+      PAID_BETA_SMTP_PASSWORD_FILE: /run/secrets/smtp_password
       PAID_BETA_SMTP_FROM: ${PAID_BETA_SMTP_FROM:?required}
       PAID_BETA_SMTP_STARTTLS: ${PAID_BETA_SMTP_STARTTLS:-1}
+    secrets: [paid_beta_database_url, paid_beta_token_secret, stripe_secret_key, stripe_webhook_secret, smtp_password]
     volumes:
       - ${PAID_BETA_TRADING_SCORECARD_FILE:?required}:/app/analysis/zol0_profitability_audit_scorecard.json:ro
 
@@ -62,6 +74,18 @@ services:
     volumes:
       - caddy_data:/data
       - caddy_config:/config
+
+secrets:
+  paid_beta_database_url:
+    file: ${PAID_BETA_DATABASE_URL_SECRET_FILE:?required}
+  paid_beta_token_secret:
+    file: ${PAID_BETA_TOKEN_SECRET_FILE:?required}
+  stripe_secret_key:
+    file: ${STRIPE_SECRET_KEY_FILE:?required}
+  stripe_webhook_secret:
+    file: ${STRIPE_WEBHOOK_SECRET_FILE:?required}
+  smtp_password:
+    file: ${PAID_BETA_SMTP_PASSWORD_FILE:?required}
 
 volumes:
   caddy_data:
