@@ -1,0 +1,87 @@
+name: zol0
+
+services:
+  migrate:
+    image: zol0-paid-beta:${ZOLO_RELEASE_TAG:-local}
+    build:
+      context: .
+      dockerfile: Dockerfile.paid-beta
+    command: ["alembic", "upgrade", "head"]
+    networks: [backend]
+    profiles: ["local", "staging"]
+    restart: "no"
+
+  api:
+    image: zol0-paid-beta:${ZOLO_RELEASE_TAG:-local}
+    build:
+      context: .
+      dockerfile: Dockerfile.paid-beta
+    command: ["uvicorn", "paid_beta.app:app", "--host", "0.0.0.0", "--port", "8000"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    expose:
+      - "8000"
+    networks: [backend]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import json,urllib.request; p=json.load(urllib.request.urlopen('http://127.0.0.1:8000/health')); assert p['public_live_trading'] is False"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    profiles: ["local", "staging"]
+    restart: unless-stopped
+
+  gateway:
+    image: zol0-gateway:${ZOLO_RELEASE_TAG:-local}
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    depends_on:
+      api:
+        condition: service_healthy
+    networks: [backend, public]
+    healthcheck:
+      test: ["CMD", "caddy", "validate", "--config", "/etc/caddy/Caddyfile"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    profiles: ["local", "staging"]
+    restart: unless-stopped
+
+  preflight:
+    image: zol0-paid-beta:${ZOLO_RELEASE_TAG:-local}
+    build:
+      context: .
+      dockerfile: Dockerfile.paid-beta
+    command: ["python", "scripts/paid_beta_preflight.py"]
+    networks: [backend]
+    profiles: ["ops"]
+    restart: "no"
+
+  economics-import:
+    image: zol0-paid-beta:${ZOLO_RELEASE_TAG:-local}
+    build:
+      context: .
+      dockerfile: Dockerfile.paid-beta
+    command: ["python", "scripts/import_paid_beta_economics_period.py", "examples/economics-period.example.json", "--dry-run"]
+    networks: [backend]
+    profiles: ["ops"]
+    restart: "no"
+
+  paper-scorecard:
+    image: python:3.12-slim
+    working_dir: /workspace
+    command: ["python", "scripts/profitability_audit_scorecard.py"]
+    volumes:
+      - ./:/workspace
+    environment:
+      LIVE: "0"
+      USE_MOCK: "0"
+    profiles: ["paper"]
+    restart: "no"
+
+networks:
+  backend:
+    internal: true
+  public:

@@ -19,14 +19,48 @@ This directory contains the source-of-truth Python project for ZoL0.
 - Profitability audit: `scripts/profitability_audit_scorecard.py`
 - Paid-beta API: `paid_beta/app.py`
 - Paid-beta dashboard: `dashboard/`
+- Unified control plane: `tools/zol0ctl.py`
+
+## Recommended local start
+
+Windows:
+
+```powershell
+.\zol0.ps1 setup
+.\zol0.ps1 doctor local
+.\zol0.ps1 up local
+.\zol0.ps1 open local
+```
+
+Linux/macOS:
+
+```bash
+./zol0.sh setup
+./zol0.sh doctor local
+./zol0.sh up local
+./zol0.sh open local
+```
+
+One-click Windows helpers:
+
+```text
+START_ZOLO.cmd
+STOP_ZOLO.cmd
+```
 
 ## Paid-beta state
 
-The repository includes authentication, plans, Stripe billing, subscriptions, migrations, usage analytics, dashboard routes, CI, and Docker assets. Paid reports, signal history, backtests, alerts, exports, and entitlement delivery remain P0 before charging customers.
+The repository includes authentication, paid reports, signal history, backtests, alerts, exports, one-time artifacts, plan entitlements, Stripe billing, PostgreSQL migrations, audit logs, dashboard, monitoring, CI and Docker/Caddy deployment tooling.
 
 Public registration always creates role `user`. First administrator creation uses a separate one-time bootstrap flow documented in `PAID_BETA.md`.
 
 ## Validation
+
+```powershell
+.\zol0.ps1 test
+.\zol0.ps1 test-paid-beta
+.\zol0.ps1 rehearsal
+```
 
 ```powershell
 python -m pytest -q
@@ -37,10 +71,4 @@ python scripts/controlled_kpi_run.py --variant-only before --before-min 5
 python scripts/run_paper_readiness_gate.py
 ```
 
-```powershell
-pip install -r requirements-paid-beta.txt
-alembic upgrade head
-pytest -q tests/test_paid_beta_security.py tests/test_paid_beta_contract.py tests/test_paid_beta_api.py
-```
-
-See `../PROJECT_OVERVIEW.md` and `../PROFITABILITY_AND_REVENUE.md` for the authoritative current state and profitability plan.
+See `../PROJECT_OVERVIEW.md`, `../RUNBOOK.md` and `../PROFITABILITY_AND_REVENUE.md` for the authoritative current state and profitability plan.

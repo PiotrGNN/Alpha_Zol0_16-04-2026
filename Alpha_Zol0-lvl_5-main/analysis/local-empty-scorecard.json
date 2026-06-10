@@ -1,0 +1,18 @@
+{
+  "metadata": {
+    "generated_at": null,
+    "scope": {
+      "exchange": "KuCoin",
+      "mode": "PAPER_ONLY",
+      "live_in_scope": false
+    },
+    "validation": {
+      "all_passed": false
+    }
+  },
+  "profitability_ready": false,
+  "live_ready": false,
+  "blockers": [
+    "LOCAL_PLACEHOLDER_NOT_EVIDENCE"
+  ]
+}

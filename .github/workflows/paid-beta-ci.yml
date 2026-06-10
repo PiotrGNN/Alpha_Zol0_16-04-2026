@@ -72,6 +72,7 @@ jobs:
       PAID_BETA_ENV: production
       PAID_BETA_DATABASE_URL: postgresql://paid_beta:paid_beta_test_password@localhost:5432/paid_beta
       PAID_BETA_RESTORE_DATABASE_URL: postgresql://paid_beta:paid_beta_test_password@localhost:5432/paid_beta_restore
+      PAID_BETA_STAGING_REHEARSAL: '1'
       PAID_BETA_TOKEN_SECRET: production-test-secret-that-is-at-least-32-characters
       PAID_BETA_APP_URL: https://paid-beta.example.test
       PAID_BETA_CORS_ORIGINS: https://paid-beta.example.test
@@ -115,7 +116,8 @@ jobs:
               assert response.json()['public_live_trading'] is False
           PY
       - run: pytest -q tests/test_paid_beta_postgres.py
-      - run: bash scripts/paid_beta_backup_restore_smoke.sh
+      - name: Validate guarded backup and restore rehearsal
+        run: bash scripts/paid_beta_staging_backup_restore_rehearsal.sh
 
   frontend:
     runs-on: ubuntu-latest
