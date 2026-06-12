@@ -4,6 +4,24 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+CONTAMINATED_ENTRY_COUNT_FIELDS = {
+    "mock_entry_trade_count": "MOCK_TRADES_PRESENT",
+    "forced_entry_trade_count": "FORCED_TRADES_PRESENT",
+    "fallback_entry_trade_count": "FALLBACK_TRADES_PRESENT",
+    "seed_entry_trade_count": "SEED_TRADES_PRESENT",
+    "assisted_entry_trade_count": "ASSISTED_TRADES_PRESENT",
+    "unknown_entry_trade_count": "UNKNOWN_TRADES_PRESENT",
+}
+
+CONTAMINATED_TRUTH_CLASS_BLOCKERS = {
+    "PAPER_AUTO_OPEN_FALLBACK": "FALLBACK_TRADES_PRESENT",
+    "BOOTSTRAP_ALLOWLIST_ASSISTED": "ASSISTED_TRADES_PRESENT",
+    "SEED_TRADES_OVERRIDE_ASSISTED": "SEED_TRADES_PRESENT",
+    "UNKNOWN_REQUIRES_REVIEW": "UNKNOWN_TRADES_PRESENT",
+    "MOCK_ENTRY": "MOCK_TRADES_PRESENT",
+    "FORCED_ENTRY": "FORCED_TRADES_PRESENT",
+}
+
 
 def load_scorecard(path: Path | None) -> dict[str, Any] | None:
     if path is None or not path.exists() or path.stat().st_size <= 0:
@@ -11,6 +29,29 @@ def load_scorecard(path: Path | None) -> dict[str, Any] | None:
     import json
 
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _positive_int(value: Any) -> int:
+    try:
+        if value is None or isinstance(value, bool):
+            return 0
+        return max(0, int(value))
+    except Exception:
+        return 0
+
+
+def _contamination_blockers(contract: dict[str, Any]) -> list[str]:
+    blockers: list[str] = []
+    for field, blocker in CONTAMINATED_ENTRY_COUNT_FIELDS.items():
+        if _positive_int(contract.get(field)) > 0:
+            blockers.append(blocker)
+
+    truth_counts = contract.get("truth_classification_counts") or {}
+    if isinstance(truth_counts, dict):
+        for truth_class, blocker in CONTAMINATED_TRUTH_CLASS_BLOCKERS.items():
+            if _positive_int(truth_counts.get(truth_class)) > 0:
+                blockers.append(blocker)
+    return blockers
 
 
 def assess_trading_metrics(scorecard: dict[str, Any] | None) -> dict[str, Any]:
@@ -39,10 +80,7 @@ def assess_trading_metrics(scorecard: dict[str, Any] | None) -> dict[str, Any]:
         blockers.append("NATURAL_SAMPLE_INSUFFICIENT")
     if int(contract.get("natural_entry_trade_count") or 0) < 60:
         blockers.append("NATURAL_TRADES_BELOW_60")
-    if int(contract.get("assisted_entry_trade_count") or 0) != 0:
-        blockers.append("ASSISTED_TRADES_PRESENT")
-    if int(contract.get("unknown_entry_trade_count") or 0) != 0:
-        blockers.append("UNKNOWN_TRADES_PRESENT")
+    blockers.extend(_contamination_blockers(contract))
     if natural.get("expectancy") is None or float(natural.get("expectancy") or 0) <= 0:
         blockers.append("EXPECTANCY_NOT_POSITIVE")
     if float(kpis.get("profitable_run_rate") or 0) < 0.70:
