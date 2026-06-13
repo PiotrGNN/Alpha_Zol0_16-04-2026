@@ -8,6 +8,7 @@ from utils.config_loader import load_config
 import time
 import os
 from core.InfinityLayerLogger import InfinityLayerLogger
+from core.runtime_v2.profitability_gate import EdgeProfitabilityGate
 
 
 def _resolve_repo_config_path():
@@ -27,6 +28,7 @@ class BotCoreAsync:
         self._balance_cache = {"value": None, "ts": 0.0}
         self._last_exec_ts = {}
         self.infinity_logger = InfinityLayerLogger()
+        self.profitability_gate = EdgeProfitabilityGate()
         try:
             self.ohlcv_limit = int(os.environ.get("OHLCV_LIMIT", "120"))
         except Exception:
@@ -82,6 +84,39 @@ class BotCoreAsync:
                                 self.execution_cooldown_sec,
                             )
                         else:
+                            # Apply profitability gate
+                            strategy_name = decision.get("strategy") or "Universal"
+                            gate_decision = self.profitability_gate.should_trade(
+                                symbol=symbol,
+                                strategy=strategy_name,
+                                side=decision["signal"],
+                            )
+                            if not gate_decision.allowed:
+                                logging.info(
+                                    "Profitability gate blocked entry: symbol=%s strategy=%s side=%s reason=%s",
+                                    symbol,
+                                    strategy_name,
+                                    decision["signal"],
+                                    gate_decision.reason,
+                                )
+                                try:
+                                    self.infinity_logger.log(
+                                        "entry_blocked_profitability_gate",
+                                        {
+                                            "symbol": symbol,
+                                            "strategy": strategy_name,
+                                            "side": decision["signal"],
+                                            "reason": gate_decision.reason,
+                                            "details": gate_decision.details,
+                                        },
+                                    )
+                                except Exception as exc:
+                                    logging.warning(
+                                        "BotCoreAsync: runtime telemetry emit failed symbol=%s error=%s",
+                                        symbol,
+                                        exc,
+                                    )
+                                continue
                             allocation_usdt = None
                             if balance is not None and price:
                                 allocation_usdt = float(balance) * self.paper_alloc_pct
@@ -99,7 +134,9 @@ class BotCoreAsync:
                                     "amount": amount,
                                     "price": price,
                                     "timestamp": datetime.now(timezone.utc).isoformat(),
-                                    "strategy": decision.get("strategy") or "Universal",
+                                    "strategy": strategy_name,
+                                    "profitability_gate_reason": gate_decision.reason,
+                                    "profitability_gate_details": gate_decision.details,
                                 }
                                 was_open = self.pm.get_position(symbol) is not None
                                 self.pm.update_position(symbol, order)
