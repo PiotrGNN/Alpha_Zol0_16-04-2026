@@ -18287,6 +18287,8 @@ def run_bot(simulate=False):
                 raw_type = raw_type.lower()
                 if raw_type in ("buy", "sell", "hold"):
                     return raw_type
+                if raw_type == "bias" and os.environ.get("ROUTER_BIAS_SIGNALS_AS_ENTRY", "0") != "1":
+                    return "hold"
                 if raw_type in ("entry", "scalp", "bias"):
                     side = signal_obj.get("side")
                     if isinstance(side, str):
@@ -23198,6 +23200,38 @@ def run_bot(simulate=False):
                                     continue
                         return False
 
+                    def _candidate_bias_non_entry(candidate_payload):
+                        if not isinstance(candidate_payload, dict):
+                            return False
+                        source = str(
+                            candidate_payload.get("raw_side_source") or ""
+                        ).strip().lower()
+                        if "bias_non_entry" in source:
+                            return True
+                        raw_side = (
+                            str(candidate_payload.get("raw_side") or "").strip().lower()
+                        )
+                        if raw_side.startswith("bias:"):
+                            return True
+                        signal_payload = candidate_payload.get("signal")
+                        if isinstance(signal_payload, dict):
+                            raw_type = (
+                                str(signal_payload.get("type") or "").strip().lower()
+                            )
+                            if raw_type == "bias":
+                                return True
+                            signals_payload = signal_payload.get("signals")
+                            if isinstance(signals_payload, list):
+                                for item in signals_payload:
+                                    if not isinstance(item, dict):
+                                        continue
+                                    item_type = (
+                                        str(item.get("type") or "").strip().lower()
+                                    )
+                                    if item_type == "bias":
+                                        return True
+                        return False
+
                     for sig in ensemble_signals or []:
                         if not isinstance(sig, dict):
                             _log_pre_entry_candidate_rejection(
@@ -23356,15 +23390,18 @@ def run_bot(simulate=False):
                                     pass
                                 continue
                         side = _resolve_candidate_side(sig)
+                        bias_non_entry = _candidate_bias_non_entry(sig)
                         # TRADE UNBLOCK: Fallback to 'buy' for signals without explicit side
                         if (
-                            side not in ("buy", "sell", "hold")
+                            not bias_non_entry
+                            and side not in ("buy", "sell", "hold")
                             and _env_flag("TRADE_UNBLOCK_ENABLE_SIDE_FALLBACK")
                         ):
                             side = "buy"
                         explicit_hold_side = _candidate_explicit_hold_side(sig)
                         if (
                             side == "hold"
+                            and not bias_non_entry
                             and explicit_hold_side
                             and not _env_flag("LIVE")
                             and _env_flag(
@@ -23375,6 +23412,7 @@ def run_bot(simulate=False):
                             explicit_hold_side = False
                         if (
                             side == "hold"
+                            and not bias_non_entry
                             and not explicit_hold_side
                             and _env_flag("TRADE_UNBLOCK_ENABLE_HOLD_SIDE_FALLBACK")
                         ):

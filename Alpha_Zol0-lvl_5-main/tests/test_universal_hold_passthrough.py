@@ -38,7 +38,14 @@ def test_universal_hold_passthrough_helper_respects_live_mode():
     )
 
 
-def _run_with_universal_hold(monkeypatch, passthrough_enabled: bool):
+def _run_with_universal_hold(
+    monkeypatch,
+    passthrough_enabled: bool,
+    router_strategy: str = "Universal",
+    router_signal: dict | None = None,
+    meta_strategy: str = "Universal",
+    router_candidate_overrides: dict | None = None,
+):
     monkeypatch.setenv("USE_MOCK", "1")
     monkeypatch.setenv("ZOL0_ALLOW_MOCK", "1")
     monkeypatch.setenv("PAPER_RUN_ONCE", "1")
@@ -75,31 +82,32 @@ def _run_with_universal_hold(monkeypatch, passthrough_enabled: bool):
 
     class FakeRouter:
         def __init__(self, *args, **kwargs):
-            self._allocations = {"Universal": 1.0}
+            self._allocations = {router_strategy: 1.0}
 
         def route(self, state):
-            return [
-                {
-                    "strategy": "Universal",
-                    "allocation": 1.0,
-                    "signal": {
-                        "signals": [{"type": "wait", "side": "hold"}],
-                        "metrics": {"open": 1.0, "close": 1.0},
-                        "analysis": {"trend": "flat"},
-                        "type": "hold",
-                    },
-                }
-            ]
+            candidate = {
+                "strategy": router_strategy,
+                "allocation": 1.0,
+                "signal": router_signal or {
+                    "signals": [{"type": "wait", "side": "hold"}],
+                    "metrics": {"open": 1.0, "close": 1.0},
+                    "analysis": {"trend": "flat"},
+                    "type": "hold",
+                },
+            }
+            if router_candidate_overrides:
+                candidate.update(router_candidate_overrides)
+            return [candidate]
 
         def get_last_allocations(self):
             return dict(self._allocations)
 
     class FakeMetaRouter:
         def __init__(self, *args, **kwargs):
-            self.last_decision = "Universal"
+            self.last_decision = meta_strategy
 
         def route(self, state):
-            return types.SimpleNamespace(name="Universal")
+            return types.SimpleNamespace(name=meta_strategy)
 
     class DummyQuery:
         def filter(self, *args, **kwargs):
@@ -228,3 +236,68 @@ def test_universal_explicit_hold_passthrough_applies_in_paper(monkeypatch):
         and payload.get("rejection_reason_code") == "hold_ignored"
         for payload in rejection_traces
     )
+
+
+def test_bias_vote_nested_side_is_not_trade_candidate_by_default(monkeypatch):
+    monkeypatch.delenv("ROUTER_BIAS_SIGNALS_AS_ENTRY", raising=False)
+    events = _run_with_universal_hold(
+        monkeypatch,
+        passthrough_enabled=False,
+        router_strategy="Momentum",
+        router_signal={
+            "signals": [{"type": "bias", "side": "buy", "reason": "unit"}],
+            "metrics": {"open": 1.0, "close": 1.0},
+            "analysis": {},
+        },
+        meta_strategy="Momentum",
+        router_candidate_overrides={
+            "raw_side": "bias:buy",
+            "raw_side_source": "signal.type:bias_non_entry",
+        },
+    )
+    rejection_traces = [
+        payload
+        for event, payload in events
+        if event == "pre_entry_candidate_rejection_trace" and isinstance(payload, dict)
+    ]
+
+    assert any(
+        payload.get("normalized_strategy_value") == "Momentum"
+        and payload.get("normalized_side_value") == "hold"
+        and payload.get("rejection_reason_code") == "ambiguous_hold_side"
+        for payload in rejection_traces
+    )
+    assert not [payload for event, payload in events if event == "position_open"]
+
+
+def test_bias_vote_is_not_promoted_by_hold_side_fallback(monkeypatch):
+    monkeypatch.delenv("ROUTER_BIAS_SIGNALS_AS_ENTRY", raising=False)
+    monkeypatch.setenv("TRADE_UNBLOCK_ENABLE_HOLD_SIDE_FALLBACK", "1")
+    events = _run_with_universal_hold(
+        monkeypatch,
+        passthrough_enabled=False,
+        router_strategy="Momentum",
+        router_signal={
+            "signals": [{"type": "bias", "side": "buy", "reason": "unit"}],
+            "metrics": {"open": 1.0, "close": 1.0},
+            "analysis": {},
+        },
+        meta_strategy="Momentum",
+        router_candidate_overrides={
+            "raw_side": "bias:buy",
+            "raw_side_source": "signal.type:bias_non_entry",
+        },
+    )
+    rejection_traces = [
+        payload
+        for event, payload in events
+        if event == "pre_entry_candidate_rejection_trace" and isinstance(payload, dict)
+    ]
+
+    assert any(
+        payload.get("normalized_strategy_value") == "Momentum"
+        and payload.get("normalized_side_value") == "hold"
+        and payload.get("rejection_reason_code") == "ambiguous_hold_side"
+        for payload in rejection_traces
+    )
+    assert not [payload for event, payload in events if event == "position_open"]
